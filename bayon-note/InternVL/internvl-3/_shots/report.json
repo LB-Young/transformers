@@ -1,0 +1,134 @@
+{
+  "src": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\InternVL-3-家族架构详解.html",
+  "url": "file:///E:/transformers/bayon-note/InternVL/internvl-3/InternVL-3-%E5%AE%B6%E6%97%8F%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3.html",
+  "outdir": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots",
+  "include": [
+    "lint",
+    "screenshots",
+    "structure"
+  ],
+  "shots": {
+    "desktop": {
+      "revealed": 0,
+      "screenshot": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_desktop.jpg",
+      "screenshotBytes": 437537,
+      "truncated": false,
+      "structure": {
+        "title": "InternVL-3 家族架构详解 — InternVLForConditionalGeneration（1B–78B · 原生多模态预训练）",
+        "firstH1": "InternVL-3 家族架构详解（1B–78B）",
+        "viewport": {
+          "w": 1440,
+          "h": 900
+        },
+        "fullpage": {
+          "w": 1440,
+          "h": 5249
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 1,
+          "canvas": 1,
+          "svg": 3,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": []
+    },
+    "mobile": {
+      "revealed": 0,
+      "slices": [
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_mobile_p1of3.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_mobile_p2of3.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_mobile_p3of3.jpg"
+      ],
+      "sliceHint": "按顺序 Read slices 里的各分片。",
+      "truncated": false,
+      "structure": {
+        "title": "InternVL-3 家族架构详解 — InternVLForConditionalGeneration（1B–78B · 原生多模态预训练）",
+        "firstH1": "InternVL-3 家族架构详解（1B–78B）",
+        "viewport": {
+          "w": 390,
+          "h": 844
+        },
+        "fullpage": {
+          "w": 390,
+          "h": 8257
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 1,
+          "canvas": 1,
+          "svg": 3,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": []
+    }
+  },
+  "engine": "playwright",
+  "chromiumExec": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "elapsedSec": 24.8,
+  "schemaVersion": 2,
+  "status": "pass",
+  "engineInfo": {
+    "name": "playwright",
+    "degraded": false,
+    "degradedReasons": []
+  },
+  "input": {
+    "original": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\InternVL-3-家族架构详解.html",
+    "resolvedPath": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\InternVL-3-家族架构详解.html",
+    "baseUrl": "file:///E:/transformers/bayon-note/InternVL/internvl-3/InternVL-3-%E5%AE%B6%E6%97%8F%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3.html",
+    "protocol": "file",
+    "cwd": "E:\\transformers",
+    "mediaMode": {
+      "reducedMotion": true
+    }
+  },
+  "artifacts": {
+    "screenshots": [
+      {
+        "viewport": "desktop",
+        "path": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_desktop.jpg",
+        "size": 437537,
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      },
+      {
+        "viewport": "mobile",
+        "tiles": [
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_mobile_p1of3.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_mobile_p2of3.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\InternVL-3-家族架构详解_mobile_p3of3.jpg"
+        ],
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      }
+    ]
+  },
+  "summary": {
+    "blocker": 0,
+    "error": 0,
+    "warning": 0,
+    "info": 0
+  },
+  "findings": [],
+  "prioritizedActions": [],
+  "reportPath": "E:\\transformers\\bayon-note\\InternVL\\internvl-3\\_shots\\report.json"
+}

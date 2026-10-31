@@ -1,0 +1,5 @@
+﻿gemma-1: E:\transformers\bayon-note\Gemma\gemma-1\Gemma-1-家族架构详解.docx  图片 2 张
+gemma-2: E:\transformers\bayon-note\Gemma\gemma-2\Gemma-2-家族架构详解.docx  图片 2 张
+gemma-3: E:\transformers\bayon-note\Gemma\gemma-3\Gemma-3-家族架构详解.docx  图片 2 张
+gemma-3n: E:\transformers\bayon-note\Gemma\gemma-3n\Gemma-3n-家族架构详解.docx  图片 2 张
+gemma-4: E:\transformers\bayon-note\Gemma\gemma-4\Gemma-4-家族架构详解.docx  图片 3 张

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen 1 家族架构详解 — 1_8B / 7B / 14B / 72B（纯文本）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E1%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; text-align:center;}
+  .diagram-shell img{max-width:100%; height:auto; border-radius:6px;}
+  .cap{font-size:.8rem; color:var(--sub); margin-top:8px; text-align:center;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:20%;}
+  table.cmp col.cx{width:20%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  .formula .cm{color:#8b93a7;}
+
+  #chart{width:100%; height:380px;}
+  .chart-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-top:10px;}
+  @media (max-width:600px){ #chart{height:320px;} }
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{border:none; padding:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">1</text></svg>Qwen 1 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs Qwen 1.5</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Qwen 1 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">入口类 QWenLMHeadModel（model_type=qwen，需 trust_remote_code）</span>
+    <span class="badge">4 个尺寸：1_8B · 7B · 14B · 72B</span>
+    <span class="badge">融合 QKV 投影 c_attn · kv_channels=128 · 纯 MHA</span>
+    <span class="badge">use_logn_attn · use_dynamic_ntk · RoPE 全维旋转</span>
+    <span class="badge">tiktoken BPE 分词 · 词表 151936 / 152064</span>
+  </div>
+  <p class="lead">本页以 <b>本地 <span class="num">E:\models\qwen\Qwen-1_8B\config.json</span></b> 与官方仓库自带 <span class="num">configuration_qwen.py / modeling_qwen.py</span> 为第一手依据，其余三尺寸 config 经 ModelScope 逐字段拉取核对。transformers v5（<span class="num">E:\transformers</span>）中<b>没有原生 qwen 模块</b>，本代模型一律走官方仓库 remote code。所有数字均标注来源（config 字段或源码文件:行号）。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：四个尺寸的架构对照</h2>
+  <p class="note">四尺寸均为纯文本 Dense 因果 LM，主干结构完全一致：词嵌入 wte → N 个 QWenBlock → 最终 RMSNorm → 独立 LM Head。差异集中在维度、层数、词表与长上下文开关。参数量为按 config 逐模块复算（embedding 因 tie=False 双向计）。</p>
+
+  <h3>1.1 核心超参数</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段</th><th>Qwen-1_8B</th><th>Qwen-7B</th><th>Qwen-14B</th><th>Qwen-72B</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>QWenLMHeadModel / qwen</td><td>QWenLMHeadModel / qwen</td><td>QWenLMHeadModel / qwen</td><td>QWenLMHeadModel / qwen</td></tr>
+      <tr><td class="k">hidden_size</td><td>2048</td><td>4096</td><td>5120</td><td>8192</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>24</td><td>32</td><td>40</td><td>80</td></tr>
+      <tr><td class="k">num_attention_heads (Q)</td><td>16</td><td>32</td><td>40</td><td>64</td></tr>
+      <tr><td class="k">kv_channels（=head_dim）</td><td>128</td><td>128</td><td>128</td><td>128</td></tr>
+      <tr><td class="k">KV 头数</td><td>无字段（MHA，Q=KV）</td><td>无字段（MHA）</td><td>无字段（MHA）</td><td>无字段（MHA）</td></tr>
+      <tr><td class="k">intermediate_size</td><td>11008</td><td>22016</td><td>27392</td><td>49152</td></tr>
+      <tr><td class="k">MLP 内维（intermediate/2）</td><td>5504</td><td>11008</td><td>13696</td><td>24576</td></tr>
+      <tr><td class="k">vocab_size</td><td>151936</td><td>151936</td><td>152064</td><td>152064</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>8192</td><td>32768</td><td>8192</td><td>32768</td></tr>
+      <tr><td class="k">seq_length（训练/logn 基准）</td><td>8192</td><td>8192</td><td>2048</td><td>32768</td></tr>
+      <tr><td class="k">rotary_emb_base</td><td>10000</td><td>10000</td><td>10000</td><td>1000000</td></tr>
+      <tr><td class="k">use_dynamic_ntk</td><td>true</td><td>true</td><td>true</td><td>false</td></tr>
+      <tr><td class="k">use_logn_attn</td><td>true</td><td>true</td><td>true</td><td>false</td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td>false</td><td>false</td><td>false</td><td>false</td></tr>
+      <tr><td class="k">no_bias（线性层去 bias）</td><td>true</td><td>true</td><td>true</td><td>true</td></tr>
+      <tr class="hl"><td class="k">参数量（按 config 复算）</td><td>≈1.84B</td><td>≈7.72B</td><td>≈14.2B</td><td>≈72.3B</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：① 14B/72B 词表为 <b>152064</b>，比 1_8B/7B 的 151936 多 128 个；② 72B 直接把旋转基频抬到 1e6 并关闭动态 NTK 与 LogN，其余三尺寸保持 base=1e4 + 运行时动态 NTK + LogN 缩放；③ 全家族无 GQA 字段，Q/KV 头数恒等（纯 MHA）。</p>
+
+  <div class="chart-shell"><div id="chart" role="img" aria-label="Qwen1 家族规模对比图"></div></div>
+  <p class="note">柱状为按 config 复算的参数量（B，左轴），折线为解码层数（右轴）。家族跨 1.8B→72B 约 40 倍，层数 24→80 同步线性扩张；KV 头数与 hidden 同比例放大，全程 MHA。</p>
+
+  <h3>1.2 加载与分词规格</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>项</th><th>取值</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">trust_remote_code</td><td>必须 true</td><td>config auto_map（AutoConfig→configuration_qwen.QWenConfig；AutoModelForCausalLM→modeling_qwen.QWenLMHeadModel）</td></tr>
+      <tr><td class="k">transformers v5 原生模块</td><td>无（models/qwen 不存在）</td><td>E:\transformers\src\transformers\models\ 目录核对</td></tr>
+      <tr><td class="k">tokenizer_class</td><td>QWenTokenizer</td><td>config 顶层；分词文件 qwen.tiktoken</td></tr>
+      <tr><td class="k">tiktoken 依赖</td><td>加载 tokenizer 需 tiktoken 包</td><td>tokenization_qwen.py；官方 model card 说明</td></tr>
+      <tr><td class="k">eos / pad token id</td><td>151643（endoftext 特殊 token）</td><td>generation_config.json（本地）</td></tr>
+      <tr><td class="k">Chat 对话格式</td><td>仓库内 qwen_generation_utils.py 的 chat()</td><td>本地目录文件</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 2 数据流总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">tiktoken BPE 分词后的 token id → wte 查表 → Dropout(emb_dropout=0) → N 个 QWenBlock（每个 = RMSNorm→融合 QKV 注意力→残差；RMSNorm→SwiGLU MLP→残差）→ 最终 RMSNorm ln_f → 独立 LM Head 投影回词表。</p>
+  <div class="diagram-shell" aria-label="Qwen 1 家族端到端数据流图">
+    <img src="./_arch/01_端到端总览.png" alt="Qwen 1 端到端总览：输入 token → wte → N×QWenBlock → ln_f → LM Head">
+  </div>
+  <p class="cap">图 1：端到端数据流总览（四尺寸共用主干；差异在层数 24/32/40/80、维度与长上下文开关）</p>
+  <p class="note">全家族统一主干：<span class="num">wte → N×QWenBlock → ln_f → LM Head</span>；LM Head 与 wte 权重不共享（tie_word_embeddings=false）。</p>
+</section>
+
+<!-- ==================== 3 解码层解剖 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：QWenBlock（预 RMSNorm 双残差块）</h2>
+  <p class="note">每个 QWenBlock（<span class="num">modeling_qwen.py:578-637</span>）含两组残差子层，均为 pre-norm。注意与后来 Qwen2 的差别：<b>Qwen1 在注意力残差相加之后再做第二个 RMSNorm</b>（ln_2 作用于 h+x），FFN 残差同样作用于相加后的结果。</p>
+  <div class="formula">QWenBlock.forward（modeling_qwen.py:608-630）:
+  layernorm_output = ln_1(hidden_states)              # RMSNorm, eps 1e-6
+  attn_output, present = self.attn(layernorm_output, rotary_pos_emb_list, ...)
+  layernorm_input = attn_output + hidden_states      # ⊕1（先加残差）
+  layernorm_output = ln_2(layernorm_input)           # 归一作用于 (h + attn(h))
+  mlp_output = self.mlp(layernorm_output)
+  hidden_states = layernorm_input + mlp_output        # ⊕2</div>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：融合 QKV · LogN 注意力 · 动态 NTK · SwiGLU</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3>① 融合 QKV 线性层（c_attn）</h3>
+      <p>Q/K/V 不拆三个投影，而是一个 <code>nn.Linear(hidden, 3·kv_channels·num_heads)</code>，输出后沿特征维三等分<sup class="src" data-tip="modeling_qwen.py:269 建层；416-418 split">[S:269,416-418]</sup>。kv_channels·H 在本家族恰好等于 hidden_size（16×128=2048 … 64×128=8192），故 c_attn 输出维恰为 3d。输出投影 c_proj 无 bias（no_bias=true）。</p>
+      <div class="formula">projection_size = kv_channels × num_heads = d_model
+mixed = c_attn(x)                      # (B, T, 3d)
+q, k, v = mixed.split(d, dim=2)        # 各 (B, T, d)
+q = q.view(B, T, H, kv_channels)       # 分头</div>
+    </div>
+
+    <div class="card">
+      <h3>② LogN 注意力缩放（use_logn_attn）</h3>
+      <p>推理阶段当 KV 长度超过训练长度 seq_length 时，对 query 乘一个对数级放大系数<sup class="src" data-tip="modeling_qwen.py:289-294 预生成缓冲表；482-490 应用">[S:289-294,482-490]</sup>。序列越长、位置索引越大，query 被放大越多，补偿长上下文 softmax 分数被稀释。72B 关闭此开关。</p>
+      <div class="formula">logn_i = log( i , seq_length ) ,   i > seq_length
+query ← query × logn_i
+# 缓冲表预生成至 i=32767</div>
+    </div>
+
+    <div class="card">
+      <h3>③ 动态 NTK 旋转基频（use_dynamic_ntk）</h3>
+      <p>按真实 batch 序列长度即时重算 RoPE 基频<sup class="src" data-tip="modeling_qwen.py:735-739 get_ntk_alpha；1287-1298 重建 inv_freq">[S:735-739,1287-1298]</sup>。base 被拉大后高频压缩，使模型在未训练长度上仍可外推。72B 直接把 rotary_emb_base 设为 1e6 并关闭动态调整。</p>
+      <div class="formula">c = log2( true_len / seq_length ) + 1
+ntk_alpha = 2^ceil(c) - 1        # 下限 1
+base' = rotary_emb_base × ntk_alpha^( d/(d-2) )
+inv_freq = 1 / base'^( 2i/d )</div>
+    </div>
+
+    <div class="card">
+      <h3>④ RMSNorm 与 SwiGLU MLP</h3>
+      <p>RMSNorm 为零均值缩放归一<sup class="src" data-tip="modeling_qwen.py:1349-1363">[S:1349-1363]</sup>；MLP 是门控结构（558-575），内维只有 intermediate/2：w1 出 gate、w2 出 up，up 先过 silu。</p>
+      <div class="formula">RMS(x) = √( mean(x²) + ε ) ,   y = ( x / RMS(x) ) × γ
+MLP(x) = c_proj( w1(x) ⊙ silu(w2(x)) )
+内维 = intermediate_size / 2
+# w1/w2 各 d → intermediate/2；c_proj 无 bias</div>
+    </div>
+
+  </div>
+  <div class="diagram-shell" style="margin-top:14px" aria-label="Qwen 1 核心机制图">
+    <img src="./_arch/02_核心机制_logn_attn与动态NTK.png" alt="LogN 注意力缩放与动态 NTK 双机制">
+  </div>
+  <p class="cap">图 2：核心机制——LogN 注意力缩放（左）与动态 NTK 旋转基频（右）</p>
+</section>
+
+<!-- ==================== 5 注意力机制 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：纯 MHA · kv_channels=128 · 全维 RoPE</h2>
+  <h3>5.1 头与维度</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>尺寸</th><th>Q 头数</th><th>KV 头数</th><th>kv_channels</th><th>head_dim</th><th>c_attn 输出维</th></tr></thead>
+    <tbody>
+      <tr><td class="k">1_8B</td><td>16</td><td>16（同源 K/V）</td><td>128</td><td>128</td><td>3×2048=6144</td></tr>
+      <tr><td class="k">7B</td><td>32</td><td>32</td><td>128</td><td>128</td><td>3×4096=12288</td></tr>
+      <tr><td class="k">14B</td><td>40</td><td>40</td><td>128</td><td>128</td><td>3×5120=15360</td></tr>
+      <tr><td class="k">72B</td><td>64</td><td>64</td><td>128</td><td>128</td><td>3×8192=24576</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">config 中没有 num_key_value_heads 字段，Q/K/V 同头数——本代是标准 MHA，GQA 要等到 Qwen1.5-32B 才出现。</p>
+
+  <h3>5.2 RoPE 与缩放</h3>
+  <p class="note">RoPE 作用全部 kv_channels=128 维（rotary_pct=1.0，<span class="num">modeling_qwen.py:697-709</span>），采用 rotate_half 配对旋转（1316-1346）。注意力缩放为标准 <span class="num">1/√head_dim</span>（343-348）。</p>
+  <div class="formula">attn = softmax( Q·Kᵀ / √head_dim + causal_mask )·V
+# Q/K 先过 RoPE（base 1e4，72B 为 1e6；8B/7B/14B 运行时按 NTK 调 base）
+# 推理超长时 Q 先乘 logn 系数
+# 支持 FlashAttention（use_flash_attn="auto"）与 SDPA 两条路径</div>
+</section>
+
+<!-- ==================== 6 特殊 Token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">eos_token_id / pad_token_id</td><td>151643</td><td>endoftext 特殊 token，兼作 pad</td><td>generation_config.json（本地）</td></tr>
+      <tr><td class="k">vocab_size</td><td>151936（8B/7B）/ 152064（14B/72B）</td><td>BPE 词表</td><td>config.json</td></tr>
+      <tr><td class="k">tokenizer 类</td><td>QWenTokenizer</td><td>tiktoken BPE，词表文件 qwen.tiktoken</td><td>config；tokenization_qwen.py</td></tr>
+      <tr><td class="k">chat 模板</td><td>无内置 chat_template</td><td>对话格式化在 qwen_generation_utils.py</td><td>tokenizer_config.json（本地仅 3 行）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Qwen1 的 tokenizer_config.json 非常薄（仅 model_max_length=8192 与 tokenizer_class），对话样例由仓库内 <span class="num">chat()</span> 方法拼装；这与 Qwen1.5 起把 ChatML 模板写进 tokenizer_config.json 的做法不同。</p>
+</section>
+
+<!-- ==================== 7 演进 ==================== -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：Qwen 1 → Qwen 1.5（qwen2 架构）</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>维度</th><th>Qwen 1（本代）</th><th>Qwen 1.5（下代，qwen2 架构）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">代码形态</td><td>官方仓库 remote code（trust_remote_code）</td><td>合并进 transformers≥4.37，Qwen2ForCausalLM，免 remote code</td></tr>
+      <tr><td class="k">model_type</td><td>qwen（QWenLMHeadModel）</td><td>qwen2（无独立 1.5 模块）</td></tr>
+      <tr><td class="k">QKV 投影</td><td>融合 c_attn：d→3d，无 bias</td><td>分立 q/k/v_proj（q/k/v 带 bias）+ o_proj（无 bias）</td></tr>
+      <tr><td class="k">头结构</td><td>纯 MHA（Q=KV）</td><td>小尺寸仍 MHA；32B 首次 GQA（40Q/8KV）</td></tr>
+      <tr><td class="k">RoPE 基频</td><td>1e4 + 运行时动态 NTK（72B 直接 1e6）</td><td>全系静态 rope_theta=1e6，无 NTK/logn 字段</td></tr>
+      <tr><td class="k">长上下文技巧</td><td>use_logn_attn（query 对数放大）</td><td>取消，配置预留 sliding_window=32768（本代实际关闭）</td></tr>
+      <tr><td class="k">MLP</td><td>w1·silu(w2)，内维=inter/2</td><td>标准 SwiGLU：down(silu(gate)·up)，inter 即全门控维</td></tr>
+      <tr><td class="k">归一化</td><td>RMSNorm 1e-6</td><td>RMSNorm 1e-6（延续）</td></tr>
+      <tr><td class="k">LM Head</td><td>全系列 tie=False</td><td>0.5B tie=True，其余 False</td></tr>
+      <tr><td class="k">词表 / 分词</td><td>151936/152064，QWenTokenizer(tiktoken)</td><td>151936 统一，Qwen2Tokenizer；新增 im_start/im_end + ChatML 模板</td></tr>
+      <tr><td class="k">原生上下文</td><td>训练 2048/8192，扩 32K</td><td>全系原生 32768</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Qwen1 的定位：Qwen 技术报告（arXiv:2309.16609）发布的首代开源底座，以 MHA + 融合 QKV + LogN/动态 NTK 把 8K 训练长度外推到 32K；Qwen1.5 则整体换血到 Qwen2 架构（SwiGLU/RMSNorm/θ=1e6/tie），把"免 remote code、全系 32K、32B 引入 GQA"作为主线。</p>
+</section>
+
+<!-- ==================== 8 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>本地权威 config（Qwen-1_8B，逐字段核对）<span class="u">E:\models\qwen\Qwen-1_8B\config.json（hidden 2048 / 24 层 / 16 头 / kv_channels 128 / inter 11008 / vocab 151936 / max_pos 8192 / tie=False / use_logn_attn=True / use_dynamic_ntk=True）</span></li>
+    <li>官方仓库 remote code（本地目录随权重落盘）<span class="u">E:\models\qwen\Qwen-1_8B\configuration_qwen.py（QWenConfig 默认值）；modeling_qwen.py（QWenAttention 247-555、QWenMLP 558-575、QWenBlock 578-637、QWenModel/get_ntk_alpha 679-739、RotaryEmbedding 1272-1313、RMSNorm 1349-1363）</span></li>
+    <li>其余尺寸 config（ModelScope 拉取，2026-10-26 核对）<span class="u">Qwen/Qwen-7B（4096/32层/32头/inter 22016/vocab 151936/max_pos 32768/seq_length 8192）；Qwen/Qwen-14B（5120/40层/40头/inter 27392/vocab 152064/max_pos 8192/seq_length 2048）；Qwen/Qwen-72B（8192/80层/64头/inter 49152/vocab 152064/max_pos 32768/rotary_emb_base 1e6/ntk=false/logn=false）</span></li>
+    <li>Qwen Technical Report（arXiv:2309.16609，2023-09-28 提交）<span class="u">https://arxiv.org/abs/2309.16609</span></li>
+    <li>Qwen 官方仓库与模型卡片<span class="u">https://github.com/QwenLM/Qwen ；https://huggingface.co/Qwen ；https://modelscope.cn/organization/qwen</span></li>
+  </ol>
+  <p class="note">标注约定：[S:n]=本地 E:\models\qwen\Qwen-1_8B\modeling_qwen.py 行号。7B/14B/72B 未在本地落盘，其 config 数字来自 ModelScope 对应仓库 config.json 原文。参数量为按 config 逐模块复算（未含 RMSNorm/LayerNorm 缩放项）。核验日期：2026-10-26。</p>
+</section>
+
+<footer>Qwen 1 家族架构详解 · 数据来源：本地 config + 官方仓库 remote code + ModelScope config + arXiv 2309.16609 · 仅供技术学习与论文研究</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var chart = echarts.init(document.getElementById("chart"));
+  chart.setOption({
+    color:["#1d4ed8","#66707b"],
+    tooltip:{trigger:"axis"},
+    legend:{data:["参数量（复算，B）","解码层数"],bottom:0},
+    grid:{left:48,right:48,top:30,bottom:46},
+    xAxis:{type:"category",data:["1_8B","7B","14B","72B"],axisLabel:{fontSize:12}},
+    yAxis:[
+      {type:"value",name:"参数 / B",position:"left"},
+      {type:"value",name:"层数",position:"right",min:0,max:90}
+    ],
+    series:[
+      {name:"参数量（复算，B）",type:"bar",data:[1.84,7.72,14.18,72.3],barWidth:"46%",
+       label:{show:true,position:"top",fontSize:11,color:"#1e40af"}},
+      {name:"解码层数",type:"line",yAxisIndex:1,data:[24,32,40,80],
+       symbol:"circle",symbolSize:9,lineStyle:{width:2.5}}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+
+</body>
+</html>

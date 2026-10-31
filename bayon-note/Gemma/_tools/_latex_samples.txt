@@ -1,0 +1,26 @@
+MD   : \hat{x}=x\cdot\mathrm{rsqrt}\big(\mathrm{mean}(x^2)+\epsilon\big)\quad(\text{:70})
+DOCX : x̂=x·rsqrt(mean(x^2)+ε) (:70)
+
+MD   : QK^\top
+DOCX : QK^ᵀ
+
+MD   : s=(Q\cdot K^\top)\cdot \mathrm{scaling},\quad \mathrm{scaling}=256^{-0.5}\quad(\text{:193, :221})
+DOCX : s=(Q· K^ᵀ)· scaling, scaling=256^(-0.5) (:193, :221)
+
+MD   : \mathrm{softcap}(s)=\tanh(s/50.0)\cdot 50.0\quad(\text{:196-198，压进 } \pm50)
+DOCX : softcap(s)=tanh(s/50.0)· 50.0 (:196-198，压进 ±50)
+
+MD   : \hat{x}=x/\sqrt{\mathrm{mean}(x^2)+\epsilon}\quad(\text{:55})
+DOCX : x̂=x/√(mean(x^2)+ε) (:55)
+
+MD   : M[i,j]=\begin{cases}0, & j\leq i\ \text{且}\ i-j<\mathrm{sliding\_window}\\ -\infty, & \text{否则（因果 + 局部）}\end{cases}
+DOCX : M[i,j]=cases(0, j≤ i 且 i-j<sliding_window； -∞, 否则（因果 + 局部）)
+
+MD   : \hat{x}=\frac{x}{\mathrm{RMS}(x)},\qquad y=(1+\gamma)\,\hat{x}
+DOCX : x̂=(x)/(RMS(x)), y=(1+γ) x̂
+
+MD   : \mathrm{Attn}(Q,K,V)=\mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}+\text{mask}\right)V
+DOCX : Attn(Q,K,V)=softmax((QK^ᵀ)/(√(d_k))+mask)V
+
+MD   : 2\times2048\times64\approx0.26\mathrm{M}
+DOCX : 2×2048×64≈0.26M

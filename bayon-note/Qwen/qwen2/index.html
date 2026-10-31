@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen 2 家族架构详解 — 0.5B / 1.5B / 7B / 57B-A14B(MoE) / 72B（文本 + 2-VL 多模态）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EQ2%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.mm{color:var(--mm-ink); background:var(--mm-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  nav.top a.link.mm-link{color:var(--mm-ink);}
+  nav.top a.link.mm-link:hover{background:var(--mm-soft);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h2.mm .secno{color:var(--mm-ink); background:var(--mm-soft); border-color:var(--mm-line);}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.mm rect{fill:var(--mm-soft); stroke:var(--mm); stroke-width:1.6;}
+  .dg .node.text rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .node.mm text.t{fill:var(--mm-ink);}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.mm{stroke:var(--mm); stroke-width:1.8; marker-end:url(#arrm);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+  .dg .lgb{font-size:11.5px; fill:var(--accent-ink); font-weight:600;}
+  .dg .lgm{font-size:11.5px; fill:var(--mm-ink); font-weight:600;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp thead th.mm-th{background:var(--mm-soft); color:var(--mm-ink);}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:18%;}
+  table.cmp col.cx{width:16.4%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  .formula.mm{background:#134e4a; color:#c7f0e8;}
+  .formula .cm{color:#8b93a7;}
+  #echart{width:100%; height:380px; margin-top:10px;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#bfd3ff;}
+  #tip b.m{color:#99e9dc;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">Q2</text></svg>Qwen 2 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link mm-link" href="#mm">多模态</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs Qwen1.5</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Qwen 2 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">入口类 Qwen2ForCausalLM（文本全系）/ Qwen2VLForConditionalGeneration（2-VL）</span>
+    <span class="badge">5 个尺寸：0.5B · 1.5B · 7B · 57B-A14B(MoE) · 72B</span>
+    <span class="badge mm">多模态：2-VL（patch 14 · M-RoPE · 动态分辨率）+ 2-Audio</span>
+    <span class="badge">GQA 全系标配（最小 0.5B 即 14Q·2KV）· 滑窗注意力 sliding_window 32768 / max_window_layers</span>
+    <span class="badge">首个 MoE：57B-A14B（64 专家选 8 + 共享专家）· 词表 151936 · RoPE θ=1e6</span>
+  </div>
+  <p class="lead">本页以 <b>本机真实 <span class="num">config.json</span></b>（<span class="num">E:\models\qwen\Qwen2-0.5B-Instruct</span> 与 <span class="num">Qwen2-VL-2B-Instruct</span>）+ <b>HF 官方 config</b>（hf-mirror 拉取的 1.5B / 7B / 57B-A14B / 72B）与 <b>transformers 源码 <span class="num">modeling_qwen2.py / modeling_qwen2_vl.py</span></b>（本地 E:\transformers，v5.21.0.dev0）为唯一依据。文本全系统一走 <span class="num">qwen2</span> 模块（Qwen2ForCausalLM）；2-VL 走 <span class="num">qwen2_vl</span>；MoE 走 <span class="num">qwen2_moe</span>；2-Audio 走 <span class="num">qwen2_audio</span>。所有数字均标注来源（config 字段或源码文件:行号）。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：五个尺寸的架构对照</h2>
+  <p class="note">0.5B / 1.5B 为小尺寸（<span class="num">tie_word_embeddings=true</span>，词表 151936）；7B / 57B-A14B / 72B 为大尺寸（<span class="num">tie=false</span>，词表 152064）。下表逐字段给出 config 实参；本地锚点为 0.5B 与 2-VL-2B，其余尺寸来自官方 HF config（hf-mirror，2026-10-26 核验）。</p>
+
+  <h3>1.1 文本塔核心超参数</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr>
+      <th>字段</th><th>0.5B</th><th>1.5B</th><th>7B</th><th>57B-A14B (MoE)</th><th>72B</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="k">入口类 architectures</td><td>Qwen2ForCausalLM</td><td>Qwen2ForCausalLM</td><td>Qwen2ForCausalLM</td><td>Qwen2MoeForCausalLM</td><td>Qwen2ForCausalLM</td></tr>
+      <tr class="hl"><td class="k">model_type / 形态</td><td>qwen2 · Dense</td><td>qwen2 · Dense</td><td>qwen2 · Dense</td><td>qwen2_moe · <b>MoE 64选8</b></td><td>qwen2 · Dense</td></tr>
+      <tr><td class="k">hidden_size</td><td>896</td><td>1536</td><td>3584</td><td>3584</td><td>8192</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>24</td><td>28</td><td>28</td><td>28</td><td>80</td></tr>
+      <tr><td class="k">num_attention_heads (Q)</td><td>14</td><td>12</td><td>28</td><td>28</td><td>64</td></tr>
+      <tr><td class="k">num_key_value_heads (KV)</td><td>2</td><td>2</td><td>4</td><td>4</td><td>8</td></tr>
+      <tr><td class="k">GQA 分组</td><td>7:1</td><td>6:1</td><td>7:1</td><td>7:1</td><td>8:1</td></tr>
+      <tr><td class="k">intermediate_size</td><td>4864</td><td>8960</td><td>18944</td><td>18944</td><td>29568</td></tr>
+      <tr><td class="k">sliding_window</td><td>32768</td><td>32768</td><td>131072</td><td>65536</td><td>131072</td></tr>
+      <tr><td class="k">max_window_layers</td><td>24</td><td>28</td><td>28</td><td>28</td><td>80</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>32768</td><td>32768</td><td>32768</td><td>32768</td><td>32768</td></tr>
+      <tr><td class="k">rope_theta</td><td>1e6</td><td>1e6</td><td>1e6</td><td>1e6</td><td>1e6</td></tr>
+      <tr><td class="k">vocab_size</td><td>151936</td><td>151936</td><td>152064</td><td>151936</td><td>152064</td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td>true</td><td>true</td><td>false</td><td>false</td><td>false</td></tr>
+      <tr><td class="k">num_experts / 每 token 激活</td><td>—</td><td>—</td><td>—</td><td>64 / 8</td><td>—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：<b>GQA 全系标配</b>——从最小 0.5B（14Q·2KV）到 72B（64Q·8KV）全部分组；这是 Qwen2 相对 Qwen1.5（仅大尺寸 GQA、小尺寸 MHA）的代际变化。滑窗窗口在小尺寸为 32768、大尺寸为 131072/65536。57B-A14B 是 Qwen 首个 MoE：总参数 57B、每 token 激活约 14B。</p>
+
+  <h3>1.2 五尺寸架构规模对比（ECharts）</h3>
+  <div id="echart" role="img" aria-label="Qwen2 五尺寸 hidden_size 与层数对比"></div>
+
+  <h3>1.3 变体与部署规格</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>项目</th><th>2-VL（本地 2B）</th><th>2-Audio</th><th>2-Math</th><th>2-Coder</th><th>上下文</th></tr></thead>
+    <tbody>
+      <tr><td class="k">模块 / 入口</td><td>qwen2_vl / Qwen2VLForConditionalGeneration</td><td>qwen2_audio</td><td>官方数学专精变体</td><td>官方代码专精变体</td><td>文本 base 32K</td></tr>
+      <tr><td class="k">视觉塔（2-VL 2B）</td><td>hidden 1536 · 32 块 · 16 头 · patch 14 · temporal 2 · spatial_merge 2</td><td colspan="3">2-Audio：音频编码器 + 文本 LLM；2-Math / 2-Coder：base 同 2 系，专精训练</td><td>2-VL 动态分辨率</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 2 数据流总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token 经 Embedding（151936 × d_model，小尺寸与 LM Head 共享权重）→ <b>N 个 DecoderLayer</b>（pre-norm RMSNorm → GQA 注意力 → 残差；再 RMSNorm → SwiGLU → 残差）→ 最终 RMSNorm → LM Head。2-VL 另起一路：图像经 ViT（patch 14）编码、spatial merge 2×2 压成 image tokens，填入序列中 image_token（151655）位，统一走 M-RoPE 三维位置。悬停节点看细节。</p>
+  <div class="diagram-shell" aria-label="Qwen2 家族端到端数据流图">
+  <svg viewBox="0 0 1280 720" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker>
+      <marker id="arrm" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0e7490"/></marker>
+    </defs>
+
+    <g class="node text" data-tip="文本输入 input_ids&#10;与图像占位 token(image_token_id=151655) 交错拼接&#10;来源：modeling_qwen2_vl.py:1146-1227">
+      <rect x="16" y="330" width="120" height="60" rx="12"/>
+      <text class="t" x="76" y="356" text-anchor="middle">文本 token</text>
+      <text class="s" x="76" y="374" text-anchor="middle">input_ids</text>
+    </g>
+    <g class="node mm" data-tip="图像输入 pixel_values&#10;任意分辨率（动态分辨率，非 448 固定切图）&#10;仅 2-VL 模型；纯文本无此路&#10;来源：modeling_qwen2_vl.py:1041-1093">
+      <rect x="16" y="90" width="120" height="60" rx="12"/>
+      <text class="t" x="76" y="116" text-anchor="middle">图像像素</text>
+      <text class="s" x="76" y="134" text-anchor="middle">任意分辨率</text>
+    </g>
+
+    <g class="node mm" data-tip="ViT 视觉塔（仅 2-VL）&#10;PatchEmbed 14×14（:278）&#10;双向 ViT ×32（:452 VisionBlock）&#10;hidden 1152/1536，16 头&#10;temporal_patch 2，spatial_merge 2×2（:304）&#10;来源：config vision_config；modeling_qwen2_vl.py:667">
+      <rect x="196" y="60" width="240" height="150" rx="12"/>
+      <text class="t" x="316" y="86" text-anchor="middle">ViT 视觉塔</text>
+      <text class="m" x="316" y="110" text-anchor="middle">patch embed 14×14</text>
+      <text class="m" x="316" y="128" text-anchor="middle">双向 ViT ×32</text>
+      <text class="m" x="316" y="146" text-anchor="middle">spatial merge 2×2</text>
+      <text class="s" x="316" y="172" text-anchor="middle">2-VL-2B：hidden 1536</text>
+      <text class="s" x="316" y="190" text-anchor="middle">3B/7B/72B 变体更大</text>
+    </g>
+    <path class="edge mm" d="M136,120 L196,120"/>
+
+    <g class="node dim" data-tip="image tokens 填入&#10;视觉特征填入 input_ids 中&#10;image_token_id=151655 的位置&#10;与文本 embedding 拼成统一 hidden 序列&#10;M-RoPE 三维位置 (t,h,w)&#10;来源：modeling_qwen2_vl.py:918-1040, 1146">
+      <rect x="478" y="220" width="116" height="110" rx="12"/>
+      <text class="t" x="536" y="262" text-anchor="middle">填入</text>
+      <text class="t" x="536" y="282" text-anchor="middle">image_token</text>
+      <text class="s" x="536" y="306" text-anchor="middle">统一序列</text>
+    </g>
+    <path class="edge mm" d="M436,295 C458,295 458,275 478,275"/>
+    <path class="edge" d="M136,360 C300,360 330,320 478,300"/>
+
+    <g class="node dim" data-tip="输入嵌入&#10;Embedding(151936, d_model)&#10;小尺寸(0.5B/1.5B)与 lm_head 共享权重(tied)&#10;大尺寸(7B+) untied&#10;来源：modeling_qwen2.py:484-490">
+      <rect x="622" y="228" width="150" height="96" rx="12"/>
+      <text class="t" x="697" y="262" text-anchor="middle">Embedding</text>
+      <text class="m" x="697" y="284" text-anchor="middle">151936 × d_model</text>
+      <text class="s" x="697" y="304" text-anchor="middle">小尺寸 tied · 大尺寸 untied</text>
+    </g>
+    <path class="edge" d="M594,275 L622,275"/>
+
+    <g class="node core" data-tip="解码层 × N&#10;0.5B:24 · 1.5B:28 · 7B:28 · 57B-A14B:28 · 72B:80&#10;每层 = RMSNorm→GQA Attn→⊕ + RMSNorm→SwiGLU→⊕&#10;layer_types：i ≥ max_window_layers 为 sliding&#10;来源：config layer_types；modeling_qwen2.py:250-311">
+      <rect x="812" y="120" width="250" height="480" rx="14"/>
+      <text class="t" x="937" y="148" text-anchor="middle">DecoderLayer × N</text>
+      <text class="s" x="937" y="168" text-anchor="middle">24 / 28 / 28 / 28 / 80 层</text>
+      <text class="s" x="830" y="196">i ≥ max_window_layers → sliding（窗 32768/131072）</text>
+      <rect x="830" y="206" width="8" height="14" rx="2" fill="#dbe7fc" stroke="#a9c2f3"/>
+      <text class="s" x="844" y="218">= full_attention</text>
+      <rect x="830" y="228" width="8" height="14" rx="2" fill="#1d4ed8" stroke="#1d4ed8"/>
+      <text class="s" x="844" y="240">= sliding_attention</text>
+      <g class="node" data-tip="层内子结构（详见 §3/§4）&#10;① input_layernorm → GQA 注意力 → ⊕&#10;② post_attention_layernorm → SwiGLU → ⊕&#10;注意力含 Q/K/V/O、RoPE θ=1e6、GQA&#10;来源：modeling_qwen2.py:261-290">
+        <rect x="830" y="262" width="214" height="180" rx="10"/>
+        <text class="t" x="937" y="288" text-anchor="middle">每层结构</text>
+        <text class="s" x="937" y="312" text-anchor="middle">RMSNorm → GQA Attn → ⊕</text>
+        <text class="s" x="937" y="336" text-anchor="middle">RMSNorm → SwiGLU → ⊕</text>
+        <text class="m" x="937" y="362" text-anchor="middle">GQA · RoPE θ=1e6 · pre-norm</text>
+        <text class="m" x="937" y="384" text-anchor="middle">silu 激活</text>
+        <text class="s" x="937" y="410" text-anchor="middle">q/k/v bias=True · o bias=False</text>
+      </g>
+      <g class="node mm" data-tip="MoE 层（仅 57B-A14B）&#10;num_experts=64，num_experts_per_tok=8&#10;含共享专家&#10;走 qwen2_moe 模块&#10;来源：config；Qwen2MoeForCausalLM">
+        <rect x="830" y="458" width="214" height="110" rx="10"/>
+        <text class="t" x="937" y="482" text-anchor="middle">MoE 路由（57B-A14B）</text>
+        <text class="m" x="937" y="504" text-anchor="middle">64 专家选 8 + 共享专家</text>
+        <text class="s" x="937" y="526" text-anchor="middle">总参数 57B · 激活 ~14B</text>
+        <text class="s" x="937" y="546" text-anchor="middle">Dense 尺寸无此路由</text>
+      </g>
+    </g>
+    <path class="edge" d="M772,275 L812,275"/>
+
+    <g class="node dim" data-tip="最终 RMSNorm（全部层后）&#10;Qwen2RMSNorm：fp32 归一，×γ&#10;eps=1e-6&#10;来源：modeling_qwen2.py:230-247">
+      <rect x="1090" y="250" width="84" height="100" rx="12"/>
+      <text class="t" x="1132" y="286" text-anchor="middle">最终</text>
+      <text class="t" x="1132" y="306" text-anchor="middle">RMSNorm</text>
+      <text class="s" x="1132" y="330" text-anchor="middle">eps 1e-6</text>
+    </g>
+    <path class="edge" d="M1062,300 L1090,300"/>
+
+    <g class="node dim" data-tip="LM Head&#10;d_model → 151936/152064&#10;小尺寸与 embedding 共享权重&#10;大尺寸独立投影&#10;来源：modeling_qwen2.py:398-430">
+      <rect x="1196" y="230" width="70" height="140" rx="12"/>
+      <text class="t" x="1231" y="266" text-anchor="middle">LM</text>
+      <text class="t" x="1231" y="286" text-anchor="middle">Head</text>
+      <text class="m" x="1231" y="310" text-anchor="middle">×tied</text>
+      <text class="m" x="1231" y="332" text-anchor="middle">小尺寸</text>
+      <text class="m" x="1231" y="350" text-anchor="middle">共享</text>
+    </g>
+    <path class="edge" d="M1174,300 L1196,300"/>
+    <text class="s" x="1231" y="390" text-anchor="middle">下一 token</text>
+    <text class="s" x="1231" y="408" text-anchor="middle">分布</text>
+
+    <text class="lgb" x="620" y="500">主干：文本 token 流（五尺寸共用 qwen2 模块）</text>
+    <text class="lgm" x="620" y="520">视觉路径仅 2-VL；MoE 仅 57B-A14B</text>
+  </svg>
+  </div>
+  <p class="note">全家族统一主干：<span class="num">Embedding → DecoderLayer×N → 最终 RMSNorm → LM Head</span>；差异集中在层数、维度、KV 头数、滑窗窗口，以及是否挂 ViT 视觉塔（2-VL）或 MoE 路由（57B-A14B）。</p>
+</section>
+
+<!-- ==================== 3 解码层解剖 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：pre-norm RMSNorm 残差块</h2>
+  <p class="note">Qwen2 的每个解码层（<span class="num">Qwen2DecoderLayer</span>，modeling_qwen2.py:250-290）含两组残差子层：注意力与 FFN，均为 <b>pre-norm</b>（先 RMSNorm 再子层，结果与残差相加）。五尺寸共享此结构，仅维度随尺寸缩放。</p>
+  <div class="diagram-shell" aria-label="Qwen2 解码层结构图">
+  <svg viewBox="0 0 1240 600" class="dg" role="img">
+    <defs><marker id="arr2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+
+    <g class="node core" data-tip="输入 hidden_states&#10;(B, T, d_model)&#10;0.5B d=896；72B d=8192">
+      <rect x="20" y="240" width="110" height="70" rx="12"/>
+      <text class="t" x="75" y="270" text-anchor="middle">输入 x</text>
+      <text class="m" x="75" y="290" text-anchor="middle">[B,T,d]</text>
+    </g>
+    <path class="edge" d="M130,275 L160,275"/>
+
+    <g class="node dim" data-tip="input_layernorm&#10;Qwen2RMSNorm(d, eps 1e-6)&#10;fp32 归一 · ×γ&#10;来源：modeling_qwen2.py:253, 230-247">
+      <rect x="160" y="150" width="170" height="34" rx="8"/>
+      <text class="s" x="245" y="172" text-anchor="middle">input_layernorm (RMSNorm)</text>
+    </g>
+    <path class="edge" d="M130,275 L245,184"/>
+    <g class="node" data-tip="Qwen2Attention（168-228）&#10;q/k/v_proj bias=True，o_proj bias=False（:181-184）&#10;q_proj: d→Q头×head_dim；k/v_proj: d→KV头×head_dim&#10;Q/K 应用 RoPE θ=1e6（:50）&#10;GQA: repeat_kv 把 KV 头复制到 Q 头数（:130）&#10;scaling = head_dim^-0.5（:178）&#10;sliding_window 仅 sliding 层传入（:185,220）&#10;来源：modeling_qwen2.py:198-225">
+      <rect x="160" y="200" width="300" height="130" rx="10"/>
+      <text class="t" x="310" y="224" text-anchor="middle">Self-Attention（GQA）</text>
+      <text class="m" x="310" y="246" text-anchor="middle">q_proj → RoPE → repeat_kv(K/V)</text>
+      <text class="m" x="310" y="264" text-anchor="middle">scaled dot-product softmax·V</text>
+      <text class="m" x="310" y="282" text-anchor="middle">→ o_proj（bias=False）</text>
+      <text class="s" x="310" y="306" text-anchor="middle">0.5B: 14Q·2KV·head64；72B: 64Q·8KV·head128</text>
+    </g>
+    <g class="node core">
+      <circle cx="510" cy="265" r="16" data-tip="残差 ⊕：x + attn(x)&#10;来源：modeling_qwen2.py:273"/>
+      <text class="s" x="510" y="269" text-anchor="middle" font-size="12">+</text>
+    </g>
+    <path class="edge" d="M460,265 L494,265"/>
+    <path class="edge" d="M526,265 L560,265 L560,493 L526,493"/>
+    <path class="edge faint" d="M75,275 L75,493 L160,493"/>
+
+    <g class="node dim" data-tip="post_attention_layernorm&#10;FFN 输入前归一&#10;来源：modeling_qwen2.py:277, 230-247">
+      <rect x="160" y="450" width="190" height="34" rx="8"/>
+      <text class="s" x="255" y="472" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+    <path class="edge" d="M245,394 L255,450"/>
+    <g class="node" data-tip="Qwen2MLP（SwiGLU，34-48）&#10;gate/up: d→intermediate；down: intermediate→d&#10;激活 = silu（hidden_act=silu）&#10;0.5B inter 4864；7B 18944；72B 29568&#10;来源：modeling_qwen2.py:38-48">
+      <rect x="160" y="490" width="300" height="86" rx="10"/>
+      <text class="t" x="310" y="514" text-anchor="middle">FFN（SwiGLU）</text>
+      <text class="m" x="310" y="534" text-anchor="middle">down( silu(gate(x)) ⊙ up(x) )</text>
+      <text class="s" x="310" y="552" text-anchor="middle">d → intermediate → d · silu</text>
+    </g>
+    <g class="node core">
+      <circle cx="510" cy="533" r="16" data-tip="残差 ⊕：h₁ + ffn(h₁)&#10;来源：modeling_qwen2.py:286-290"/>
+      <text class="s" x="510" y="537" text-anchor="middle" font-size="12">+</text>
+    </g>
+    <path class="edge" d="M460,533 L494,533"/>
+
+    <g class="node core" data-tip="输出 hidden_states → 下一层&#10;pre-norm：残差相加后不再二次归一&#10;（区别于 Gemma 的 post-norm）&#10;来源：modeling_qwen2.py:290">
+      <rect x="600" y="250" width="120" height="70" rx="12"/>
+      <text class="t" x="660" y="279" text-anchor="middle">输出 y</text>
+      <text class="m" x="660" y="301" text-anchor="middle">[B,T,d]</text>
+    </g>
+    <path class="edge" d="M526,533 L580,533 L580,285 L600,285"/>
+    <text class="lg" x="588" y="400" transform="rotate(90 588 400)">残差流</text>
+    <text class="lgb" x="180" y="130">注意力子层</text>
+    <text class="lgb" x="180" y="430">FFN 子层</text>
+  </svg>
+  </div>
+  <div class="formula">Qwen2DecoderLayer.forward（modeling_qwen2.py:261-290）:
+  residual = hidden_states
+  hidden_states = input_layernorm(hidden_states)
+  hidden_states, _ = self_attn(hidden_states, position_embeddings, ...)
+  hidden_states = residual + hidden_states            # ⊕1
+  residual = hidden_states
+  hidden_states = post_attention_layernorm(hidden_states)
+  hidden_states = self.mlp(hidden_states)             # SwiGLU
+  hidden_states = residual + hidden_states            # ⊕2
+  return hidden_states</div>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：GQA · 滑窗注意力 · SwiGLU · RoPE · MoE</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3>① GQA 分组与 repeat_kv</h3>
+      <p>Qwen2 注意力把 Q 头数按 KV 头数分组，运行时 <code>repeat_kv</code> 把 K/V 从 KV 头复制到 Q 头数再做缩放点积注意力<sup class="src" data-tip="modeling_qwen2.py:130-140 repeat_kv；198-225 注意力主流程">[S:130-140]</sup>。</p>
+      <div class="formula">Attn(Q,K,V) = softmax( QKᵀ / √d_k + mask ) V
+# 0.5B: 14Q / 2KV → repeat 7:1
+# 72B:  64Q / 8KV → repeat 8:1
+scaling = head_dim ** -0.5     # :178</div>
+      <div class="meta">分组比：0.5B 7:1、1.5B 6:1、7B/57B-A14B 7:1、72B 8:1。</div>
+    </div>
+
+    <div class="card">
+      <h3>② 滑窗注意力（layer_types 分层）</h3>
+      <p>v5 的 <code>Qwen2Config.__post_init__</code> 按层索引生成 <code>layer_types</code>：当 <code>sliding_window is not None</code> 且 <code>i &gt;= max_window_layers</code> 时为 <code>sliding_attention</code><sup class="src" data-tip="configuration_qwen2.py:88-94 生成 layer_types；:84 use_sliding_window=False 则 sliding_window=None">[CFG:88-94]</sup>。</p>
+      <div class="formula">layer_types = ["sliding_attention" if (sliding_window is not None
+               and i >= max_window_layers) else "full_attention"
+               for i in range(num_hidden_layers)]
+# Qwen2-0.5B: 24 层, max_window_layers=24
+# Qwen2-7B:   28 层, max_window_layers=28, 窗 131072</div>
+      <div class="meta">踩坑：本机与官方 config 均 use_sliding_window=false → v5 全层 full_attention，SWA 机制保留在源码中。</div>
+    </div>
+
+    <div class="card">
+      <h3>③ RMSNorm 与 SwiGLU</h3>
+      <p>RMSNorm 先 fp32 归一，再乘可学习权重 γ<sup class="src" data-tip="modeling_qwen2.py:230-247 RMSNorm forward">[S:230-247]</sup>。FFN 为三投影门控 SwiGLU（silu 激活）<sup class="src" data-tip="modeling_qwen2.py:34-48 Qwen2MLP">[S:34-48]</sup>。</p>
+      <div class="formula">rms(x) = sqrt( mean(x²) + eps )
+y = γ · x / rms(x)
+FFN(x) = down( silu(gate(x)) ⊙ up(x) )</div>
+      <div class="meta">hidden_act=silu；eps=1e-6。</div>
+    </div>
+
+    <div class="card">
+      <h3>④ RoPE（θ=1e6）</h3>
+      <p>旋转位置编码基频 <code>rope_theta=1000000.0</code>（本地 config）<sup class="src" data-tip="modeling_qwen2.py:50 Qwen2RotaryEmbedding">[S:50]</sup>。逆频率对 Q/K 前若干维旋转。</p>
+      <div class="formula">inv_freq_i = base ^ (-2i / head_dim),  base=1e6
+q_rot = q·cos θ + rotate_half(q)·sin θ
+# 2-VL 另用 M-RoPE（见 §6）</div>
+    </div>
+
+    <div class="card">
+      <h3>⑤ MoE（57B-A14B）</h3>
+      <p>Qwen2 首个 MoE 走 <code>qwen2_moe</code>（Qwen2MoeForCausalLM）：<code>num_experts=64</code>、<code>num_experts_per_tok=8</code>，含共享专家。</p>
+      <div class="formula"># 文本栈维度与 7B 相同（hidden 3584 / 28层 / 28Q·4KV）
+# router → top-8 experts + shared expert
+# 总参数 57B · 每 token 激活 ~14B</div>
+      <div class="meta">其余尺寸为 Dense FFN。</div>
+    </div>
+
+    <div class="card mm">
+      <h3>⑥ 2-VL：M-RoPE 三维位置</h3>
+      <p>2-VL 用多模态 RoPE：位置沿 (t,h,w) 三维拆分，<code>mrope_section=[16,24,24]</code><sup class="src" data-tip="modeling_qwen2_vl.py:918 get_rope_index；1095 compute_3d_position_ids">[S-VL:918]</sup>。</p>
+      <div class="formula mm"># 图像按 patch 块计数、文本沿高度维
+# 支持任意分辨率（动态分辨率）
+# vision tokens 填入 151655 位</div>
+      <div class="meta">详细见 §6 多模态。</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================== 5 注意力机制 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：GQA KV 头分配</h2>
+  <h3>5.1 各尺寸 KV 头分配（repeat_kv）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>尺寸</th><th>Q 头数</th><th>KV 头数</th><th>GQA 分组</th><th>head_dim</th><th>Q 投影输出维</th></tr></thead>
+    <tbody>
+      <tr><td class="k">0.5B</td><td>14</td><td>2</td><td>7:1</td><td>64</td><td>14×64=896</td></tr>
+      <tr><td class="k">1.5B</td><td>12</td><td>2</td><td>6:1</td><td>128</td><td>12×128=1536</td></tr>
+      <tr><td class="k">7B</td><td>28</td><td>4</td><td>7:1</td><td>128</td><td>28×128=3584</td></tr>
+      <tr><td class="k">57B-A14B</td><td>28</td><td>4</td><td>7:1</td><td>128</td><td>28×128=3584</td></tr>
+      <tr><td class="k">72B</td><td>64</td><td>8</td><td>8:1</td><td>128</td><td>64×128=8192</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note"><code>head_dim = hidden_size // num_attention_heads</code>（modeling_qwen2.py:176，无独立 head_dim 字段）。运行时 <code>repeat_kv</code> 把 K/V 复制到 Q 头数（:130-140）。</p>
+
+  <h3>5.2 滑窗 vs 全局</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>层类型</th><th>掩码</th><th>KV cache</th><th>触发条件</th></tr></thead>
+    <tbody>
+      <tr><td class="k">full_attention</td><td>全因果</td><td>全历史</td><td>i &lt; max_window_layers 或 sliding_window=None</td></tr>
+      <tr class="hl"><td class="k">sliding_attention</td><td>滑窗因果（窗 32768/131072）</td><td>仅最近窗口</td><td>i &gt;= max_window_layers 且开启 SWA</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="formula">eager_attention_forward（modeling_qwen2.py:142-166）:
+scaling  = head_dim ** -0.5
+key/vals = repeat_kv(key, num_key_value_groups)
+attn     = (query · keyᵀ) * scaling
+attn     = softmax(attn + mask, fp32)
+output   = attn @ value        # sliding_window 仅在 sliding 层传入（:220）</div>
+</section>
+
+<!-- ==================== 6 多模态 ==================== -->
+<section id="mm">
+  <h2 class="mm"><span class="secno">6</span>多模态：2-VL 视觉塔与文本融合</h2>
+  <h3>6.1 视觉塔 config（本地 2-B 锚点）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段（vision_config）</th><th>取值</th><th>字段</th><th>取值</th></tr></thead>
+    <tbody>
+      <tr><td class="k">model_type（顶层）</td><td>qwen2_vl / Qwen2VLForConditionalGeneration</td><td class="k">embed_dim</td><td>1280</td></tr>
+      <tr><td class="k">depth（ViT 块数）</td><td>32</td><td class="k">num_heads</td><td>16</td></tr>
+      <tr><td class="k">in_chans</td><td>3</td><td class="k">hidden_size</td><td>1536</td></tr>
+      <tr><td class="k">patch_size</td><td>14</td><td class="k">spatial_patch_size</td><td>14</td></tr>
+      <tr><td class="k">temporal_patch_size</td><td>2</td><td class="k">spatial_merge_size</td><td>2</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">视觉塔由 <code>Qwen2VisionTransformerPretrainedModel</code> 构造（modeling_qwen2_vl.py:667）；PatchEmbed 278、PatchMerger 304、VisionAttention 369、VisionBlock 452。投影后通道对齐文本 hidden（spatial_merge 2×2 把视觉 token 数再压 1/4）。</p>
+
+  <h3>6.2 M-RoPE 与动态分辨率</h3>
+  <div class="formula mm">Qwen2VLModel.get_rope_index / compute_3d_position_ids（modeling_qwen2_vl.py:918, 1095）:
+  图像特征 → ViT(patch14) → spatial_merge 2×2 → image tokens
+  填入 input_ids 中 image_token_id=151655 位
+  位置 id 按 (t,h,w) 三维分别生成（mrope_section=[16,24,24]），文本沿 h 维递增
+  # 动态分辨率：非 448 固定切图，任意分辨率直接编码</div>
+  <p class="note">融合后文本 LLM 收到统一 inputs_embeds 继续前向（Qwen2VLForConditionalGeneration.forward，:1267）。transformers v5 中 VL 模型须用 <code>AutoModelForImageTextToText</code> 加载。</p>
+</section>
+
+<!-- ==================== 7 特殊 Token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">7</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">bos_token_id</td><td>151643</td><td>序列开始</td><td>本地 config</td></tr>
+      <tr><td class="k">eos_token_id</td><td>151645</td><td>序列结束</td><td>本地 config</td></tr>
+      <tr><td class="k">vision_start_token_id</td><td>151652</td><td>视觉块开始</td><td>本地 2-VL config</td></tr>
+      <tr><td class="k">vision_end_token_id</td><td>151653</td><td>视觉块结束</td><td>本地 2-VL config</td></tr>
+      <tr><td class="k">vision_token_id</td><td>151654</td><td>视觉占位</td><td>本地 2-VL config</td></tr>
+      <tr><td class="k">image_token_id</td><td>151655</td><td>图像特征占位</td><td>本地 2-VL config</td></tr>
+      <tr><td class="k">video_token_id</td><td>151656</td><td>视频特征占位</td><td>本地 2-VL config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">词表 <span class="num">vocab_size=151936</span>（小尺寸）/152064（大尺寸，64 对齐补全）。特殊 token 151652–151656 仅在 2-VL config 顶层显式列出；纯文本 config 只有 bos/eos。</p>
+</section>
+
+<!-- ==================== 8 演进 ==================== -->
+<section id="evo">
+  <h2><span class="secno">8</span>演进视角：Qwen1.5 → Qwen 2</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>维度</th><th>Qwen1.5（基线）</th><th>Qwen 2（家族）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">GQA</td><td>仅大尺寸引入，小尺寸仍 MHA</td><td><b>全系标配 GQA</b>（0.5B 即 14Q·2KV）</td></tr>
+      <tr><td class="k">滑窗注意力</td><td>无</td><td><b>引入 SWA</b>（sliding_window 32768/131072 + max_window_layers）</td></tr>
+      <tr><td class="k">MoE</td><td>无</td><td><b>首个 MoE</b>：57B-A14B（64 专家选 8 + 共享专家）</td></tr>
+      <tr><td class="k">多模态</td><td>无原生视觉</td><td><b>2-VL</b>（patch 14 · M-RoPE · 动态分辨率）+ 2-Audio</td></tr>
+      <tr><td class="k">上下文</td><td>32768</td><td>32768（文本 base）；大尺寸窗 131072 支持长上下文扩展</td></tr>
+      <tr><td class="k">归一化 / 激活</td><td>RMSNorm · SwiGLU</td><td>相同（延续）</td></tr>
+      <tr><td class="k">词表</td><td>151936</td><td>151936（小）/ 152064（大）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Qwen 2 的主线升级：① GQA 从大尺寸下放到全系最小 0.5B；② 引入滑窗注意力 SWA（layer_types 分层）；③ 首个 MoE 57B-A14B（细粒度专家 + 共享专家）；④ 多模态 2-VL（patch 14 + M-RoPE + 动态分辨率）与 2-Audio。Qwen1.5 侧数字为官方公开口径；Qwen2 侧数字均来自本页 config 与源码。</p>
+</section>
+
+<!-- ==================== 9 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">9</span>来源</h2>
+  <ol class="src">
+    <li>本地权威 config（0.5B 文本，逐字段核对）<span class="u">E:\models\qwen\Qwen2-0.5B-Instruct\config.json（hidden 896 / 24 层 / 14Q·2KV / inter 4864 / sliding 32768 / max_window_layers 24 / ropeθ1e6 / vocab 151936 / max 32768 / tie=true）</span></li>
+    <li>本地权威 config（2-VL-2B 多模态）<span class="u">E:\models\qwen\Qwen2-VL-2B-Instruct\config.json（hidden 1536 / 28 层 / 12Q·2KV / vision_config: embed 1280·depth 32·patch14·temporal2·spatial_merge2 / vision_start·end 151652·151653 / image 151655 / video 151656）</span></li>
+    <li>其余尺寸 config（HF hf-mirror 拉取，2026-10-26 核验）<span class="u">Qwen2-1.5B-Instruct（1536/28层/12Q·2KV/inter8960）；Qwen2-7B-Instruct（3584/28层/28Q·4KV/inter18944/sliding131072/vocab152064）；Qwen2-57B-A14B-Instruct（3584/28层/28Q·4KV/64专家选8/sliding65536）；Qwen2-72B-Instruct（8192/80层/64Q·8KV/inter29568）</span></li>
+    <li>transformers 源码 modeling_qwen2.py（本地 E:\transformers）<span class="u">Qwen2MLP 34；RotaryEmbedding 50；repeat_kv 130；eager attention 142；Qwen2Attention 168（head_dim 176 / scaling 178 / sliding_window 185）；RMSNorm 230；DecoderLayer 250；Qwen2Model 313；Qwen2ForCausalLM 398</span></li>
+    <li>transformers 源码 configuration_qwen2.py<span class="u">Qwen2Config 25（vocab 151936 / sliding_window 默认 4096 / max_window_layers 28）；__post_init__ 83（use_sliding_window 关闭则 sliding_window=None；layer_types 88-94）</span></li>
+    <li>transformers 源码 modeling_qwen2_vl.py<span class="u">Qwen2VLRotaryEmbedding 111；PatchEmbed 278；PatchMerger 304；VisionAttention 369；VisionBlock 452；VisionTransformer 667；TextModel 737；Qwen2VLModel 852（get_rope_index 918 / get_image_features 1041 / compute_3d_position_ids 1095 / forward 1146）；ForConditionalGeneration 1228</span></li>
+    <li>Qwen2 技术报告（arXiv 2407.10671）<span class="u">https://arxiv.org/abs/2407.10671（5 尺寸 0.5B/1.5B/7B/57B-A14B/72B；GQA；SWA；MoE；2-VL/2-Audio）</span></li>
+    <li>Qwen2-VL 技术报告（arXiv 2409.12191）<span class="u">https://arxiv.org/abs/2409.12191（patch 14 · M-RoPE · 动态分辨率）</span></li>
+    <li>Qwen 官方组织页与 ModelScope 镜像<span class="u">https://huggingface.co/Qwen ；https://modelscope.cn/organization/qwen</span></li>
+  </ol>
+  <p class="note">标注约定：[S:n]=modeling_qwen2.py 行号；[CFG:n]=configuration_qwen2.py 行号。0.5B/2-VL-2B 为本地 config 实参，其余尺寸来自 HF hf-mirror config。访问与核验日期：2026-10-26。</p>
+</section>
+
+<footer>Qwen 2 家族架构详解 · 数据来源：本地/ModelScope config + transformers 源码 + arXiv 2407.10671 / 2409.12191 · 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el, x, y){
+    TIP.innerHTML = "";
+    var txt = el.getAttribute("data-tip") || "";
+    txt.split("\n").forEach(function(line, i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      var parts = line.split(/((?:modeling|configuration|cache)_?[a-z0-9_.]*\.py:[0-9\-]+)/);
+      parts.forEach(function(p){
+        if(/\.py:[0-9]/.test(p)){
+          var b = document.createElement("b"); b.textContent = p; TIP.appendChild(b);
+        } else if(p){
+          TIP.appendChild(document.createTextNode(p));
+        }
+      });
+    });
+    TIP.style.display = "block";
+    var w = TIP.offsetWidth, h = TIP.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    TIP.style.left = Math.min(Math.max(x + 14, 8), vw - w - 8) + "px";
+    TIP.style.top = (y + 16 + h > vh ? y - h - 10 : y + 16) + "px";
+  }
+  function hideTip(){ if(!pinned){ TIP.style.display = "none"; } }
+  var els = document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){
+    (function(el){
+      el.addEventListener("pointerenter", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+      el.addEventListener("pointermove", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+      el.addEventListener("pointerleave", function(){ if(pinned===el) return; hideTip(); });
+      el.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(pinned===el){ pinned=null; hideTip(); }
+        else { pinned=el; showTip(el, e.clientX, e.clientY); }
+      });
+    })(els[i]);
+  }
+  document.addEventListener("click", function(){ if(pinned){ pinned=null; hideTip(); } });
+})();
+
+// ECharts: 五尺寸 hidden_size / layers / inter 对比
+(function(){
+  var el = document.getElementById("echart");
+  if(!el || typeof echarts === "undefined") return;
+  var chart = echarts.init(el);
+  var sizes = ["0.5B","1.5B","7B","57B-A14B","72B"];
+  chart.setOption({
+    color:["#1d4ed8","#0e7490","#c0d0f4"],
+    tooltip:{trigger:"axis", axisPointer:{type:"shadow"}},
+    legend:{data:["hidden_size","num_hidden_layers","intermediate_size"], top:0},
+    grid:{left:50,right:20,top:36,bottom:30},
+    xAxis:{type:"category", data:sizes, axisLabel:{fontSize:11}},
+    yAxis:[{type:"value", name:"维度", position:"left"},
+           {type:"value", name:"层数", position:"right"}],
+    series:[
+      {name:"hidden_size", type:"bar", data:[896,1536,3584,3584,8192]},
+      {name:"intermediate_size", type:"bar", data:[4864,8960,18944,18944,29568]},
+      {name:"num_hidden_layers", type:"line", yAxisIndex:1, data:[24,28,28,28,80], symbol:"circle", symbolSize:8, lineStyle:{width:2.5}}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+
+</body>
+</html>

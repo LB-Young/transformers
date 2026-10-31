@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen 3.5 家族架构详解 — 0.8B/9B/27B/35B-A3B/122B-A10B/397B-A17B（Gated DeltaNet + Gated Attention）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='23' font-size='12' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E3.5%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>if(!window.echarts){document.write('<script src="./_tools/echarts.min.js"><\/script>');}</script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --linear:#e59866; --linear-soft:#fdebd0;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.mm{color:var(--mm-ink); background:var(--mm-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  nav.top a.link.mm-link{color:var(--mm-ink);}
+  nav.top a.link.mm-link:hover{background:var(--mm-soft);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h2.mm .secno{color:var(--mm-ink); background:var(--mm-soft); border-color:var(--mm-line);}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell img{max-width:100%; min-width:560px; height:auto; border-radius:6px;}
+  .chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-top:14px;}
+  .chart-inner{width:100%; height:360px;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp thead th.mm-th{background:var(--mm-soft); color:var(--mm-ink);}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:18%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    section{page-break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="15" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">3.5</text></svg>Qwen 3.5 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">3:1 混合</a>
+  <a class="link mm-link" href="#mm">多模态</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs Qwen3</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Qwen 3.5 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">入口类 Qwen3_5ForConditionalGeneration（Dense）/ Qwen3_5MoeForConditionalGeneration（MoE）</span>
+    <span class="badge">架构大改：Gated DeltaNet 线性注意力 + Gated Attention 全注意力 <b>3:1</b> 混合</span>
+    <span class="badge">词表 248320（padded）· 上下文 262144 → YaRN 1M · MTP multi-steps</span>
+    <span class="badge">thinking 默认常开 · <b>取消 /think 软切换</b></span>
+    <span class="badge mm">全系原生视觉语言（early fusion · patch 16）</span>
+  </div>
+  <p class="lead">本页以 <b>本地真实 config.json</b>（<span class="num">Qwen3.5-0.8B-Instruct</span>、<span class="num">Qwen3.5-35B-A3B-GPTQ-Int4</span>）与 <b>transformers 源码</b>（本地 E:\transformers，<span class="num">models\qwen3_5\</span>、<span class="num">models\qwen3_5_moe\</span>）为唯一依据；27B 数字取自已核对官方 model card。家族分两支：<b>Dense</b>（0.8B / 9B / 27B）与 <b>MoE</b>（35B-A3B / 122B-A10B / 397B-A17B），全系原生多模态。</p>
+</header>
+
+<!-- 1 家族全景 -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：六个尺寸的架构对照</h2>
+  <p class="note">0.8B 与 35B-A3B 为本地 config 逐字段核对；9B/27B 来自官方 model card；122B-A10B / 397B-A17B 为 MoE 旗舰（精确 hidden/层数标待确认）。全家族共用 <code>layer_types</code> 周期 <code>[linear_attention ×3, full_attention ×1]</code>（<span class="num">full_attention_interval=4</span>）。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:18%"><col style="width:13.7%"><col style="width:13.7%"><col style="width:13.7%"><col style="width:13.7%"><col style="width:13.7%"><col style="width:13.7%"></colgroup>
+    <thead><tr><th>字段</th><th>0.8B</th><th>9B</th><th>27B</th><th>35B-A3B</th><th>122B-A10B</th><th>397B-A17B</th></tr></thead>
+    <tbody>
+      <tr><td class="k">model_type</td><td>qwen3_5</td><td>qwen3_5</td><td>qwen3_5</td><td>qwen3_5_moe</td><td>qwen3_5_moe</td><td>qwen3_5_moe</td></tr>
+      <tr class="hl"><td class="k">形态</td><td>Dense+视觉</td><td>Dense+视觉</td><td>Dense+视觉</td><td><b>MoE</b>+视觉</td><td><b>MoE</b>+视觉</td><td><b>MoE</b>+视觉</td></tr>
+      <tr><td class="k">hidden_size</td><td>1024</td><td>4096</td><td>5120</td><td>2048</td><td>待确认</td><td>待确认</td></tr>
+      <tr><td class="k">层数</td><td>24</td><td>32</td><td>64</td><td>40</td><td>待确认</td><td>待确认</td></tr>
+      <tr><td class="k">Gated Attn Q/KV</td><td>8 / 2</td><td>—</td><td>24 / 4</td><td>16 / 2</td><td>—</td><td>—</td></tr>
+      <tr><td class="k">head_dim（全注意力）</td><td>256</td><td>256</td><td>256</td><td>256</td><td>256</td><td>256</td></tr>
+      <tr><td class="k">线性 K/V 头</td><td>16 / 16</td><td>—</td><td>16 / 48</td><td>16 / 32</td><td>—</td><td>—</td></tr>
+      <tr><td class="k">线性 head_dim / conv</td><td>128 / 4</td><td>128 / 4</td><td>128 / 4</td><td>128 / 4</td><td>128 / 4</td><td>128 / 4</td></tr>
+      <tr><td class="k">Dense FFN intermediate</td><td>3584</td><td>待确认</td><td>17408</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td class="k">专家（总/激活）</td><td>—</td><td>—</td><td>—</td><td>256 / 8<small>moe_inter 512</small></td><td>—</td><td>—</td></tr>
+      <tr><td class="k">共享专家 intermediate</td><td>—</td><td>—</td><td>—</td><td>512</td><td>—</td><td>—</td></tr>
+      <tr><td class="k">vocab</td><td>248320</td><td>248320</td><td>248320</td><td>248320</td><td>248320</td><td>248320</td></tr>
+      <tr><td class="k">max_position</td><td>262144</td><td>262144</td><td>262144</td><td>262144</td><td>262144</td><td>262144</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="chart"><div id="chart1" class="chart-inner"></div></div>
+  <p class="tip">要点：① 每 4 层 = 3×Gated DeltaNet（线性）+ 1×Gated Attention（全注意力）；② 线性与全注意力头配置不同（线性 K16/V16~32、head_dim 128；全注意力 GQA、head_dim 256）；③ MoE 显式带<b>共享专家</b>（35B config 核实 shared_intermediate=512），与 Qwen3 MoE 的纯路由不同。</p>
+</section>
+
+<!-- 2 数据流 -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token 与图像像素两路输入 → 视觉塔（patch 16、depth 12/27、spatial_merge 2）编码投影 → early fusion 进统一序列 → N 个 DecoderLayer（按 layer_types 交替：线性层走 Gated DeltaNet 递归状态，全注意力层走 Gated Attention + 输出门）→ 最终 RMSNorm → LM Head。</p>
+  <div class="diagram-shell"><img src="./_arch/01_qwen3_5端到端总览.png" alt="Qwen3.5 端到端总览与 3:1 混合层排程"></div>
+</section>
+
+<!-- 3 解码层 -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：按 layer_types 二选一的 Token Mixer</h2>
+  <p class="note"><span class="num">Qwen3_5DecoderLayer</span>（modeling_qwen3_5.py:848-901）：<code>block_type=config.layer_types[layer_idx]</code>——linear_attention 挂 GatedDeltaNet，full_attention 挂 GatedAttention；两种层都接同一 SwiGLU MLP。</p>
+  <div class="diagram-shell"><img src="./_arch/02_qwen3_5混合注意力解剖.png" alt="Gated DeltaNet 与 Gated Attention 解剖"></div>
+  <div class="formula">residual = x
+x = input_layernorm(x)
+x = block_type == "linear_attention" ? gated_delta_net(x) : self_attn(x)
+x = residual + x
+x = post_attention_layernorm(x); x = x + mlp(x)   # SwiGLU / 共享专家+路由专家</div>
+</section>
+
+<!-- 4 核心机制 -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：Gated DeltaNet · 输出门 · MTP</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>① Gated DeltaNet（线性，3/4 的层）</h3>
+      <p>融合 QKV → depthwise Conv1d(kernel 4) → 分头；beta 输入门、g 衰减门递归更新状态 <code>S = g*S + beta*(v⊗k)</code>，把 O(n²) 降到近 O(n)。</p>
+      <div class="formula">mixed = conv1d(in_proj_qkv(x))
+beta = sigmoid(b); g = -exp(A_log)*softplus(a+dt)
+S = g*S + beta*(v ⊗ k)
+out = out_proj((q⊗S) * rmsn_gated(z))</div>
+    </div>
+    <div class="card">
+      <h3>② Gated Attention 输出门（1/4 的层）</h3>
+      <p>q_proj 输出翻倍并 chunk 出 <code>gate</code>；注意力输出乘 <code>sigmoid(gate)</code>（attn_output_gate=true）；逐头 QK-Norm；RoPE 仅 256 维头的 64 维。</p>
+      <div class="formula">query, gate = q_proj(x).chunk(2)
+attn = softmax(QK^T/√256 + mask) V
+attn = attn * sigmoid(gate)</div>
+    </div>
+    <div class="card">
+      <h3>③ MoE 路由 + 共享专家（35B 档）</h3>
+      <p>共享专家带 sigmoid 门常连，top-8 路由 256 专家，两者输出相加；路由器 aux loss 系数 0.001。</p>
+      <div class="formula">shared = sigmoid(shared_gate(x)) * shared_expert(x)
+expert = experts(x, topk(router(x), 8))
+out = expert + shared</div>
+    </div>
+    <div class="card">
+      <h3>④ MTP multi-steps 与 thinking</h3>
+      <p><code>mtp_num_hidden_layers=1</code>、<code>mtp_use_dedicated_embeddings=false</code>：训练时多步预测，推理投机解码加速。thinking 默认常开、取消软切换。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 注意力 -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：3:1 混合的层排程</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:22%"><col style="width:18%"><col style="width:18%"><col style="width:20%"><col style="width:22%"></colgroup>
+    <thead><tr><th>单元</th><th>0.8B 头配置</th><th>35B 头配置</th><th>27B 头配置</th><th>头维度 / 位置编码</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Gated DeltaNet（线性）</td><td>K16 / V16</td><td>K16 / V32</td><td>QK16 / V48</td><td>128 · 门控+conv</td></tr>
+      <tr><td class="k">Gated Attention（全注意力）</td><td>Q8 / KV2</td><td>Q16 / KV2</td><td>Q24 / KV4</td><td>256 · RoPE 64 维</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="formula">0.8B (24层):  L L L F | L L L F | L L L F | L L L F | L L L F | L L L F
+35B  (40层):  L L L F × 10
+27B  (64层):  L L L F × 16
+# L=linear_attention(Gated DeltaNet), F=full_attention(Gated Attention)</div>
+  <p class="note">3/4 线性层压长序列成本，1/4 全注意力保精确 recall——「近 O(n) 仍保注意力精度」的混合设计。</p>
+</section>
+
+<!-- 6 多模态 -->
+<section id="mm">
+  <h2 class="mm"><span class="secno">6</span>多模态：原生视觉语言（early fusion）</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>
+    <thead><tr><th>字段（vision_config）</th><th>0.8B</th><th>35B-A3B</th></tr></thead>
+    <tbody>
+      <tr><td class="k">hidden_size / depth</td><td>768 / 12</td><td>1152 / 27</td></tr>
+      <tr><td class="k">num_heads / intermediate</td><td>12 / 3072</td><td>16 / 4304</td></tr>
+      <tr><td class="k">patch / temporal_patch / merge</td><td>16 / 2 / 2</td><td>16 / 2 / 2</td></tr>
+      <tr><td class="k">out_hidden_size（→文本 hidden）</td><td>1024</td><td>2048</td></tr>
+      <tr><td class="k">hidden_act</td><td>gelu_pytorch_tanh</td><td>gelu_pytorch_tanh</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note mm">与 Qwen3-VL 相比，Qwen3.5 把视觉能力<b>原生化</b>进主 config（不再是可选 VL 变体），全系 Dense/MoE 都带视觉塔；文本侧 M-RoPE <code>section=[11,11,10]</code>。transformers v5 用 <code>AutoModelForImageTextToText</code> 加载。</p>
+</section>
+
+<!-- 7 特殊 token -->
+<section id="tokens">
+  <h2><span class="secno">7</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:28%"><col style="width:20%"><col style="width:38%"><col style="width:14%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">eos_token_id</td><td>248044</td><td>序列结束</td><td>text_config</td></tr>
+      <tr><td class="k">image_token_id</td><td>248056</td><td>图像占位</td><td>顶层</td></tr>
+      <tr><td class="k">video_token_id</td><td>248057</td><td>视频占位</td><td>顶层</td></tr>
+      <tr><td class="k">vision_start / end</td><td>248053 / 248054</td><td>图像块起止</td><td>顶层</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">词表 <span class="num">248320（padded）</span>——从 Qwen1–Qwen3 的 151936 一次性扩到 248320。仓库名已去掉 <code>-Instruct</code> 后缀（<code>Qwen/Qwen3.5-0.8B</code>）。</p>
+</section>
+
+<!-- 8 演进 -->
+<section id="evo">
+  <h2><span class="secno">8</span>演进视角：Qwen3 → Qwen3.5</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:20%"><col style="width:38%"><col style="width:42%"></colgroup>
+    <thead><tr><th>维度</th><th>Qwen3（基线）</th><th>Qwen3.5（家族）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">注意力</td><td>全注意力 GQA（head_dim 128）+ QK-Norm</td><td><b>Gated DeltaNet 线性 + Gated Attention 全注意力 3:1 混合</b></td></tr>
+      <tr><td class="k">输出门</td><td>无</td><td><b>attn_output_gate=true</b>（sigmoid(gate)）</td></tr>
+      <tr><td class="k">词表</td><td>151936</td><td><b>248320（padded）</b></td></tr>
+      <tr><td class="k">上下文</td><td>文本 40960 / VL 262144</td><td><b>262144 原生 → YaRN 1M</b></td></tr>
+      <tr><td class="k">多模态</td><td>可选 3-VL 变体</td><td><b>全系原生视觉语言</b></td></tr>
+      <tr><td class="k">MoE</td><td>128 选 8，<b>无共享专家</b></td><td><b>256 选 8 + 显式共享专家</b></td></tr>
+      <tr><td class="k">MTP</td><td>qwen3_next（有）</td><td><b>MTP multi-steps</b>（mtp 层数 1）</td></tr>
+      <tr><td class="k">thinking</td><td>默认开 + /think /no_think 软切换</td><td><b>默认常开、取消软切换</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="chart"><div id="chart2" class="chart-inner"></div></div>
+</section>
+
+<!-- 9 来源 -->
+<section id="sources">
+  <h2><span class="secno">9</span>来源</h2>
+  <ol class="src">
+    <li>本地 config（Qwen3.5-0.8B-Instruct，逐字段核对）<span class="u">E:\models\qwen\Qwen3.5-0.8B-Instruct\config.json（text 1024/24层/8Q·2KV/head256/inter3584/线性K16·V16·head128·conv4/vocab248320/max262144/ropeθ1e7/partial0.25；vision 768/depth12/patch16）</span></li>
+    <li>本地 config（Qwen3.5-35B-A3B-GPTQ-Int4，逐字段核对）<span class="u">E:\models\qwen\Qwen3.5-35B-A3B-GPTQ-Int4\config.json（text 2048/40层/16Q·2KV/head256/256选8/moe_inter512/shared_inter512/线性K16·V32·head128/conv4；vision 1152/depth27/patch16；GPTQ Int4）</span></li>
+    <li>transformers 源码（本地 E:\transformers）<span class="u">models\qwen3_5\modeling_qwen3_5.py（GatedDeltaNet 490-735、Attention 输出门 736-808、DecoderLayer 848-901）；models\qwen3_5_moe\modeling_qwen3_5_moe.py（Experts 832-870、TopKRouter 872-888、SparseMoeBlock 891-908）</span></li>
+    <li>27B 官方 model card（已核对）<span class="u">https://huggingface.co/Qwen/Qwen3.5-27B（64层/hidden5120/16×(3GDN→FFN→1GA→FFN)/GDN V48·QK16/GA Q24·KV4/RoPE dim64/inter17408/262144→YaRN 1M）</span></li>
+    <li>9B 官方 model card<span class="u">hidden 4096 / 32 层 / 词表 248320 padded</span></li>
+    <li>Qwen3.5 官方博客<span class="u">https://qwen.ai/blog?id=qwen3.5（Gated DeltaNet + 稀疏 MoE 混合；397B 总参/17B 激活；原生多模态 agent）</span></li>
+    <li>122B-A10B / 397B-A17B 官方说明<span class="u">397B 总参/17B 激活；122B 总参/10B 激活（hidden/层数精确值以官方 card 为准）</span></li>
+  </ol>
+  <p class="note">核验日期 2026-10-26。122B/397B 的 hidden/层数未拉取本地 config，标待确认；其余数字来自本地 config 或已核实官方 card。</p>
+</section>
+
+<footer>Qwen 3.5 家族架构详解 · 数据来源：本地 config + transformers 源码 + 官方 model card / 博客 · 仅供技术学习与论文研究</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  if(!window.echarts){ return; }
+  var c1 = echarts.init(document.getElementById("chart1"));
+  c1.setOption({
+    animation:false,
+    title:{text:"Qwen3.5 家族：总参数 vs 激活参数（B）", left:"center", textStyle:{fontSize:14}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:50,right:20,top:50,bottom:50},
+    xAxis:{type:"category", data:["0.8B","9B","27B","35B-A3B","122B-A10B","397B-A17B"], axisLabel:{interval:0, rotate:25, fontSize:11}},
+    yAxis:{type:"value", name:"十亿参数"},
+    series:[
+      {name:"总参数", type:"bar", data:[0.8,9,27,35,122,397], itemStyle:{color:"#1d4ed8"}},
+      {name:"每 token 激活", type:"bar", data:[0.8,9,27,3,10,17], itemStyle:{color:"#c0d0f4"}}
+    ]
+  });
+  var c2 = echarts.init(document.getElementById("chart2"));
+  c2.setOption({
+    animation:false,
+    title:{text:"Qwen3 vs Qwen3.5：注意力范式与词表", left:"center", textStyle:{fontSize:14}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:60,right:40,top:50,bottom:50},
+    xAxis:{type:"category", data:["Qwen3 全注意力层数占比","Qwen3.5 线性层占比","Qwen3.5 全注意力层数占比"], axisLabel:{interval:0, fontSize:10}},
+    yAxis:{type:"value", name:"%", max:100},
+    series:[
+      {name:"层占比", type:"bar", data:[100,75,25], itemStyle:{color:function(p){return ["#1d4ed8","#e59866","#1d4ed8"][p.dataIndex];}}, barWidth:"55%"}
+    ]
+  });
+  window.addEventListener("resize", function(){ c1.resize(); c2.resize(); });
+})();
+</script>
+</body>
+</html>

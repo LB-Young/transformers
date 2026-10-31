@@ -1,0 +1,192 @@
+{
+  "src": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\InternVL-1_5-家族架构详解.html",
+  "url": "file:///E:/transformers/bayon-note/InternVL/internvl-1_5/InternVL-1_5-%E5%AE%B6%E6%97%8F%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3.html",
+  "outdir": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots",
+  "include": [
+    "lint",
+    "screenshots",
+    "structure"
+  ],
+  "shots": {
+    "desktop": {
+      "screenshot": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_desktop.jpg",
+      "screenshotBytes": 377582,
+      "truncated": false,
+      "structure": {
+        "title": "InternVL 1.5 家族架构详解 — InternVLChatModel · ViT–MLP–LLM",
+        "firstH1": "InternVL 1.5 家族架构详解",
+        "viewport": {
+          "w": 1422,
+          "h": 748
+        },
+        "fullpage": {
+          "w": 1422,
+          "h": 5380
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 0,
+          "canvas": 1,
+          "svg": 4,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": [],
+      "reportSource": "cdp"
+    },
+    "mobile": {
+      "slices": [
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_mobile_p1of3.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_mobile_p2of3.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_mobile_p3of3.jpg"
+      ],
+      "sliceHint": "按顺序 Read slices 里的各分片。",
+      "truncated": false,
+      "structure": {
+        "title": "InternVL 1.5 家族架构详解 — InternVLChatModel · ViT–MLP–LLM",
+        "firstH1": "InternVL 1.5 家族架构详解",
+        "viewport": {
+          "w": 500,
+          "h": 692
+        },
+        "fullpage": {
+          "w": 500,
+          "h": 6464
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 0,
+          "canvas": 0,
+          "svg": 4,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_CONNECTION_CLOSED",
+          "location": "https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"
+        }
+      ],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": [
+        {
+          "url": "https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js",
+          "resourceType": "Script",
+          "status": null,
+          "reason": "network_error"
+        }
+      ],
+      "reportSource": "cdp"
+    }
+  },
+  "engine": "chrome_cli",
+  "chromiumExec": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "engineDegraded": true,
+  "engineDegradedReason": "playwright 未装",
+  "elapsedSec": 39.96,
+  "schemaVersion": 2,
+  "status": "fail",
+  "engineInfo": {
+    "name": "chrome_cli",
+    "degraded": true,
+    "degradedReasons": [
+      "playwright 未装"
+    ]
+  },
+  "input": {
+    "original": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\InternVL-1_5-家族架构详解.html",
+    "resolvedPath": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\InternVL-1_5-家族架构详解.html",
+    "baseUrl": "file:///E:/transformers/bayon-note/InternVL/internvl-1_5/InternVL-1_5-%E5%AE%B6%E6%97%8F%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3.html",
+    "protocol": "file",
+    "cwd": "E:\\transformers",
+    "mediaMode": {
+      "reducedMotion": true
+    }
+  },
+  "artifacts": {
+    "screenshots": [
+      {
+        "viewport": "desktop",
+        "path": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_desktop.jpg",
+        "size": 377582,
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      },
+      {
+        "viewport": "mobile",
+        "tiles": [
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_mobile_p1of3.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_mobile_p2of3.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\InternVL-1_5-家族架构详解_mobile_p3of3.jpg"
+        ],
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      }
+    ]
+  },
+  "summary": {
+    "blocker": 0,
+    "error": 2,
+    "warning": 0,
+    "info": 0
+  },
+  "findings": [
+    {
+      "ruleId": "consoleErrors",
+      "severity": "error",
+      "kind": "console",
+      "viewport": "mobile",
+      "selector": null,
+      "evidence": {
+        "type": "error",
+        "text": "Failed to load resource: net::ERR_CONNECTION_CLOSED",
+        "location": "https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"
+      },
+      "dedupeKey": "consoleErrors|mobile||0"
+    },
+    {
+      "ruleId": "resourceErrors",
+      "severity": "error",
+      "kind": "network",
+      "viewport": "mobile",
+      "selector": null,
+      "evidence": {
+        "url": "https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js",
+        "resourceType": "Script",
+        "status": null,
+        "reason": "network_error"
+      },
+      "dedupeKey": "resourceErrors|mobile||0"
+    }
+  ],
+  "prioritizedActions": [
+    {
+      "ruleId": "consoleErrors",
+      "severity": "error",
+      "viewport": "mobile",
+      "selector": null
+    },
+    {
+      "ruleId": "resourceErrors",
+      "severity": "error",
+      "viewport": "mobile",
+      "selector": null
+    }
+  ],
+  "reportPath": "E:\\transformers\\bayon-note\\InternVL\\internvl-1_5\\_shots\\report.json"
+}

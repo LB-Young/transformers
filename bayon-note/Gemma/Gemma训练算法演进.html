@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemma 训练算法演进详解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231A2B4A'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='%23C8861A' font-family='Georgia'%3EG%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root{
+  --navy:#1A2B4A; --mid:#52647D; --light:#8D9AAB; --pale:#C9D0D9;
+  --ink:#252525; --sub:#767676; --grid:#D8D8D8; --bg:#F7F8FA;
+  --amber:#C8861A; --paper:#FFFFFF;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:auto}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+  color:var(--ink); background:var(--bg); line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+/* ===== Hero ===== */
+.hero{background:var(--navy);color:#fff;padding:56px 0 44px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-120px;top:-120px;width:340px;height:340px;border-radius:50%;
+  background:rgba(82,100,125,.28);pointer-events:none}
+.hero::before{content:'';position:absolute;right:40px;bottom:-160px;width:280px;height:280px;border-radius:50%;
+  background:rgba(200,134,26,.22);pointer-events:none}
+.hero .wrap{position:relative;z-index:1}
+.eyebrow{letter-spacing:.18em;font-size:12px;color:#C9D0D9;margin-bottom:14px}
+.hero h1{font-family:Georgia,"Songti SC","SimSun",serif;font-size:34px;line-height:1.3;margin-bottom:12px}
+.hero p.lead{font-size:15px;color:#C9D0D9;max-width:760px;margin-bottom:26px}
+.stats{display:flex;flex-wrap:wrap;gap:12px}
+.stat{background:rgba(255,255,255,.08);border:1px solid rgba(201,208,217,.25);border-radius:8px;
+  padding:10px 16px;min-width:150px}
+.stat b{display:block;font-size:22px;color:#fff;font-family:Georgia,serif}
+.stat span{font-size:12px;color:#C9D0D9}
+/* ===== 章节头 ===== */
+.part-tag{font-size:12px;letter-spacing:.16em;color:var(--amber);margin:46px 0 8px;font-weight:600}
+h2.sec{font-size:24px;color:var(--navy);margin-bottom:10px;line-height:1.35}
+.sub{color:var(--sub);font-size:14px;max-width:820px;margin-bottom:22px}
+/* ===== 时间轴 ===== */
+.tl{display:grid;grid-template-columns:92px 28px 1fr;column-gap:14px;margin:26px 0 10px}
+.tl-time{font-size:13px;color:var(--navy);font-weight:600;text-align:right;padding-top:2px}
+.tl-axis{position:relative;justify-self:center}
+.tl-axis::after{content:'';position:absolute;left:50%;top:8px;bottom:-8px;width:2px;
+  background:var(--pale);transform:translateX(-50%)}
+.tl-item:not(:last-child) .tl-axis::after{bottom:-8px}
+.dot{position:relative;width:14px;height:14px;border-radius:50%;background:var(--navy);
+  border:3px solid #fff;box-shadow:0 0 0 2px var(--pale);margin-top:2px;z-index:1}
+.tl-card{background:var(--paper);border:1px solid var(--grid);border-radius:10px;padding:12px 14px 10px;margin-bottom:16px}
+.tl-card h3{font-size:15px;color:var(--navy);margin-bottom:8px}
+.tl-card ul{list-style:none}
+.tl-card li{position:relative;padding-left:14px;font-size:13px;color:var(--ink);margin-bottom:4px}
+.tl-card li::before{content:'';position:absolute;left:0;top:11px;width:7px;height:2px;background:var(--light)}
+.tl-card li b{color:var(--navy)}
+/* ===== 通用区块 ===== */
+.grid2{display:grid;grid-template-columns:1fr;gap:14px;margin:20px 0}
+.grid4{display:grid;grid-template-columns:1fr;gap:14px;margin:20px 0}
+.gen-card{background:var(--paper);border:1px solid var(--grid);border-radius:10px;padding:16px}
+.gen-card h4{font-size:15px;color:var(--navy);margin-bottom:6px}
+.gen-card .meta{font-size:12px;color:var(--sub);margin-bottom:10px;letter-spacing:.04em}
+.gen-card p{font-size:13px;color:var(--ink);margin-bottom:8px}
+.gen-card .key{background:#F4F6F9;border-left:3px solid var(--amber);padding:8px 10px;font-size:12.5px;color:#3d3d3d;border-radius:0 6px 6px 0}
+/* ===== 图表区 ===== */
+.chart-box{background:var(--paper);border:1px solid var(--grid);border-radius:10px;padding:16px;margin:20px 0}
+.chart-box h4{font-size:15px;color:var(--navy);margin-bottom:2px}
+.chart-box .note{font-size:12px;color:var(--sub);margin-bottom:10px}
+#algoMatrix{width:100%;height:300px}
+/* ===== 表格 ===== */
+.tbl-wrap{background:var(--paper);border:1px solid var(--grid);border-radius:10px;padding:6px 0;margin:14px 0;overflow-x:auto}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5px}
+th{background:#D9D9D9;color:var(--navy);font-weight:600;padding:9px 8px;text-align:center;border-bottom:1px solid var(--grid)}
+td{padding:8px;border-bottom:1px solid #EEF0F3;text-align:center;vertical-align:middle}
+td:first-child{text-align:left;font-weight:600;color:var(--navy)}
+tr:last-child td{border-bottom:none}
+caption{caption-side:top;font-size:13px;font-weight:600;color:var(--navy);text-align:center;padding:8px 0 6px}
+/* ===== 流程示意 ===== */
+.flow{display:flex;flex-direction:column;align-items:center;gap:8px;margin:18px 0}
+.flow .row{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;align-items:stretch}
+.flow .box{background:var(--paper);border:1.5px solid var(--mid);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:230px}
+.flow .box.hot{border-color:var(--amber);background:#FFFBF2}
+.flow .box small{display:block;color:var(--sub);font-size:11.5px;margin-top:3px}
+.flow .arrow{color:var(--mid);font-size:18px;line-height:1}
+.flow .cap{font-size:14px;color:var(--navy);font-weight:600;margin:10px 0 2px}
+.flow .foot{font-size:12px;color:var(--sub);max-width:820px;text-align:center}
+/* ===== 结论 ===== */
+.lines{display:grid;grid-template-columns:1fr;gap:14px;margin:20px 0}
+.line{background:var(--paper);border:1px solid var(--grid);border-radius:10px;padding:16px;display:flex;gap:14px;align-items:flex-start}
+.line .no{font-family:Georgia,serif;font-size:26px;color:var(--amber);font-weight:700;line-height:1;min-width:34px}
+.line h4{font-size:15px;color:var(--navy);margin-bottom:6px}
+.line p{font-size:13px;color:var(--ink)}
+/* ===== 参考 ===== */
+.refs{background:var(--paper);border:1px solid var(--grid);border-radius:10px;padding:18px 20px;margin:26px 0}
+.refs h3{font-size:16px;color:var(--navy);margin-bottom:10px}
+.refs ol{padding-left:20px;font-size:12.5px;color:var(--ink)}
+.refs li{margin-bottom:6px}
+.footnote{font-size:11.5px;color:var(--sub);margin:14px 0 40px;line-height:1.8}
+/* ===== 响应式 ===== */
+@media (min-width:768px){
+  .hero{padding:72px 0 56px}
+  .hero h1{font-size:42px}
+  .grid2{grid-template-columns:1fr 1fr}
+  .grid4{grid-template-columns:repeat(4,1fr)}
+  .lines{grid-template-columns:1fr 1fr}
+  #algoMatrix{height:340px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Hero ===== -->
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">GEMMA TECHNICAL REPORTS · TRAINING ALGORITHM EVOLUTION</div>
+    <h1>Gemma 训练算法演进详解</h1>
+    <p class="lead">预训练、指令微调与强化学习算法的四代演变：从标准 next-token 预测与分阶段数据加权，到全词汇概率蒸馏、256-logit 采样蒸馏与量化感知训练，再到 BOND、WARM、WARP 改进版下的多奖励融合与思维链推理轨迹训练。</p>
+    <div class="stats">
+      <div class="stat"><b>4</b><span>代模型技术报告</span></div>
+      <div class="stat"><b>2</b><span>蒸馏目标演进</span></div>
+      <div class="stat"><b>3</b><span>训练阶段算法套件</span></div>
+      <div class="stat"><b>3</b><span>奖励信号来源</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ===== PART 01 时间轴 ===== -->
+<div class="part-tag">—— PART 01 · 总览</div>
+<h2 class="sec">01 四代训练算法的时间轴</h2>
+<p class="sub">以发布时间为轴，四代模型在预训练目标、指令微调方法与强化学习对齐算法上逐级升级；每个节点列出三阶段的算法关键动作。</p>
+
+<div class="tl">
+  <div class="tl-time">2024-02<br>Gemma 1</div>
+  <div class="tl-axis"><div class="dot"></div></div>
+  <div class="tl-card">
+    <h3>奠基：标准训练 + 经典 RLHF</h3>
+    <ul>
+      <li><b>预训练：</b>标准 next-token 预测；分阶段训练提升后期数据质量</li>
+      <li><b>SFT：</b>标准监督微调；LM 逐对评估（大模型判优）选数据混合</li>
+      <li><b>RL：</b>经典 RLHF；Bradley-Terry 奖励模型 + 未命名新颖算法；高容量模型自动评分</li>
+    </ul>
+  </div>
+  <div class="tl-time">2024-06<br>Gemma 2</div>
+  <div class="tl-axis"><div class="dot"></div></div>
+  <div class="tl-card">
+    <h3>蒸馏时代开启</h3>
+    <ul>
+      <li><b>预训练：</b>首次引入知识蒸馏，min Σx −P_T·log P_S（Gemini 1.5 同法）</li>
+      <li><b>SFT：</b>行为克隆 + on-policy 蒸馏（Agarwal 2024；Gu 2024）</li>
+      <li><b>RL：</b>同 Gemma 1.1 算法；奖励模型大一个数量级、更对话向；阶段模型平均</li>
+    </ul>
+  </div>
+  <div class="tl-time">2025-03<br>Gemma 3</div>
+  <div class="tl-axis"><div class="dot"></div></div>
+  <div class="tl-card">
+    <h3>采样蒸馏 + 多奖励</h3>
+    <ul>
+      <li><b>预训练：</b>每 token 256-logit 加权采样蒸馏；QAT 量化感知训练</li>
+      <li><b>SFT：</b>大型 IT 教师改进版蒸馏，与 RL 阶段衔接</li>
+      <li><b>RL：</b>BOND / WARM / WARP 改进版；多奖励（人类反馈、代码执行、数学真实答案）</li>
+    </ul>
+  </div>
+  <div class="tl-time">2026-07<br>Gemma 4</div>
+  <div class="tl-axis"><div class="dot"></div></div>
+  <div class="tl-card">
+    <h3>配方继承 + 思维链 + 工程升级</h3>
+    <ul>
+      <li><b>预训练：</b>继承 Gemma 3 蒸馏配方；QAT 扩展至编码器与更低 bit 位宽</li>
+      <li><b>SFT：</b>同 Gemma 3；新增 thinking mode 推理轨迹数据</li>
+      <li><b>RL：</b>同 Gemma 3；思维链推理轨迹贯穿对齐；MTP drafter 推测解码</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===== PART 02 预训练算法 ===== -->
+<div class="part-tag">—— PART 02 · 预训练</div>
+<h2 class="sec">02 预训练算法：从标准训练到采样蒸馏</h2>
+<p class="sub">训练目标从无蒸馏的标准 next-token 预测，演进出全词汇概率蒸馏与 256-logit 加权采样蒸馏两代升级；量化感知训练自 Gemma 3 起进入管道。</p>
+
+<div class="grid4">
+  <div class="gen-card">
+    <h4>Gemma 1</h4>
+    <div class="meta">2024-02 · 奠基</div>
+    <p>标准 next-token 预测，无蒸馏、无特殊学习目标。</p>
+    <div class="key">分阶段训练：后期提高高质量数据权重（借鉴 Gemini）</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 2</h4>
+    <div class="meta">2024-06 · 蒸馏引入</div>
+    <p>目标 = next-token 损失 + 蒸馏损失，学生分布逼近教师全分布。</p>
+    <div class="key">min Σx −P_T(x|x_c)·log P_S(x|x_c)</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 3</h4>
+    <div class="meta">2025-03 · 蒸馏细化</div>
+    <p>每 token 按教师概率加权采样 256 logits，仅采样集交叉熵；QAT 约 5,000 步。</p>
+    <div class="key">消融：短视窗小教师更优，长训练大教师更优</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 4</h4>
+    <div class="meta">2026-07 · 配方继承</div>
+    <p>蒸馏配方与 Gemma 3 一致，无新目标函数；工程升级集中在量化与解码。</p>
+    <div class="key">论文未披露新蒸馏超参细节</div>
+  </div>
+</div>
+
+<div class="chart-box">
+  <h4>三阶段 × 四代算法矩阵</h4>
+  <div class="note">横轴为代际，纵轴为训练阶段；颜色由浅至深表示技术引入的深化程度。悬浮查看完整描述。</div>
+  <div id="algoMatrix"></div>
+  <div class="note">数据来源：根据 Gemma 1—4 技术报告整理。</div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
+    <caption>表 1 · 预训练算法演进对比</caption>
+    <thead><tr><th>维度</th><th>Gemma 1</th><th>Gemma 2</th><th>Gemma 3</th><th>Gemma 4</th></tr></thead>
+    <tbody>
+      <tr><td>训练目标</td><td>标准 next-token</td><td>next-token + 全词汇分布蒸馏</td><td>next-token + 256-logit 采样蒸馏</td><td>同 Gemma 3</td></tr>
+      <tr><td>蒸馏目标</td><td>无</td><td>min Σx −P_T·log P_S</td><td>按概率加权采样 256 logits</td><td>同 Gemma 3</td></tr>
+      <tr><td>数据加权</td><td>分阶段训练</td><td>分阶段训练</td><td>分阶段训练 + 质量重加权</td><td>同 Gemma 3</td></tr>
+      <tr><td>量化训练</td><td>无</td><td>无</td><td>QAT 约 5,000 步（int4 / SFP8）</td><td>QAT 扩展（int2/4/8，含编码器）</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== PART 03 指令微调 ===== -->
+<div class="part-tag">—— PART 03 · 指令微调</div>
+<h2 class="sec">03 指令微调算法：从数据选择到教师蒸馏</h2>
+<p class="sub">SFT 从"以数据为中心"走向"以蒸馏为中心"：LM 逐对评估选数 → 行为克隆 + on-policy 蒸馏 → 大型 IT 教师蒸馏 → 继承配方并加入思维链数据。</p>
+
+<div class="grid4">
+  <div class="gen-card">
+    <h4>Gemma 1</h4>
+    <div class="meta">标准 SFT · 数据驱动</div>
+    <p>人工 + 合成 prompt-response 对上的标准监督微调。</p>
+    <div class="key">LM 逐对评估：大模型 judge + CoT / rubrics / constitutions 选数</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 2</h4>
+    <div class="meta">行为克隆 + 蒸馏</div>
+    <p>内部 + 公开提示（LMSYS-chat-1M，不含回答）配合教师合成响应。</p>
+    <div class="key">学生分布蒸馏（on-policy，Agarwal 2024；Gu 2024）</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 3</h4>
+    <div class="meta">大型教师蒸馏</div>
+    <p>从大型指令微调（IT）教师改进版蒸馏，与 RL 阶段衔接。</p>
+    <div class="key">论文未披露 SFT 数据具体规模</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 4</h4>
+    <div class="meta">继承 + 思维链</div>
+    <p>SFT 配方同 Gemma 3，新增 thinking mode 推理轨迹数据。</p>
+    <div class="key">模型先输出推理轨迹，再给出最终答案</div>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
+    <caption>表 2 · 指令微调算法演进对比</caption>
+    <thead><tr><th>维度</th><th>Gemma 1</th><th>Gemma 2</th><th>Gemma 3</th><th>Gemma 4</th></tr></thead>
+    <tbody>
+      <tr><td>核心算法</td><td>标准 SFT + LM 评估选数</td><td>行为克隆 + on-policy 蒸馏</td><td>大型 IT 教师蒸馏</td><td>同 Gemma 3 + thinking 数据</td></tr>
+      <tr><td>数据选择</td><td>LM judge 逐对比较</td><td>扩展 1.1 数据 + 外部提示</td><td>未披露具体规模</td><td>同 Gemma 3</td></tr>
+      <tr><td>蒸馏角色</td><td>无</td><td>学生分布蒸馏</td><td>教师为指令微调模型</td><td>同 Gemma 3</td></tr>
+      <tr><td>阶段衔接</td><td>—</td><td>—</td><td>与 RL 阶段衔接</td><td>推理轨迹贯穿 SFT / RL</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== PART 04 强化学习 ===== -->
+<div class="part-tag">—— PART 04 · 强化学习</div>
+<h2 class="sec">04 强化学习对齐算法：从偏好对到多奖励</h2>
+<p class="sub">对齐算法从经典 RLHF 出发：奖励模型更大更对话向、阶段模型平均、多奖励融合（人类反馈 + 代码执行 + 数学真实答案），并在 Gemma 4 加入思维链推理轨迹。</p>
+
+<div class="grid4">
+  <div class="gen-card">
+    <h4>Gemma 1</h4>
+    <div class="meta">经典 RLHF</div>
+    <p>人工英文偏好对 + Bradley-Terry 奖励模型 + 未命名新颖 RL 算法。</p>
+    <div class="key">高容量模型自动评分，缓解奖励黑客</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 2</h4>
+    <div class="meta">更大、更对话向</div>
+    <p>RLHF 算法同 Gemma 1.1；奖励模型比 policy 大一个数量级。</p>
+    <div class="key">阶段模型平均（WARP / Ramé 2024 思想）</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 3</h4>
+    <div class="meta">多奖励融合</div>
+    <p>基于 BOND、WARM、WARP 的改进版本做 RL 微调。</p>
+    <div class="key">权重平均奖励模型 + 代码执行反馈 + 数学真实答案</div>
+  </div>
+  <div class="gen-card">
+    <h4>Gemma 4</h4>
+    <div class="meta">继承 + 推理轨迹</div>
+    <p>对齐方案沿用 Gemma 3，未披露新 RL 算法细节。</p>
+    <div class="key">thinking mode：先推理轨迹、再最终答案</div>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
+    <caption>表 3 · 强化学习对齐算法演进对比</caption>
+    <thead><tr><th>维度</th><th>Gemma 1</th><th>Gemma 2</th><th>Gemma 3</th><th>Gemma 4</th></tr></thead>
+    <tbody>
+      <tr><td>算法</td><td>经典 RLHF（未命名新颖算法）</td><td>同 Gemma 1.1</td><td>BOND / WARM / WARP 改进版</td><td>同 Gemma 3</td></tr>
+      <tr><td>奖励模型</td><td>Bradley-Terry（同 Gemini）</td><td>大一个数量级、更对话向</td><td>权重平均（WARM）</td><td>同 Gemma 3</td></tr>
+      <tr><td>奖励信号</td><td>人类偏好对</td><td>人类偏好对</td><td>人类 + 代码 + 数学真实答案</td><td>同 Gemma 3 + 推理轨迹</td></tr>
+      <tr><td>特色机制</td><td>高容量模型自动评分</td><td>阶段模型平均</td><td>多奖励融合</td><td>thinking mode</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== PART 05 配套 ===== -->
+<div class="part-tag">—— PART 05 · 蒸馏、量化与工程配套</div>
+<h2 class="sec">05 蒸馏、量化与工程配套</h2>
+<p class="sub">预训练蒸馏在 Gemma 2 与 Gemma 3 之间完成两次目标演进；QAT 从 5,000 步扩展到更低 bit 位宽与编码器；Gemma 4 新增 MTP drafter 推测解码与容错续训基础设施。</p>
+
+<div class="flow">
+  <div class="cap">Gemma 2 · 全词汇概率蒸馏</div>
+  <div class="row">
+    <div class="box">Teacher<br><small>大模型</small></div>
+    <div class="arrow">→</div>
+    <div class="box hot">完整词汇表概率<br>P_T(x | x_c)</div>
+    <div class="arrow">→</div>
+    <div class="box">交叉熵<br>−Σx P_T · log P_S</div>
+    <div class="arrow">→</div>
+    <div class="box">Student<br><small>Gemma 2</small></div>
+  </div>
+  <div class="foot">目标：学生分布逼近教师全分布（Gemini 1.5 同法）；高内存与带宽开销。</div>
+  <div class="cap" style="margin-top:22px">Gemma 3 · 每 token 256-logit 采样蒸馏</div>
+  <div class="row">
+    <div class="box">Teacher<br><small>大模型</small></div>
+    <div class="arrow">→</div>
+    <div class="box hot">按概率加权采样<br>256 logits / token</div>
+    <div class="arrow">→</div>
+    <div class="box">仅采样集交叉熵<br>未采样位置置零重归一化</div>
+    <div class="arrow">→</div>
+    <div class="box">Student<br><small>Gemma 3</small></div>
+  </div>
+  <div class="foot">大幅降低内存与通信开销，蒸馏训练可规模化；消融：短训练视窗小教师更优，长训练大教师更优。</div>
+</div>
+
+<div class="grid2">
+  <div class="gen-card">
+    <h4>量化感知训练（QAT）</h4>
+    <div class="meta">Gemma 3 → Gemma 4</div>
+    <p>Gemma 3：约 5,000 步，以未量化 checkpoint 概率为目标，支持 int4 与 SFP8。</p>
+    <p>Gemma 4：mobile（per-channel int2/int4 权重 + int8 激活）与 Q4_0（blockwise + fp16 标量缩放），覆盖图像与音频编码器。</p>
+    <div class="key">150M 图像编码器 W8A8：内存 400MB→200MB、延迟 −44%；音频编码器磁盘 390MB→87MB（−78%）</div>
+  </div>
+  <div class="gen-card">
+    <h4>推测解码与基础设施</h4>
+    <div class="meta">Gemma 4 新增</div>
+    <p>MTP drafter：4 层 Transformer（256/1024 维，3 local + 1 global）交叉注意力到主模型 KV，省去 prefill；E2B/E4B 用 top-k token cluster 投影（262k→4096）。</p>
+    <div class="key">TPUv4 / v6e；Slice-Granularity Elasticity：局部故障用更少 slice 续训，中断恢复从数分钟降至数秒</div>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
+    <caption>表 4 · 工程配套技术演进对比</caption>
+    <thead><tr><th>维度</th><th>Gemma 1</th><th>Gemma 2</th><th>Gemma 3</th><th>Gemma 4</th></tr></thead>
+    <tbody>
+      <tr><td>蒸馏</td><td>无</td><td>全词汇分布蒸馏</td><td>256-logit 采样蒸馏</td><td>同 Gemma 3</td></tr>
+      <tr><td>量化</td><td>无</td><td>无</td><td>QAT 约 5,000 步</td><td>mobile 与 Q4_0，含编码器</td></tr>
+      <tr><td>推测解码</td><td>无</td><td>无</td><td>无</td><td>MTP drafter</td></tr>
+      <tr><td>基础设施</td><td>TPUv4 / v5e / v5p</td><td>同左</td><td>同左</td><td>TPUv4 / v6e + 弹性续训</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== PART 06 结论 ===== -->
+<div class="part-tag">—— PART 06 · 结论</div>
+<h2 class="sec">06 三条演进主线与写作建议</h2>
+<p class="sub">训练算法演进可归纳为三条主线，供论文写作直接引用。</p>
+
+<div class="lines">
+  <div class="line">
+    <div class="no">1</div>
+    <div><h4>蒸馏逐步深化</h4><p>无 → 全词汇概率蒸馏 → 每 token 256-logit 加权采样蒸馏，是预训练算法演进的主干；Gemma 3 给出小/大教师消融结论。</p></div>
+  </div>
+  <div class="line">
+    <div class="no">2</div>
+    <div><h4>后训练走向算法套件</h4><p>SFT 从数据选择走向行为克隆、on-policy 蒸馏与大型教师蒸馏；RL 从经典 RLHF 走向 BOND/WARM/WARP 改进版与多奖励融合。</p></div>
+  </div>
+  <div class="line">
+    <div class="no">3</div>
+    <div><h4>工程配套并行成熟</h4><p>QAT、MTP drafter 推测解码与容错训练基础设施（Slice-Granularity Elasticity）成为模型可部署性的关键支撑。</p></div>
+  </div>
+</div>
+
+<div class="gen-card" style="margin:20px 0">
+  <h4>论文写作建议</h4>
+  <p>一是以“蒸馏深化”作为预训练章节主线，重点展开 Gemma 2 的公式与 Gemma 3 的采样设计；二是后训练部分突出“偏好对 → 多奖励 + 思维链”的信号演进；三是 Gemma 1 的新颖强化学习算法未命名、Gemma 4 的算法细节未披露，引用时注明口径，避免过度推断。</p>
+</div>
+
+<!-- ===== 参考文献 ===== -->
+<div class="refs">
+  <h3>参考来源</h3>
+  <ol>
+    <li>Gemma Team. Gemma: Open Models Based on Gemini Research and Technology. arXiv:2403.08295, 2024.</li>
+    <li>Gemma Team. Gemma 2: Improving Open Language Models at a Practical Size. arXiv:2408.00118, 2024.</li>
+    <li>Gemma Team. Gemma 3 Technical Report. arXiv:2503.19786, 2025.</li>
+    <li>Gemma Team. Gemma 4 Technical Report. arXiv:2607.02770, 2026.</li>
+  </ol>
+</div>
+
+<p class="footnote">本页所有事实均取自上述技术报告原文。论文未披露的信息已如实标注：Gemma 1 的强化学习算法未命名；Gemma 3、Gemma 4 的 SFT 数据规模、各代优化器与学习率超参未披露；Gemma 4 的蒸馏与 RL 算法细节以“同 Gemma 3”口径标注，未作估计。</p>
+
+</main>
+
+<script>
+// ===== ECharts 算法矩阵 =====
+(function(){
+  var chart = echarts.init(document.getElementById('algoMatrix'));
+  var short = [
+    ['标准训练','全分布蒸馏','采样蒸馏','同 Gemma 3'],
+    ['LM 评估选数','克隆 + 蒸馏','大教师蒸馏','继承 + 思考'],
+    ['经典 RLHF','大奖励 + 平均','多奖励','继承 + 轨迹']
+  ];
+  var full = [
+    ['标准 next-token 预测；分阶段训练提升后期数据质量','引入全词汇概率蒸馏，min Σx −P_T·log P_S（Gemini 1.5 同法）','每 token 256-logit 加权采样蒸馏；QAT 约 5,000 步','继承 Gemma 3 蒸馏配方，工程升级集中在量化与解码'],
+    ['标准 SFT + LM 逐对评估（大模型 judge）选数据','行为克隆 + on-policy 蒸馏（Agarwal 2024；Gu 2024）','大型 IT 教师改进版蒸馏，与 RL 衔接','同 Gemma 3 + thinking mode 推理轨迹数据'],
+    ['经典 RLHF；Bradley-Terry + 未命名新颖算法；自动评分','同 Gemma 1.1；奖励模型大一个数量级、更对话向；模型平均','BOND / WARM / WARP 改进版；人类反馈 + 代码执行 + 数学真实答案','同 Gemma 3；推理轨迹贯穿 SFT 与 RL']
+  ];
+  var cats = ['预训练','指令微调','强化学习'];
+  var gens = ['Gemma 1','Gemma 2','Gemma 3','Gemma 4'];
+  var data = [];
+  for (var i = 0; i < 3; i++) {
+    for (var j = 0; j < 4; j++) {
+      data.push({value: [j, i, j + 1], short: short[i][j], full: full[i][j]});
+    }
+  }
+  chart.setOption({
+    grid: {left: 64, right: 20, top: 30, bottom: 40},
+    xAxis: {type: 'category', data: gens, axisTick: {show: false}, axisLine: {lineStyle: {color: '#D8D8D8'}},
+      axisLabel: {color: '#1A2B4A', fontSize: 12, fontWeight: 600}},
+    yAxis: {type: 'category', data: cats, axisTick: {show: false}, axisLine: {show: false},
+      axisLabel: {color: '#52647D', fontSize: 12}},
+    visualMap: {show: false, min: 1, max: 4, inRange: {color: ['#C9D0D9', '#8D9AAB', '#52647D', '#1A2B4A']}},
+    series: [{
+      type: 'heatmap',
+      data: data,
+      label: {show: true, formatter: function(p){ return p.data.short; }, fontSize: 10.5,
+        color: function(p){ return p.value[2] >= 3 ? '#FFFFFF' : '#252525'; }, fontWeight: 600},
+      itemStyle: {borderColor: '#FFFFFF', borderWidth: 3, borderRadius: 4},
+      emphasis: {itemStyle: {shadowBlur: 8, shadowColor: 'rgba(26,43,74,.35)'}},
+      tooltip: {formatter: function(p){
+        return '<b>' + cats[p.value[1]] + ' · ' + gens[p.value[0]] + '</b><br>' + p.data.full;
+      }}
+    }],
+    tooltip: {confine: true}
+  });
+  window.addEventListener('resize', function(){ chart.resize(); });
+})();
+</script>
+</body>
+</html>

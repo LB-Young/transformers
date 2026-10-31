@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemma 1 家族架构详解 — GemmaForCausalLM（2B / 7B · MQA 与 MHA）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23b45309'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E1%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#b45309; --accent-ink:#7c3a0a; --accent-soft:#f7ead6; --accent-line:#e8cfae;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#7a5a2e;
+    --kv:#0f766e; --kv-soft:#dcf3ef; --kv-line:#9fd4cc;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.66; font-size:15px;}
+  .wrap{max-width:1200px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.kv{color:var(--kv); background:var(--kv-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:10px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink); flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.88rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 6px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.teal{border-color:var(--kv-line); background:var(--kv-soft); color:var(--kv);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:980px; margin-top:10px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:34px 0;}
+  h2{font-size:1.32rem; display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  h2 .secno{font-size:.82rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.86rem; color:var(--sub);}
+  .tip{font-size:.83rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:9px 13px; border-radius:10px; margin-top:10px;}
+  .tip.warn{background:#fdecec; border-color:#e6b3b3; color:#8a3b3b;}
+  .tip.teal{background:var(--kv-soft); border-color:var(--kv-line); color:var(--kv);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#fdf3e3; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.kv rect{fill:var(--kv-soft); stroke:var(--kv); stroke-width:1.4;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.rm{stroke:var(--accent); stroke-width:1.6; fill:none; stroke-dasharray:6 4; marker-end:url(#arrA);}
+  .dg .edge.kve{stroke:var(--kv); stroke-width:1.7; fill:none; marker-end:url(#arrK);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4; fill:none;}
+  .dg text.lbl{font-size:11px; fill:var(--sub);}
+  .dg text.lblK{font-size:11px; fill:var(--kv); font-weight:600;}
+
+  table.cmp{width:100%; min-width:760px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.82rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.86rem;}
+  table.cmp thead th.kv-th{background:var(--kv-soft); color:var(--kv);}
+  table.cmp tbody tr:nth-child(even){background:#fdfbf7;}
+  table.cmp tbody tr:last-child td{border-bottom:none;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp tr.hl td{background:#fdf3e3;}
+  table.cmp td.kv-td{background:var(--kv-soft);}
+  table.cmp code{color:var(--accent-ink);}
+
+  .cards{display:grid; grid-template-columns:1fr; gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .cards > *{min-width:0;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0;}
+  .card.kv{background:var(--kv-soft); border-color:var(--kv-line);}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card.kv h3{color:var(--kv);}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:9px; font-size:.8rem; color:var(--sub);}
+  .formula{background:#2b2218; color:#f0d9b5; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  .formula .cm{color:#9a8a70;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.85rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem; margin-top:2px;}
+
+  footer{margin:40px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#f0c384;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+    table.cmp{min-width:0;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#b45309"/><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">1</text></svg>Gemma 1 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs Gemma 2</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Gemma 1 家族架构详解（2B / 7B）</h1>
+  <div class="badges">
+    <span class="badge">2024-02 发布 · 纯解码器 · 稠密</span>
+    <span class="badge">入口类 GemmaForCausalLM</span>
+    <span class="badge">本地 config：gemma-2b-it（unsloth 转换版）</span>
+    <span class="badge teal">2B：MQA（1 KV 头 → 广播 8 倍）</span>
+    <span class="badge teal">7B：MHA（16 KV 头 = 16 Q 头）</span>
+  </div>
+  <p class="lead">Gemma 1 是 Google 基于 Gemini 研究技术的首个开放权重模型家族，纯解码器 Transformer<sup class="src" data-tip="[P] Gemma 技术报告 arXiv:2403.08295 §2">[P]</sup>。本页以本地 <b>gemma-2b-it</b> 的 <b>config.json</b>、ModelScope 多镜像核验的 <b>gemma-7b(-it) config.json</b>，以及本地 transformers 源码 <b>modeling_gemma.py / configuration_gemma.py</b>（v5.5.0.dev0）为唯一依据。一个常被忽略的事实：<b class="num kv">家族内 2B 用 MQA（1 个 KV 头），7B 用完整 MHA（16 个 KV 头）</b>——两者的 KV 缓存策略并不相同。所有数字均标注来源（config 字段或源码 文件:行号）。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：2B 与 7B 的 config 对照</h2>
+  <p class="note">下表逐字段来自 config.json 原文。2B 取本地 <span class="num">E:\models\model\gemma-2b-it\config.json</span>；7B 取 ModelScope 下载的 <span class="num">gemma-7b-it config.json</span>（unsloth 转换版），并经 LLM-Research / AI-ModelScope 两个镜像交叉核验一致。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:26%"><col style="width:24%"><col style="width:24%"><col style="width:26%"></colgroup>
+    <thead><tr><th>字段（config.json）</th><th>Gemma 2B</th><th class="kv-th">Gemma 7B</th><th>备注 / 源码佐证</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures</td><td><code>GemmaForCausalLM</code></td><td class="kv-td"><code>GemmaForCausalLM</code></td><td>model_type=<code>gemma</code></td></tr>
+      <tr><td class="k">hidden_size</td><td><span class="num">2048</span></td><td class="kv-td"><span class="num">3072</span></td><td>残差流维度基准</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td><span class="num">18</span></td><td class="kv-td"><span class="num">28</span></td><td>layers ModuleList<small>modeling_gemma.py:365</small></td></tr>
+      <tr class="hl"><td class="k">num_attention_heads (Q)</td><td><span class="num">8</span></td><td class="kv-td"><span class="num">16</span></td><td>q_proj 输出头数</td></tr>
+      <tr class="hl"><td class="k">num_key_value_heads</td><td><span class="num kv">1（MQA）</span></td><td class="kv-td"><span class="num kv">16（MHA）</span></td><td>家族内差异核心<small>k/v_proj 输出头数；:233-238</small></td></tr>
+      <tr><td class="k">KV 分组数 = Q//KV</td><td><span class="num kv">8</span></td><td class="kv-td"><span class="num kv">1</span></td><td>num_key_value_groups<small>:225；repeat_kv :179-188</small></td></tr>
+      <tr><td class="k">head_dim</td><td><span class="num">256</span></td><td class="kv-td"><span class="num">256</span></td><td>scaling=256⁻⁰·⁵=1/16<small>:226</small></td></tr>
+      <tr><td class="k">intermediate_size</td><td><span class="num">16384</span></td><td class="kv-td"><span class="num">24576</span></td><td>GeGLU 单投影维度<small>:89-91</small></td></tr>
+      <tr><td class="k">vocab_size</td><td><span class="num">256000</span><small>config 原文</small></td><td class="kv-td"><span class="num">256000</span><small>config 原文</small></td><td><b>论文 Table 1 为 256,128</b>（见 §6，并列标注不统一）</td></tr>
+      <tr><td class="k">hidden_act</td><td><code>"gelu"</code></td><td class="kv-td"><code>"gelu"</code></td><td>GeGLU 激活；见 §4.3 的 legacy 口径说明</td></tr>
+      <tr><td class="k">rms_norm_eps</td><td><span class="num">1e-6</span></td><td class="kv-td"><span class="num">1e-6</span></td><td>GemmaRMSNorm<small>:64, :292-293, :368</small></td></tr>
+      <tr><td class="k">rope_theta</td><td><span class="num">10000.0</span></td><td class="kv-td"><span class="num">10000.0</span></td><td>RoPE 基频<small>:127</small></td></tr>
+      <tr><td class="k">max_position_embeddings</td><td><span class="num">8192</span></td><td class="kv-td"><span class="num">8192</span></td><td>上下文长度</td></tr>
+      <tr><td class="k">attention_bias</td><td><span class="num">false</span></td><td class="kv-td"><span class="num">false</span></td><td>全部 Linear 无 bias<small>:230-241, :89-91</small></td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td><span class="num">true</span></td><td class="kv-td"><span class="num">true</span></td><td>lm_head ↔ embed_tokens<small>:433</small></td></tr>
+      <tr><td class="k">sliding_window / logit softcap</td><td colspan="2"><b>均无</b>：config 无 sliding_window、无 attn_logit_softcapping 字段</td><td>全局全注意力；两者均为 Gemma 2 新增（§7）</td></tr>
+      <tr><td class="k">总参数量（官方）</td><td><span class="num">≈2.6B</span></td><td class="kv-td"><span class="num">≈8.5B</span></td><td>本页自核算：2B≈2.51B / 7B≈8.54B（§1.1）</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>1.1 参数量自核算（按 config 复算，可复算）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:24%"><col style="width:25%"><col style="width:25%"><col style="width:26%"></colgroup>
+    <thead><tr><th>组成</th><th>2B</th><th class="kv-th">7B</th><th>计算式</th></tr></thead>
+    <tbody>
+      <tr><td class="k">嵌入 + LM Head（tied）</td><td>524.3M</td><td class="kv-td">786.4M</td><td>256000 × hidden</td></tr>
+      <tr><td class="k">注意力 Q/K/V/O（每层）</td><td>9.44M</td><td class="kv-td">50.33M</td><td>2B: q/o=2048², k/v=2048·256；7B: q/k/v/o=3072·4096（MHA）</td></tr>
+      <tr><td class="k">注意力小计</td><td>169.9M</td><td class="kv-td">1409.3M</td><td>× 层数（18 / 28）</td></tr>
+      <tr><td class="k">GeGLU MLP（每层）</td><td>100.66M</td><td class="kv-td">226.49M</td><td>3 × hidden × intermediate</td></tr>
+      <tr><td class="k">MLP 小计</td><td>1811.9M</td><td class="kv-td">6341.8M</td><td>× 层数（18 / 28）</td></tr>
+      <tr class="hl"><td class="k">合计（不含 RMSNorm 权重）</td><td><b>≈2.51B</b></td><td class="kv-td"><b>≈8.54B</b></td><td>与官方 2.6B / 8.5B 同量级</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：<b>2B 走 MQA</b>（k/v_proj 只产出 1 个头，KV cache 体积为 MHA 的 1/8），<b>7B 走完整 MHA</b>（k/v_proj 各 16 个头，与 Q 等宽）。这意味着 7B 的 <span class="num kv">num_key_value_groups=1</span>，源码里 <span class="num kv">repeat_kv</span> 在 n_rep==1 时直接原样返回（<span class="num">:185-186</span>）——广播逻辑对 7B 是空操作。</p>
+</section>
+
+<!-- ==================== 2 数据流总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览（以本地 2B 为主尺寸）</h2>
+  <p class="note">输入 token id → 缩放词嵌入（×√d_model，tied）→ <b>18 个相同的 GemmaDecoderLayer</b> → 最终 RMSNorm → 无 bias 线性 lm_head（与嵌入共享权重）→ logits。7B 同构，仅把 18 层换成 28 层、维度换成 3072/4096。悬停/点击节点看细节与源码行号。</p>
+  <div class="diagram-shell" aria-label="Gemma 1 端到端数据流">
+  <svg viewBox="0 0 1240 200" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker>
+    </defs>
+
+    <g class="node core"><rect x="16" y="66" width="120" height="66" rx="12"/>
+      <text class="t" x="76" y="92" text-anchor="middle">input_ids</text>
+      <text class="m" x="76" y="112" text-anchor="middle">(b, s)</text></g>
+    <path class="edge" d="M136,99 L176,99"/>
+
+    <g class="node dim" data-tip="GemmaTextScaledWordEmbedding（:49-60, :362-363）&#10;Embedding(256000, 2048)，padding_idx=0&#10;前向再乘 embed_scale = √2048 ≈ 45.25&#10;（7B 为 √3072 ≈ 55.43）&#10;这是 Gemma 区别于 LLaMA 的细节：嵌入整体缩放。">
+      <rect x="176" y="52" width="186" height="94" rx="12"/>
+      <text class="t" x="269" y="78" text-anchor="middle">词嵌入 Embedding</text>
+      <text class="m" x="269" y="98" text-anchor="middle">(256000, 2048)</text>
+      <text class="m" x="269" y="116" text-anchor="middle">× √2048 ≈ 45.25</text>
+      <text class="s" x="269" y="134" text-anchor="middle">(b,s,2048) · ScaledWordEmbedding</text></g>
+    <path class="edge" d="M362,99 L398,99"/>
+
+    <g class="node core" data-tip="GemmaModel.layers（:365-367, :414-423）&#10;ModuleList[GemmaDecoderLayer] × 18（7B × 28）&#10;每层结构完全相同，见 §3 展开图。&#10;残差流贯穿，维度恒为 2048。&#10;RoPE cos/sin 在 :412 统一算一次后传入各层。">
+      <rect x="398" y="46" width="266" height="106" rx="14"/>
+      <text class="t" x="531" y="74" text-anchor="middle">GemmaDecoderLayer × 18</text>
+      <text class="s" x="531" y="94" text-anchor="middle">input_layernorm → Attn(MQA) → ⊕</text>
+      <text class="s" x="531" y="112" text-anchor="middle">post_attn_layernorm → GeGLU → ⊕</text>
+      <text class="m" x="531" y="134" text-anchor="middle">每层 2 个 RMSNorm（无 post-FFN norm）</text></g>
+    <path class="edge" d="M664,99 L700,99"/>
+
+    <g class="node dim" data-tip="GemmaModel.norm（:368, :424）&#10;最后一层之后、lm_head 之前的最终 RMSNorm&#10;eps=1e-6；权重形式 (1+weight)（:76）。">
+      <rect x="700" y="66" width="146" height="66" rx="12"/>
+      <text class="t" x="773" y="92" text-anchor="middle">最终 RMSNorm</text>
+      <text class="m" x="773" y="112" text-anchor="middle">GemmaRMSNorm eps1e-6</text></g>
+    <path class="edge" d="M846,99 L882,99"/>
+
+    <g class="node dim" data-tip="lm_head（:442）Linear(2048→256000, bias=False)&#10;权重与 embed_tokens 共享（tied）&#10;_tied_weights_keys={lm_head.weight: model.embed_tokens.weight}（:433）&#10;vocab：config=256000 / 论文 Table 1=256128。">
+      <rect x="882" y="52" width="166" height="94" rx="12"/>
+      <text class="t" x="965" y="78" text-anchor="middle">lm_head（无 bias）</text>
+      <text class="m" x="965" y="98" text-anchor="middle">2048 → 256000</text>
+      <text class="s" x="965" y="116" text-anchor="middle">与输入嵌入权重共享</text>
+      <text class="s" x="965" y="134" text-anchor="middle">(b,s,256000) logits</text></g>
+    <path class="edge" d="M1048,99 L1086,99"/>
+
+    <g class="node core"><rect x="1086" y="66" width="126" height="66" rx="12"/>
+      <text class="t" x="1149" y="92" text-anchor="middle">下一 token</text>
+      <text class="s" x="1149" y="112" text-anchor="middle">softmax 取 argmax</text></g>
+
+    <text class="lbl" x="269" y="176" text-anchor="middle">Gemma 嵌入前向乘 √d_model（:60/:363），LLaMA 不乘</text>
+    <text class="lbl" x="965" y="176" text-anchor="middle">无最终二次归一化、无 soft-capping</text>
+  </svg>
+  </div>
+  <p class="tip">数据流与源码逐项对应：嵌入 <span class="num">embed_tokens</span>（:362）→ 逐层 <span class="num">for decoder_layer in self.layers</span>（:414-423）→ <span class="num">self.norm</span>（:424）→ <span class="num">lm_head</span>（:491）。因果掩码由 <span class="num">create_causal_mask</span> 统一构造（:402-408）。</p>
+</section>
+
+<!-- ==================== 3 解码层解剖 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>单个 GemmaDecoderLayer 解剖（以 2B 为例）</h2>
+  <p class="note">严格按 <span class="num">GemmaDecoderLayer.forward</span>（:305-324）与 <span class="num">GemmaAttention.forward</span>（:254-281）绘制。橙色虚线 = 残差捷径；青色 = K/V 路径（2B 的 MQA 广播）。所有 Linear 均 <span class="num">bias=False</span>。<b>注意每层只有 2 个 RMSNorm</b>（input_layernorm + post_attention_layernorm），没有 Gemma 2 的 post-feedforward norm。</p>
+  <div class="diagram-shell" aria-label="GemmaDecoderLayer 展开图">
+  <svg viewBox="0 0 1240 720" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+      <marker id="arrK" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+    </defs>
+
+    <!-- 输入 -->
+    <g class="node core"><rect x="40" y="20" width="150" height="46" rx="10"/>
+      <text class="t" x="115" y="40" text-anchor="middle">hidden_states 入</text>
+      <text class="m" x="115" y="57" text-anchor="middle">(b, s, 2048)</text></g>
+    <path class="edge" d="M115,66 L115,96"/>
+
+    <!-- input_layernorm -->
+    <g class="node dim" data-tip="input_layernorm = GemmaRMSNorm(2048, eps=1e-6)（:292）&#10;pre-norm：对子层输入归一化（:306）&#10;公式见 §4.1。">
+      <rect x="30" y="96" width="170" height="44" rx="10"/>
+      <text class="s" x="115" y="115" text-anchor="middle">input_layernorm</text>
+      <text class="m" x="115" y="131" text-anchor="middle">RMSNorm · eps 1e-6</text></g>
+    <path class="edge" d="M200,118 L258,118"/>
+
+    <!-- Attention 大框 -->
+    <g class="node core"><rect x="258" y="86" width="600" height="270" rx="14"/>
+      <text class="t" x="558" y="110" text-anchor="middle">self_attn = GemmaAttention（:289, :217-281）</text></g>
+
+    <!-- Q 分支 -->
+    <g class="node" data-tip="q_proj = Linear(2048 → 8×256=2048, bias=False)（:230-232）&#10;reshape 成 (b, 8, s, 256)（:252,254）&#10;8 个 query 头。7B 为 3072→16×256=4096。">
+      <rect x="278" y="126" width="180" height="52" rx="9"/>
+      <text class="s" x="368" y="146" text-anchor="middle">q_proj（无 bias）</text>
+      <text class="m" x="368" y="164" text-anchor="middle">2048 → 8头×256</text></g>
+
+    <!-- K 分支 -->
+    <g class="node kv" data-tip="k_proj = Linear(2048 → 1×256=256, bias=False)（:233-235）&#10;2B 只有 1 个 KV 头！reshape (b,1,s,256)（:255）&#10;7B 为 3072→16×256=4096（MHA，无压缩）。">
+      <rect x="278" y="196" width="180" height="52" rx="9"/>
+      <text class="s" x="368" y="216" text-anchor="middle">k_proj（无 bias）</text>
+      <text class="m" x="368" y="234" text-anchor="middle">2048 → 1头×256</text></g>
+
+    <!-- V 分支 -->
+    <g class="node kv" data-tip="v_proj = Linear(2048 → 1×256=256, bias=False)（:236-238）&#10;2B 为 1 个 KV 头；7B 为 16 个头。">
+      <rect x="278" y="266" width="180" height="52" rx="9"/>
+      <text class="s" x="368" y="286" text-anchor="middle">v_proj（无 bias）</text>
+      <text class="m" x="368" y="304" text-anchor="middle">2048 → 1头×256</text></g>
+
+    <!-- RoPE -->
+    <g class="node dim" data-tip="apply_rotary_pos_emb（:154-176, :259）&#10;只对 Q 和 K 旋转，V 不旋转！&#10;q' = q·cos + rotate_half(q)·sin（:174）&#10;rotate_half：前半/后半互换取负（:146-150）&#10;θ=10000，作用维度=head_dim=256（:127-132）。">
+      <rect x="490" y="126" width="160" height="122" rx="9"/>
+      <text class="s" x="570" y="146" text-anchor="middle">RoPE（仅 Q、K）</text>
+      <text class="m" x="570" y="166" text-anchor="middle">θ = 10000</text>
+      <text class="m" x="570" y="184" text-anchor="middle">rotate_half 式</text>
+      <text class="s" x="570" y="204" text-anchor="middle">V 不做旋转</text>
+      <text class="s" x="570" y="224" text-anchor="middle">位置编码在每层</text></g>
+    <path class="edge" d="M458,152 L490,152"/>
+    <path class="edge kve" d="M458,222 L490,200"/>
+
+    <!-- repeat_kv -->
+    <g class="node kv" data-tip="repeat_kv（:179-188，调用 :201-202）&#10;num_key_value_groups = 8//1 = 8（:225）&#10;把 1 个 KV 头 expand 成 8 个，广播到 8 个 query 头&#10;形状：(b,1,s,256) → (b,8,s,256)。这就是 MQA。&#10;7B：groups=1，n_rep==1 时直接 return（:185-186），广播是空操作。">
+      <rect x="686" y="196" width="156" height="122" rx="9"/>
+      <text class="s" x="764" y="218" text-anchor="middle">repeat_kv ×8</text>
+      <text class="m" x="764" y="238" text-anchor="middle">KV: 1头 → 8头</text>
+      <text class="s" x="764" y="258" text-anchor="middle">MQA 广播（2B）</text>
+      <text class="s" x="764" y="278" text-anchor="middle">expand 不复制显存</text>
+      <text class="m" x="764" y="298" text-anchor="middle">(b,1,s,256)→(b,8,s,256)</text></g>
+    <path class="edge" d="M650,152 L686,152 L686,196"/>
+    <path class="edge kve" d="M650,200 L686,200"/>
+    <path class="edge kve" d="M458,292 L660,292 L660,257 L686,257"/>
+
+    <!-- 注意力打分 -->
+    <g class="node dim" data-tip="eager_attention_forward（:191-213）&#10;scores = Q·Kᵀ / √256（:204，scaling=head_dim⁻⁰·⁵ :226）&#10;+ 因果掩码（:206）&#10;softmax 在 fp32（:208）→ @ V（:210）&#10;eval 无 dropout（:274）、无 soft-capping。">
+      <rect x="490" y="256" width="160" height="82" rx="9"/>
+      <text class="s" x="570" y="276" text-anchor="middle">缩放点积注意力</text>
+      <text class="m" x="570" y="294" text-anchor="middle">QKᵀ/√256</text>
+      <text class="s" x="570" y="312" text-anchor="middle">因果掩码·softmax(fp32)</text>
+      <text class="m" x="570" y="328" text-anchor="middle">@ V</text></g>
+
+    <!-- o_proj 注释 -->
+    <text class="lbl" x="848" y="250">o_proj：Linear(2048→2048, 无 bias)</text>
+    <text class="lbl" x="848" y="266">多头拼回后投影（:239-241, :280）</text>
+    <path class="edge" d="M842,257 L860,257"/>
+
+    <!-- 残差1 ⊕ -->
+    <circle cx="200" cy="404" r="16" fill="#fffdf9" stroke="#b45309" stroke-width="1.8"/>
+    <text x="200" y="409" text-anchor="middle" font-size="15" fill="#b45309" font-weight="700">+</text>
+    <path class="edge" d="M558,356 L558,404 L216,404"/>
+    <path class="edge rm" d="M40,43 L40,404 L184,404"/>
+    <text class="lbl" x="52" y="230" fill="#b45309">残差捷径（:305,:317）</text>
+
+    <!-- post_attention_layernorm -->
+    <path class="edge" d="M200,420 L200,448"/>
+    <g class="node dim" data-tip="post_attention_layernorm = GemmaRMSNorm(2048, eps=1e-6)（:293）&#10;对 attention 子层输出再做 pre-norm，送入 MLP（:321）&#10;Gemma 1 仅此一处 norm 喂给 FFN——没有独立的 post_feedforward_layernorm。">
+      <rect x="115" y="448" width="170" height="44" rx="10"/>
+      <text class="s" x="200" y="467" text-anchor="middle">post_attn_layernorm</text>
+      <text class="m" x="200" y="483" text-anchor="middle">RMSNorm · eps 1e-6</text></g>
+    <path class="edge" d="M285,470 L330,470"/>
+
+    <!-- MLP 大框 -->
+    <g class="node core"><rect x="330" y="408" width="560" height="170" rx="14"/>
+      <text class="t" x="610" y="432" text-anchor="middle">mlp = GemmaMLP（:291, :83-96）</text></g>
+
+    <g class="node" data-tip="gate_proj = Linear(2048→16384, bias=False)（:89）&#10;7B 为 3072→24576。">
+      <rect x="350" y="446" width="150" height="46" rx="9"/>
+      <text class="s" x="425" y="465" text-anchor="middle">gate_proj</text>
+      <text class="m" x="425" y="482" text-anchor="middle">2048→16384</text></g>
+    <g class="node" data-tip="up_proj = Linear(2048→16384, bias=False)（:90）&#10;7B 为 3072→24576。">
+      <rect x="350" y="516" width="150" height="46" rx="9"/>
+      <text class="s" x="425" y="535" text-anchor="middle">up_proj</text>
+      <text class="m" x="425" y="552" text-anchor="middle">2048→16384</text></g>
+
+    <g class="node dim" data-tip="act_fn = ACT2FN[config.hidden_act]（:92）&#10;config hidden_act='gelu'（精确 erf 版）&#10;注意：新版 configuration_gemma.py:90-95 会把 legacy 'gelu' 警告并改写为 gelu_pytorch_tanh&#10;GeGLU: act(gate) ⊙ up（:95）">
+      <rect x="530" y="476" width="140" height="58" rx="9"/>
+      <text class="s" x="600" y="498" text-anchor="middle">GELU ⊙（GeGLU）</text>
+      <text class="m" x="600" y="516" text-anchor="middle">act(gate)·up</text></g>
+    <path class="edge" d="M500,469 L530,490"/>
+    <path class="edge" d="M500,539 L530,520"/>
+
+    <g class="node" data-tip="down_proj = Linear(16384→2048, bias=False)（:91）&#10;7B 为 24576→3072。">
+      <rect x="700" y="476" width="150" height="58" rx="9"/>
+      <text class="s" x="775" y="498" text-anchor="middle">down_proj</text>
+      <text class="m" x="775" y="516" text-anchor="middle">16384→2048</text></g>
+    <path class="edge" d="M670,505 L700,505"/>
+
+    <!-- 残差2 ⊕ -->
+    <circle cx="200" cy="636" r="16" fill="#fffdf9" stroke="#b45309" stroke-width="1.8"/>
+    <text x="200" y="641" text-anchor="middle" font-size="15" fill="#b45309" font-weight="700">+</text>
+    <path class="edge" d="M775,534 L775,636 L216,636"/>
+    <path class="edge rm" d="M285,470 L300,470 L300,636 L184,636"/>
+    <text class="lbl" x="306" y="600" fill="#b45309">残差捷径（:320,:323）</text>
+
+    <path class="edge" d="M200,652 L200,686"/>
+    <g class="node core"><rect x="125" y="686" width="150" height="30" rx="9"/>
+      <text class="s" x="200" y="705" text-anchor="middle">hidden_states 出（b,s,2048）→ 下一层</text></g>
+  </svg>
+  </div>
+  <p class="tip">层内执行顺序（<span class="num">GemmaDecoderLayer.forward</span> :305-323）：</p>
+  <div class="formula">residual = x
+x = input_layernorm(x)
+x = self_attn(x);  x = residual + x
+residual = x
+x = post_attention_layernorm(x)
+x = mlp(x);        x = residual + x</div>
+  <p class="tip">即两个 pre-norm + 两个残差。<b>与 Gemma 2 的关键差别</b>：Gemma 1 在 FFN 之后没有第二次归一化（post_feedforward_layernorm），这是 Gemma 2 引入的"双归一化"（§7）。</p>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制专节（含可复算公式与源码行号）</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3>4.1 RMSNorm（pre-norm，Gemma 变体）</h3>
+      <p>对子层输入做 RMSNorm，共 3 处：注意力前（<span class="num">input_layernorm</span>）、FFN 前（<span class="num">post_attention_layernorm</span>）、全部层后（<span class="num">model.norm</span>）。</p>
+      <div class="formula">rms(x) = x · rsqrt( mean(x²) + eps )   <span class="cm"># :70</span>
+y = rms(x.float()) · (1.0 + weight)       <span class="cm"># :73-76</span></div>
+      <div class="meta">eps=1e-6；<b>Gemma 特有</b>：缩放项是 <span class="num">(1+weight)</span> 而非 LLaMA 的 <span class="num">weight</span>，weight 初始化为 0（:67）；先 fp32 归一化再乘权重后回落到原 dtype（:73,77）。</div>
+    </div>
+
+    <div class="card kv">
+      <h3>4.2 MQA（2B：单 KV 头广播）</h3>
+      <p>2B 的 8 个 query 头共享 <b>1 组</b> K/V：K、V 投影只产出 1×256，打分前用 <span class="num">repeat_kv</span> 复制成 8 份对齐 8 个 Q 头。</p>
+      <div class="formula">groups = num_q_heads // num_kv_heads
+       = 8 // 1 = 8                <span class="cm"># :225</span>
+(b,1,s,256) --expand--&gt; (b,8,s,256)  <span class="cm"># :187-188</span></div>
+      <div class="meta">KV cache 体积仅为 8 头 MHA 的 1/8，降低推理带宽与显存。<b>7B 不做此广播</b>：groups=1，<span class="num">repeat_kv</span> 在 n_rep==1 时直接 return（:185-186），是完整 MHA。</div>
+    </div>
+
+    <div class="card">
+      <h3>4.3 GeGLU 门控前馈</h3>
+      <p>双投影门控结构，激活取门控分支后与另一分支逐元素相乘：</p>
+      <div class="formula">y = down_proj( act(gate_proj(x)) ⊙ up_proj(x) )  <span class="cm"># :95</span>
+2B: 2048→16384 → ⊙ → 16384→2048
+7B: 3072→24576 → ⊙ → 24576→3072</div>
+      <div class="meta"><b>激活口径</b>：config 原文 <span class="num">hidden_act="gelu"</span>，经 <span class="num">ACT2FN[config.hidden_act]</span> 映射（:92）。注意新版 <span class="num">configuration_gemma.py:90-95</span> 会对 legacy <span class="num">"gelu"</span> 告警并改写为 <span class="num">"gelu_pytorch_tanh"</span>（注释称旧官方发布值本意指向 tanh 近似）——本页以 config 原文为准并并列标注此口径。</div>
+    </div>
+
+    <div class="card">
+      <h3>4.4 RoPE（旋转位置编码，θ=10000）</h3>
+      <p>每层对 Q、K（不对 V）施加旋转；θ=10000，作用维度 = head_dim = 256。</p>
+      <div class="formula">inv_freq = 1 / ( base ^ (2i / head_dim) )  <span class="cm"># :132, base=θ :127</span>
+q' = q·cos + rotate_half(q)·sin          <span class="cm"># :174</span></div>
+      <div class="meta">旋转方式为 <b>rotate_half（半切式，LLaMA 风格）</b>：把 head_dim=256 切成前后各 128 维，<span class="num">cat(-x₂, x₁)</span>（:146-150）。cos/sin 在 <span class="num">GemmaModel.forward</span> 统一算一次后传入各层（:412）。</div>
+    </div>
+
+    <div class="card">
+      <h3>4.5 嵌入缩放与权重绑定</h3>
+      <p><span class="num">GemmaTextScaledWordEmbedding.forward</span> 在查表后乘 <span class="num">embed_scale = √hidden_size</span>（2B √2048≈45.25；7B √3072≈55.43，:60,:363）——Gemma 相对 LLaMA 的易忽略细节。同时 <span class="num">lm_head.weight</span> 与 <span class="num">embed_tokens.weight</span> 绑定共享（:433,:442）。</p>
+      <div class="meta">缩放补偿 RMSNorm 支路与残差叠加的尺度，使训练更稳；绑定权重把 256k 词表的巨大嵌入参数摊薄。</div>
+    </div>
+
+    <div class="card">
+      <h3>4.6 注意力打分数值细节</h3>
+      <p>缩放系数 <span class="num">scaling = head_dim⁻⁰·⁵ = 256⁻⁰·⁵ = 1/16 = 0.0625</span>（:226）；QKᵀ 加因果掩码后，<b>softmax 在 fp32 计算</b>（:208）再回落 dtype；eval 无 dropout（:274）。全程无 attention / logit soft-capping。</p>
+      <div class="meta">因果掩码由 <span class="num">create_causal_mask</span> 统一构造（:402-408）。</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================== 5 注意力机制 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：2B 的 MQA vs 7B 的 MHA</h2>
+  <p class="note">Gemma 1 家族两个尺寸的注意力结构同构（Q/K/V/O 四投影 + RoPE + 因果掩码 + fp32 softmax），唯一实质差别在 <b>KV 头数</b>：小模型 2B 用 MQA 压缩 KV，大模型 7B 保留完整 MHA。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:22%"><col style="width:26%"><col style="width:26%"><col style="width:26%"></colgroup>
+    <thead><tr><th>维度</th><th>Gemma 2B</th><th class="kv-th">Gemma 7B</th><th>源码 / 含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Q 头数</td><td>8</td><td class="kv-td">16</td><td>num_attention_heads</td></tr>
+      <tr class="hl"><td class="k">KV 头数</td><td><span class="num kv">1</span></td><td class="kv-td"><span class="num kv">16</span></td><td>num_key_value_heads（config 原文）</td></tr>
+      <tr><td class="k">分组 groups = Q//KV</td><td><span class="num kv">8</span></td><td class="kv-td"><span class="num kv">1</span></td><td>:225</td></tr>
+      <tr><td class="k">k_proj / v_proj 输出</td><td>2048→256（1×256）</td><td class="kv-td">3072→4096（16×256）</td><td>:233-238</td></tr>
+      <tr><td class="k">repeat_kv 广播</td><td>启用：1 → 8 头</td><td class="kv-td">空操作（n_rep=1 直接 return）</td><td>:185-188, :201-202</td></tr>
+      <tr><td class="k">KV cache 相对 MHA</td><td>1/8</td><td class="kv-td">1（不压缩）</td><td>带宽/显存差异来源</td></tr>
+      <tr><td class="k">scaling</td><td colspan="2">head_dim⁻⁰·⁵ = 1/16（两尺寸相同，head_dim 都是 256）</td><td>:226</td></tr>
+      <tr><td class="k">softmax / dropout / softcap</td><td colspan="2">fp32 softmax（:208）· eval 无 dropout（:274）· 无 soft-capping</td><td>eager_attention :191-213</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip teal">这一安排的论文意义：Gemma 1 在<b>小尺寸上用 MQA 换推理效率</b>，但 7B 并未沿用 GQA——它就是标准 MHA。真正的"多组 KV（GQA）"是 Gemma 2 才在全家族统一引入的（§7）。本页的 <span class="num kv">repeat_kv</span> 广播逻辑，正是后来 GQA（groups&gt;1 且 &gt;8 的中间态）的雏形。</p>
+</section>
+
+<!-- ==================== 6 特殊 Token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:24%"><col style="width:20%"><col style="width:56%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义 / 来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">pad_token_id</td><td><span class="num">0</span></td><td>填充 token；embedding 的 padding_idx（:362）</td></tr>
+      <tr><td class="k">eos_token_id</td><td><span class="num">1</span></td><td>序列结束（end of sequence）</td></tr>
+      <tr><td class="k">bos_token_id</td><td><span class="num">2</span></td><td>序列开始（begin of sequence）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Gemma 1 是<b>纯文本</b>模型，config 中<b>没有</b>图像/视频/音频等多模态占位 token（对比 Gemma 4 的 boi/image/eoi 等）。词表口径并列标注：<b>config 原文 <span class="num">vocab_size=256000</span></b>（决定嵌入表行数与 lm_head 输出维度），而 <b>Gemma 技术报告 Table 1 记为 256,128</b>——差额 128 为词表尾部的特殊/控制 token，两者口径不同，本页不擅自统一。</p>
+</section>
+
+<!-- ==================== 7 演进：vs Gemma 2 ==================== -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：Gemma 1 → Gemma 2</h2>
+  <p class="note">Gemma 1 是系列第 1 代基线。Gemma 2（2024-06）在保留 pre-norm + GeGLU + RoPE + RMSNorm 母版的同时，引入若干关键结构增量。下表 Gemma 1 列为本页 config 实测，Gemma 2 列为官方口径（技术报告 arXiv:2408.00118 与模型卡 model_card_2）。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:22%"><col style="width:39%"><col style="width:39%"></colgroup>
+    <thead><tr><th>维度</th><th>Gemma 1（2B / 7B）</th><th>Gemma 2（官方口径）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">尺寸</td><td>2B（≈2.6B）/ 7B（≈8.5B）</td><td>2B / 9B（42 层）/ 27B（46 层）</td></tr>
+      <tr class="hl"><td class="k">注意力分组</td><td>2B：MQA（1 KV 头）；7B：MHA（16 KV 头）</td><td><b>统一 GQA</b>：2B 8Q/4KV，9B 16Q/8KV，27B 16Q/8KV</td></tr>
+      <tr><td class="k">滑动窗口</td><td>无（全局全注意力）</td><td><b>sliding_window=4096</b>，与全注意力层交错</td></tr>
+      <tr><td class="k">归一化</td><td>每层 2 个 RMSNorm（input + post-attn）</td><td><b>双归一化</b>：新增 post_attention / post_feedforward 旁路 norm</td></tr>
+      <tr><td class="k">soft-capping</td><td>无</td><td><b>attention logit soft-capping（50.0）+ 最终 logit soft-capping（30.0）</b></td></tr>
+      <tr><td class="k">query 缩放</td><td>scaling = head_dim⁻⁰·⁵（=1/16）</td><td>引入 <span class="num">query_pre_attn_scalar</span>，可与 head_dim 解耦</td></tr>
+      <tr><td class="k">上下文</td><td>8192</td><td>8192（与 Gemma 1 相同）</td></tr>
+      <tr><td class="k">训练数据</td><td>2B≈3T / 7B≈6T（论文 §4.2）</td><td>2B 2T（蒸馏）/ 9B 8T（蒸馏）/ 27B 13T（从零）</td></tr>
+      <tr><td class="k">激活 / 其他</td><td>GeGLU · 全部无 bias · 权重绑定</td><td>沿用 GeGLU / 无 bias / tie，主要增量在注意力与归一化</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">演进主线：Gemma 1 是 <b>pre-norm + GeGLU + RoPE(θ1e4) + RMSNorm</b> 的解码器母版，2B 用 MQA 压缩 KV；<b>Gemma 2 把 KV 分组收敛为统一 GQA，并叠加 sliding window、双归一化与 soft-capping</b>，规模扩到 27B。这些增量（GQA / sliding / softcap / 双 norm）正是对比 Gemma 1 页时的主要论点。</p>
+</section>
+
+<!-- ==================== 8 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>本地权威 config（2B）<span class="u">E:\models\model\gemma-2b-it\config.json（unsloth/gemma-2b-it 转换版，transformers 4.44.2）——hidden_size=2048, num_hidden_layers=18, num_attention_heads=8, num_key_value_heads=1, head_dim=256, intermediate_size=16384, hidden_act="gelu", rms_norm_eps=1e-6, rope_theta=10000, max_position_embeddings=8192, attention_bias=false, vocab_size=256000, bos/eos/pad=2/1/0</span></li>
+    <li>7B config（ModelScope 下载并多镜像核验）<span class="u">gemma-7b-it config.json：hidden_size=3072, num_hidden_layers=28, num_attention_heads=16, num_key_value_heads=16, head_dim=256, intermediate_size=24576, vocab_size=256000, hidden_act="gelu"；经 ModelScope LLM-Research/gemma-7b、AI-ModelScope/gemma-7b 镜像交叉核验一致（2026-10-22）</span></li>
+    <li>本地 transformers 源码 modeling_gemma.py（v5.5.0.dev0）<span class="u">GemmaTextScaledWordEmbedding:49-60（×embed_scale:60）；GemmaRMSNorm:63-80（_norm:69-70, (1+weight):76）；GemmaMLP:83-96（gate/up/down:89-91, act_fn:92, GeGLU:95）；GemmaRotaryEmbedding:99-143（θ base:127, inv_freq:132）；rotate_half:146-150；apply_rotary_pos_emb:154-176；repeat_kv:179-188（n_rep==1 短路:185-186）；eager_attention_forward:191-213（repeat_kv 调用:201-202, scores:204, softmax fp32:208）；GemmaAttention:217-281（groups:225, scaling:226, q/k/v/o_proj:230-241, reshape:254-256, o_proj:280）；GemmaDecoderLayer:284-324（input/post_attn norm:292-293, 残差:305-323）；GemmaModel:356-428（embed_tokens:362-363, layers:365, norm:368, causal_mask:402-408, rotary:412, layer loop:414, norm:424）；GemmaForCausalLM:432-503（tied:433, lm_head:442, logits:491）</span></li>
+    <li>本地 transformers 源码 configuration_gemma.py<span class="u">GemmaConfig 默认（checkpoint=google/gemma-7b）：hidden_size=3072, num_hidden_layers=28, num_attention_heads=16, num_key_value_heads=16, head_dim=256, intermediate_size=24576, hidden_act="gelu_pytorch_tanh"（:67-85）；legacy "gelu" → gelu_pytorch_tanh 改写 :90-95</span></li>
+    <li>[P] Gemma 技术报告（官方论文口径）<span class="u">Gemma: Open Models Based on Gemini Research and Technology, arXiv:2403.08295（§2 架构；Table 1 词表 256,128；参数量 2B≈2.6B / 7B≈8.5B；训练数据 6T tokens）— https://arxiv.org/abs/2403.08295</span></li>
+    <li>[P] Gemma 1 模型卡与 Gemma 2 对照来源<span class="u">Gemma 1 模型卡 https://ai.google.dev/gemma/docs/core/model_card_1 ；Gemma 2 技术报告 arXiv:2408.00118（GQA / sliding_window=4096 / 双归一化 / soft-capping / query_pre_attn_scalar / 2B·9B·27B 尺寸）— 仅作演进对照，Gemma 1 数字一律以本地 config/源码为准</span></li>
+  </ol>
+  <p class="note">凡本地 config 与论文口径冲突处（vocab 256000 vs 256,128；hidden_act gelu vs gelu_pytorch_tanh），均已在正文并列标注，未擅自统一。访问与核验日期：2026-10-22。</p>
+</section>
+
+<footer>Gemma 1 家族架构详解（2B / 7B）· 以本地 config.json 与 transformers modeling_gemma.py 逐字段核对 · 行号为本地源码行号 · 仅用于技术学习与论文配图</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el, x, y){
+    TIP.innerHTML = "";
+    var txt = el.getAttribute("data-tip") || "";
+    txt.split("\n").forEach(function(line, i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      var parts = line.split(/(\[\d+\][^\[]*)/);
+      parts.forEach(function(p){
+        if(/^\[\d+\]/.test(p)){
+          var b = document.createElement("b"); b.textContent = p; TIP.appendChild(b);
+        } else if(p){ TIP.appendChild(document.createTextNode(p)); }
+      });
+    });
+    TIP.style.display = "block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight, vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left = Math.min(Math.max(x+14,8), vw-w-8)+"px";
+    TIP.style.top = Math.max(y+16+h>vh ? y-h-10 : y+16, 8)+"px";
+  }
+  function hideTip(){ if(!pinned) TIP.style.display="none"; }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){ if(pinned===el)return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ if(pinned===el)return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ if(pinned===el)return; hideTip();});
+    el.addEventListener("click",function(e){ e.stopPropagation();
+      if(pinned===el){pinned=null;hideTip();} else {pinned=el; showTip(el,e.clientX,e.clientY);}
+    });
+  })(els[i]);}
+  document.addEventListener("click",function(){ if(pinned){pinned=null;hideTip();} });
+})();
+</script>
+</body>
+</html>

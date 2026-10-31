@@ -1,0 +1,6 @@
+d = open(r'E:\transformers\gemma-3\_shots\_dom2.html', encoding='utf-8').read()
+i = d.find('rx="14"')
+print(d[i-200:i+1200])
+print('---- svg end position check ----')
+j = d.find('layerStrip')
+print(d[j-300:j+200])

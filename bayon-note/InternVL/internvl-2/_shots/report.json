@@ -1,0 +1,139 @@
+{
+  "src": "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\InternVL-2-家族架构详解.html",
+  "url": "file:///E:/transformers/bayon-note/InternVL/internvl-2/InternVL-2-%E5%AE%B6%E6%97%8F%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3.html",
+  "outdir": "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots",
+  "include": [
+    "lint",
+    "screenshots",
+    "structure"
+  ],
+  "shots": {
+    "desktop": {
+      "revealed": 0,
+      "slices": [
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_desktop_p1of2.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_desktop_p2of2.jpg"
+      ],
+      "sliceHint": "按顺序 Read slices 里的各分片。",
+      "truncated": false,
+      "structure": {
+        "title": "InternVL 2.0 家族架构详解",
+        "firstH1": "InternVL 2.0 家族架构详解",
+        "viewport": {
+          "w": 1440,
+          "h": 900
+        },
+        "fullpage": {
+          "w": 1440,
+          "h": 6043
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 0,
+          "canvas": 2,
+          "svg": 3,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": []
+    },
+    "mobile": {
+      "revealed": 0,
+      "slices": [
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_mobile_p1of3.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_mobile_p2of3.jpg",
+        "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_mobile_p3of3.jpg"
+      ],
+      "sliceHint": "按顺序 Read slices 里的各分片。",
+      "truncated": false,
+      "structure": {
+        "title": "InternVL 2.0 家族架构详解",
+        "firstH1": "InternVL 2.0 家族架构详解",
+        "viewport": {
+          "w": 390,
+          "h": 844
+        },
+        "fullpage": {
+          "w": 390,
+          "h": 7961
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 0,
+          "canvas": 2,
+          "svg": 3,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": []
+    }
+  },
+  "engine": "playwright",
+  "chromiumExec": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "elapsedSec": 15.17,
+  "schemaVersion": 2,
+  "status": "pass",
+  "engineInfo": {
+    "name": "playwright",
+    "degraded": false,
+    "degradedReasons": []
+  },
+  "input": {
+    "original": "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\InternVL-2-家族架构详解.html",
+    "resolvedPath": "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\InternVL-2-家族架构详解.html",
+    "baseUrl": "file:///E:/transformers/bayon-note/InternVL/internvl-2/InternVL-2-%E5%AE%B6%E6%97%8F%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3.html",
+    "protocol": "file",
+    "cwd": "C:\\Users\\LBY\\AppData\\Local\\Doubao\\User Data\\Default\\.doubao\\agent_mode\\workspace\\.skills\\html\\scripts",
+    "mediaMode": {
+      "reducedMotion": true
+    }
+  },
+  "artifacts": {
+    "screenshots": [
+      {
+        "viewport": "desktop",
+        "tiles": [
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_desktop_p1of2.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_desktop_p2of2.jpg"
+        ],
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      },
+      {
+        "viewport": "mobile",
+        "tiles": [
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_mobile_p1of3.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_mobile_p2of3.jpg",
+          "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\InternVL-2-家族架构详解_mobile_p3of3.jpg"
+        ],
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      }
+    ]
+  },
+  "summary": {
+    "blocker": 0,
+    "error": 0,
+    "warning": 0,
+    "info": 0
+  },
+  "findings": [],
+  "prioritizedActions": [],
+  "reportPath": "E:\\transformers\\bayon-note\\InternVL\\internvl-2\\_shots\\report.json"
+}

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemma 3（gemma-3-270m-it）架构详解 — 纯文本解码器 Transformer</title>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.7; font-size:15px;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 6px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px; line-height:1.25;}
+  .lead{color:var(--sub); max-width:960px; margin-top:10px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:34px 0;}
+  h2{font-size:1.32rem; display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.88rem; color:var(--sub);}
+  .tip{font-size:.84rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:10px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.noarrow{marker-end:none;}
+  .dg .edge-label{font-size:11px; fill:var(--sub);}
+  .dg .lbl{font-size:11.5px; fill:var(--sub);}
+
+  .cards{display:grid; grid-template-columns:1fr; gap:14px; margin-top:10px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0;}
+  .card p{font-size:.9rem; color:var(--ink); margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.8rem; color:var(--sub);}
+  .formula{font-family:ui-monospace,Consolas,monospace; background:#f4f6fb; border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; font-size:.84rem; color:#1f2d5a; overflow-x:auto; white-space:pre;}
+
+  .table-scroll{overflow-x:auto;}
+  table.cmp{width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.84rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.88rem;}
+  table.cmp tbody tr:nth-child(even){background:#f7f9fe;}
+  table.cmp td.k{font-weight:600; color:var(--ink); white-space:nowrap;}
+  table.cmp td small{color:var(--sub); display:block; font-size:.78rem;}
+  table.cmp .src-cell{color:var(--sub); font-size:.76rem; font-family:ui-monospace,Consolas,monospace;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-top:10px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.88rem; display:flex; gap:10px;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "]"; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace; flex:none;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.8rem; font-family:ui-monospace,Consolas,monospace;}
+
+  footer{margin:40px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:320px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#a8c3f8;}
+  @media print{ nav.top{display:none;} body{background:#fff;} }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand">Gemma&nbsp;3 · 270M</div>
+  <a class="link" href="#family">家族定位</a>
+  <a class="link" href="#overview">数据流</a>
+  <a class="link" href="#layers">18 层布局</a>
+  <a class="link" href="#params">超参数</a>
+  <a class="link" href="#mech">关键机制</a>
+  <a class="link" href="#evo">vs Gemma 2</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Gemma 3 架构详解<small style="font-size:1.1rem;color:var(--sub);font-weight:500;"> —— <code>gemma-3-270m-it</code>（纯文本 / <code>model_type=gemma3_text</code>）</small></h1>
+  <div class="badges">
+    <span class="badge">入口类 Gemma3ForCausalLM</span>
+    <span class="badge">18 层解码 Transformer</span>
+    <span class="badge">hidden 640 · 4 Q 头 · 1 KV 头（MQA 式 GQA）</span>
+    <span class="badge">5:1 滑窗/全局交错</span>
+    <span class="badge">双 RoPE（1M / 10k）</span>
+    <span class="badge">上下文 32,768</span>
+    <span class="badge">bfloat16</span>
+  </div>
+  <p class="lead">本页以本地权威材料为准逐字段核对：<b>config</b> <code>E:\models\model\gemma-3-270m-it\config.json</code> 与 <b>transformers 源码</b> <code>src/transformers/models/gemma3/</code>。Gemma 3 家族分两支：多模态 <code>Gemma3ForConditionalGeneration</code>（含 SigLIP 视觉塔，对应 4B/12B/27B）与纯文本 <code>Gemma3ForCausalLM</code>（对应 270M/1B）。<b>本页只讲 270M 纯文本这支</b>，其文本栈复用同一套 <code>Gemma3TextModel</code>。所有数字、类名、维度、残差路径均标注 config 行号或源码文件:行号。</p>
+</header>
+
+<!-- ============ 1 家族定位 ============ -->
+<section id="family">
+  <h2><span class="secno">1</span>家族定位与入口类</h2>
+  <div class="cards" style="margin-top:8px;">
+    <div class="card">
+      <h3>本模型：纯文本因果 LM</h3>
+      <p><code>config.architectures = ["Gemma3ForCausalLM"]</code><sup class="src" data-tip="config.json: architectures">[C:3-5]</sup>，<code>model_type = "gemma3_text"</code><sup class="src" data-tip="config.json: model_type">[C:38]</sup>。其结构为 <code>Gemma3ForCausalLM → Gemma3TextModel → Gemma3DecoderLayer×18 → Gemma3RMSNorm → lm_head</code><sup class="src" data-tip="modeling_gemma3.py:570-582 (ForCausalLM), 473-491 (TextModel), 375-386 (DecoderLayer)">[S:570-582]</sup>。</p>
+      <div class="meta">无视觉塔、无图像投影器，<code>input_modalities=("text",)</code><sup class="src" data-tip="modeling_gemma3.py:476">[S:476]</sup></div>
+    </div>
+    <div class="card">
+      <h3>家族兄弟：多模态条件生成</h3>
+      <p>同目录另有 <code>Gemma3ForConditionalGeneration → Gemma3Model → vision_tower(SigLIP) + multi_modal_projector + language_model(Gemma3TextModel)</code><sup class="src" data-tip="modeling_gemma3.py:763-773, 922-930">[S:763-773]</sup>。图像经 SigLIP ViT 编码后由 <code>Gemma3MultiModalProjector</code>（AvgPool + RMSNorm + 线性）压成 soft token 与文本拼接<sup class="src" data-tip="modeling_gemma3.py:651-684">[S:651-684]</sup>。<b>270M 不含这部分</b>，此处仅作家族说明。</p>
+      <div class="meta">本页全部数据流均为文本主路</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 整体数据流 ============ -->
+<section id="overview">
+  <h2><span class="secno">2</span>整体数据流图（270M 纯文本）</h2>
+  <p class="note">张量形状以 <code>(B, T, d)</code> 记；<code>B</code> 批大小、<code>T</code> 序列长、<code>d=640</code>。注意嵌入后乘 <code>√d≈25.30</code>，这是 Gemma 系列的 <code>Gemma3TextScaledWordEmbedding</sup><sup class="src" data-tip="modeling_gemma3.py:105-116, 484-486">[S:105-116]</sup>。</p>
+  <div class="diagram-shell">
+  <svg viewBox="0 0 1280 560" class="dg" role="img" aria-label="Gemma3 270M 整体数据流">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+
+    <!-- 输入 -->
+    <g class="node core">
+      <rect x="20" y="230" width="120" height="80" rx="12"/>
+      <text class="t" x="80" y="262" text-anchor="middle">input_ids</text>
+      <text class="m" x="80" y="282" text-anchor="middle">(B, T)</text>
+      <text class="s" x="80" y="299" text-anchor="middle">token 索引</text>
+    </g>
+    <path class="edge" d="M140,270 L178,270"/>
+
+    <!-- 嵌入 -->
+    <g class="node dim">
+      <rect x="178" y="220" width="180" height="100" rx="12"/>
+      <text class="t" x="268" y="246" text-anchor="middle">embed_tokens</text>
+      <text class="s" x="268" y="264" text-anchor="middle">Gemma3TextScaledWordEmbedding</text>
+      <text class="m" x="268" y="283" text-anchor="middle">262144 × 640</text>
+      <text class="s" x="268" y="302" text-anchor="middle">× √640 ≈ 25.30</text>
+    </g>
+    <path class="edge" d="M358,270 L396,270"/>
+    <text class="edge-label" x="360" y="258">(B,T,640)</text>
+
+    <!-- 解码层堆 -->
+    <g class="node core">
+      <rect x="396" y="120" width="360" height="320" rx="14"/>
+      <text class="t" x="576" y="144" text-anchor="middle">Gemma3DecoderLayer × 18</text>
+      <text class="s" x="576" y="162" text-anchor="middle">层类型：sliding : full = 15 : 3（5:1 交错）</text>
+
+      <!-- 18 层小条 -->
+      <g id="strip2"></g>
+      <text class="lbl" x="410" y="254">■ sliding（窗512,θ=10k）　　■ full（全因果,θ=1M）</text>
+
+      <!-- 层内两条子支路 -->
+      <g class="node">
+        <rect x="416" y="272" width="320" height="56" rx="9"/>
+        <text class="t" x="576" y="294" text-anchor="middle">① 注意力子层</text>
+        <text class="m" x="576" y="314" text-anchor="middle">RMSNorm → GQA(4Q/1KV,head256) → RMSNorm → ⊕</text>
+      </g>
+      <g class="node">
+        <rect x="416" y="350" width="320" height="56" rx="9"/>
+        <text class="t" x="576" y="372" text-anchor="middle">② FFN 子层（GeGLU）</text>
+        <text class="m" x="576" y="392" text-anchor="middle">RMSNorm → 640→2048→640 → RMSNorm → ⊕</text>
+      </g>
+      <!-- 残差虚线 -->
+      <path class="edge noarrow" d="M396,270 L384,270 L384,378 L396,378" style="stroke-dasharray:5 4;"/>
+      <text class="lbl" x="296" y="330">残差通路</text>
+    </g>
+    <path class="edge" d="M756,270 L794,270"/>
+    <text class="edge-label" x="760" y="258">(B,T,640)</text>
+
+    <!-- 最终 norm -->
+    <g class="node dim">
+      <rect x="794" y="230" width="130" height="80" rx="12"/>
+      <text class="t" x="859" y="262" text-anchor="middle">final norm</text>
+      <text class="s" x="859" y="281" text-anchor="middle">Gemma3RMSNorm(640)</text>
+      <text class="m" x="859" y="299" text-anchor="middle">eps 1e-6</text>
+    </g>
+    <path class="edge" d="M924,270 L962,270"/>
+
+    <!-- lm head -->
+    <g class="node dim">
+      <rect x="962" y="220" width="150" height="100" rx="12"/>
+      <text class="t" x="1037" y="246" text-anchor="middle">lm_head</text>
+      <text class="s" x="1037" y="264" text-anchor="middle">Linear 640→262144</text>
+      <text class="s" x="1037" y="282" text-anchor="middle">bias=False · 与 embed 共享</text>
+      <text class="m" x="1037" y="301" text-anchor="middle">(B,T,262144)</text>
+    </g>
+    <path class="edge" d="M1112,270 L1150,270"/>
+
+    <g class="node core">
+      <rect x="1150" y="230" width="110" height="80" rx="12"/>
+      <text class="t" x="1205" y="262" text-anchor="middle">logits</text>
+      <text class="s" x="1205" y="281" text-anchor="middle">softmax</text>
+      <text class="m" x="1205" y="299" text-anchor="middle">下一个 token</text>
+    </g>
+    <text class="s" x="1037" y="345" text-anchor="middle">无 attn / logit soft-capping（270M 为 null）</text>
+  </svg>
+  </div>
+  <p class="tip">说明：<code>Gemma3TextModel.forward</code> 在进入层循环前，先按<b>层类型</b>各算一次 RoPE 余弦/正弦表（<code>position_embeddings[layer_type]</code>），并预先建好两张注意力掩码（full / sliding），层循环时按 <code>config.layer_types[i]</code> 取用<sup class="src" data-tip="modeling_gemma3.py:541-560">[S:541-560]</sup>。</p>
+</section>
+
+<!-- ============ 3 18 层布局 ============ -->
+<section id="layers">
+  <h2><span class="secno">3</span>18 层的 full / sliding 布局</h2>
+  <p class="note">config 用 <code>layer_types</code> 显式列出 18 层<sup class="src" data-tip="config.json: layer_types 数组（17-36 行），第 6/12/18 项为 full_attention">[C:17-36]</sup>；若缺失则由 <code>("sliding_attention" if bool((i+1)%6) else "full_attention")</code> 生成<sup class="src" data-tip="configuration_gemma3.py:108-112">[CFG:108-112]</sup>。即：每 6 层一组，前 5 层滑窗、第 6 层全局。</p>
+  <div class="diagram-shell">
+  <svg viewBox="0 0 1240 230" class="dg" role="img" aria-label="18 层布局">
+    <g id="strip3"></g>
+    <text class="lbl" x="20" y="150">滑窗层（sliding_attention）：窗口 <tspan class="num">512</tspan>，掩码为滑窗因果掩码，RoPE θ=<tspan class="num">10,000</tspan>，KV cache 仅保留最近 512</text>
+    <text class="lbl" x="20" y="172">全局层（full_attention，第 6/12/18 层）：全因果掩码（可看全 32K），RoPE θ=<tspan class="num">1,000,000</tspan>，KV cache 保留全部历史</text>
+    <text class="lbl" x="20" y="198">计数：sliding = 15 层，full = 3 层（15:3 = 5:1）</text>
+  </svg>
+  </div>
+</section>
+
+<!-- ============ 4 单层放大 ============ -->
+<section id="onelayer">
+  <h2><span class="secno">4</span>单个 DecoderLayer 内部（残差路径 + 注意力细节）</h2>
+  <p class="note">严格对应 <code>Gemma3DecoderLayer.forward</code><sup class="src" data-tip="modeling_gemma3.py:388-418">[S:388-418]</sup>。注意是 Gemma 2 式 <b>pre-norm 与 post-norm 并用</b>：子层输出先过 post-norm 再加残差。</p>
+  <div class="diagram-shell">
+  <svg viewBox="0 0 1280 640" class="dg" role="img" aria-label="单层内部结构">
+    <defs><marker id="arr2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+    <style>.dg .e2{stroke:#c9c4ba;stroke-width:1.6;fill:none;marker-end:url(#arr2);}</style>
+
+    <!-- 输入 h -->
+    <g class="node core"><rect x="20" y="290" width="90" height="60" rx="10"/><text class="t" x="65" y="318" text-anchor="middle">h</text><text class="m" x="65" y="338" text-anchor="middle">(B,T,640)</text></g>
+
+    <!-- 残差 1 大弧线 -->
+    <path class="e2" style="marker-end:none" d="M110,300 L130,300 L130,80 L966,80 L966,344"/>
+    <text class="lbl" x="520" y="72">residual ①（直通 ⊕1）</text>
+
+    <!-- input_layernorm -->
+    <path class="e2" d="M110,330 L150,330 L150,360 L190,360"/>
+    <g class="node dim"><rect x="190" y="338" width="150" height="44" rx="9"/><text class="t" x="265" y="358" text-anchor="middle">input_layernorm</text><text class="s" x="265" y="375" text-anchor="middle">RMSNorm(640) eps1e-6</text></g>
+    <path class="e2" d="M340,360 L380,360"/>
+
+    <!-- 注意力盒 -->
+    <g class="node core">
+      <rect x="380" y="250" width="330" height="220" rx="12"/>
+      <text class="t" x="545" y="274" text-anchor="middle">self_attn（Gemma3Attention）</text>
+      <g class="node"><rect x="396" y="286" width="140" height="34" rx="7"/><text class="s" x="466" y="307" text-anchor="middle">q_proj 640→1024</text></g>
+      <g class="node"><rect x="552" y="286" width="142" height="34" rx="7"/><text class="s" x="623" y="307" text-anchor="middle">k/v_proj 640→256</text></g>
+      <g class="node dim"><rect x="396" y="328" width="140" height="34" rx="7"/><text class="s" x="466" y="349" text-anchor="middle">q_norm RMSNorm(256)</text></g>
+      <g class="node dim"><rect x="552" y="328" width="142" height="34" rx="7"/><text class="s" x="623" y="349" text-anchor="middle">k_norm RMSNorm(256)</text></g>
+      <g class="node"><rect x="396" y="370" width="140" height="34" rx="7"/><text class="s" x="466" y="391" text-anchor="middle">RoPE（按层 θ）</text></g>
+      <g class="node"><rect x="552" y="370" width="142" height="34" rx="7"/><text class="s" x="623" y="391" text-anchor="middle">repeat_kv ×4 → (B,4,T,256)</text></g>
+      <g class="node"><rect x="396" y="412" width="298" height="44" rx="7"/><text class="s" x="545" y="430" text-anchor="middle">QKᵀ·(1/16) + 掩码 → softmax → @V</text><text class="s" x="545" y="447" text-anchor="middle">scaling = query_pre_attn_scalar^(-1/2) = 1/16</text></g>
+    </g>
+    <path class="e2" d="M710,360 L750,360"/>
+
+    <!-- post_attention_layernorm -->
+    <g class="node dim"><rect x="750" y="338" width="160" height="44" rx="9"/><text class="t" x="830" y="358" text-anchor="middle">post_attn_layernorm</text><text class="s" x="830" y="375" text-anchor="middle">RMSNorm(640)</text></g>
+    <path class="e2" d="M910,360 L950,360"/>
+
+    <!-- ⊕1 -->
+    <circle cx="966" cy="360" r="16" fill="#eef3fd" stroke="#1d4ed8" stroke-width="1.6"/>
+    <text x="966" y="365" text-anchor="middle" font-size="15" fill="#1e40af" font-weight="bold">+</text>
+    <path class="e2" d="M966,376 L966,470 L1010,470"/>
+    <text class="lbl" x="980" y="430">h₁ = h + PostNorm(Attn(h))</text>
+
+    <!-- FFN 残差弧线 -->
+    <path class="e2" d="M966,344 L966,200 L1090,200 L1090,470 L1010,470" style="marker-end:none;stroke-dasharray:5 4;"/>
+    <text class="lbl" x="1000" y="192">residual ②</text>
+
+    <!-- pre_feedforward -->
+    <g class="node dim"><rect x="1010" y="448" width="150" height="44" rx="9"/><text class="t" x="1085" y="468" text-anchor="middle">pre_ff_layernorm</text><text class="s" x="1085" y="485" text-anchor="middle">RMSNorm(640)</text></g>
+    <path class="e2" d="M1160,470 L1180,470"/>
+
+    <!-- MLP -->
+    <g class="node core">
+      <rect x="760" y="520" width="360" height="100" rx="12"/>
+      <text class="t" x="940" y="544" text-anchor="middle">mlp（Gemma3MLP · GeGLU）</text>
+      <text class="m" x="940" y="566" text-anchor="middle">down( act(gate(x)) ⊙ up(x) )</text>
+      <text class="s" x="940" y="586" text-anchor="middle">gate/up: 640→2048　down: 2048→640</text>
+      <text class="s" x="940" y="604" text-anchor="middle">act = GELU(tanh 近似)，全 Linear 无 bias</text>
+    </g>
+    <path class="e2" d="M1085,492 L1085,520"/>
+
+    <!-- post_feedforward -->
+    <g class="node dim"><rect x="480" y="540" width="150" height="44" rx="9"/><text class="t" x="555" y="560" text-anchor="middle">post_ff_layernorm</text><text class="s" x="555" y="577" text-anchor="middle">RMSNorm(640)</text></g>
+    <path class="e2" d="M760,570 L630,570"/>
+
+    <!-- ⊕2 -->
+    <circle cx="464" cy="570" r="16" fill="#eef3fd" stroke="#1d4ed8" stroke-width="1.6"/>
+    <text x="464" y="575" text-anchor="middle" font-size="15" fill="#1e40af" font-weight="bold">+</text>
+    <path class="e2" d="M480,570 L464,570"/>
+    <path class="e2" d="M448,570 L300,570 L300,300 L110,300" style="marker-end:none;stroke-dasharray:5 4;"/>
+    <text class="lbl" x="150" y="560">h₂ = h₁ + PostNorm(MLP(h₁)) → 下一层</text>
+  </svg>
+  </div>
+  <p class="tip">每个解码层含 <b>4 组 RMSNorm</b>：<code>input_layernorm / post_attention_layernorm / pre_feedforward_layernorm / post_feedforward_layernorm</code><sup class="src" data-tip="modeling_gemma3.py:383-386">[S:383-386]</sup>；模型最外层还有第 5 组 <code>norm</code><sup class="src" data-tip="modeling_gemma3.py:490">[S:490]</sup>。所有投影 <code>bias=False</code><sup class="src" data-tip="config attention_bias=false; modeling 311-322, 125-127">[C:6]</sup>。</p>
+</section>
+
+<!-- ============ 5 超参数表 ============ -->
+<section id="params">
+  <h2><span class="secno">5</span>超参数表（逐字段核对 config.json）</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th style="width:24%">字段（config key）</th><th style="width:26%">270M 取值</th><th>含义 / 源码位置</th></tr></thead>
+    <tbody>
+      <tr><td class="k">model_type / architectures</td><td><span class="num">gemma3_text</span> / Gemma3ForCausalLM</td><td>纯文本因果 LM<div class="src-cell">config:3-5,38</div></td></tr>
+      <tr><td class="k">hidden_size</td><td><span class="num">640</span></td><td>模型宽度 d_model<div class="src-cell">config:14; modeling:123</div></td></tr>
+      <tr><td class="k">num_hidden_layers</td><td><span class="num">18</span></td><td>解码层数<div class="src-cell">config:40; modeling:487-489</div></td></tr>
+      <tr><td class="k">num_attention_heads</td><td><span class="num">4</span></td><td>Q 头数<div class="src-cell">config:39; modeling:305</div></td></tr>
+      <tr><td class="k">num_key_value_heads</td><td><span class="num">1</span></td><td>KV 头数 → num_key_value_groups=4/1=4（MQA 式 GQA）<div class="src-cell">config:41; modeling:306</div></td></tr>
+      <tr><td class="k">head_dim</td><td><span class="num">256</span></td><td>每头维度；Q 投影 = 4×256=1024，KV = 1×256=256<div class="src-cell">config:12; modeling:305,311-319</div></td></tr>
+      <tr><td class="k">intermediate_size</td><td><span class="num">2048</span></td><td>FFN 门控中间维（gate/up 各 2048）<div class="src-cell">config:16; modeling:124-127</div></td></tr>
+      <tr><td class="k">sliding_window</td><td><span class="num">512</span></td><td>滑窗层窗口长度<div class="src-cell">config:48; modeling:324</div></td></tr>
+      <tr><td class="k">_sliding_window_pattern</td><td><span class="num">6</span></td><td>每 6 层 1 个 full（第 6/12/18 层）<div class="src-cell">config:2; CFG:106-112</div></td></tr>
+      <tr><td class="k">layer_types</td><td>5 sliding + full ×3 显式列出</td><td>索引 5/11/17（0 基）= full_attention<div class="src-cell">config:17-36</div></td></tr>
+      <tr><td class="k">rope_theta</td><td><span class="num">1,000,000</span></td><td>full 层 RoPE 基频<div class="src-cell">config:47; CFG:149-151</div></td></tr>
+      <tr><td class="k">rope_local_base_freq</td><td><span class="num">10,000</span></td><td>sliding 层 RoPE 基频（双频率）<div class="src-cell">config:45; CFG:154-156</div></td></tr>
+      <tr><td class="k">rope_scaling</td><td><span class="num">null</span></td><td>无线性缩放（270M 不做 128K 外推）<div class="src-cell">config:46</div></td></tr>
+      <tr><td class="k">vocab_size</td><td><span class="num">262,144</span></td><td>词表大小<div class="src-cell">config:53; modeling:481</div></td></tr>
+      <tr><td class="k">max_position_embeddings</td><td><span class="num">32,768</span></td><td>最大上下文<div class="src-cell">config:37; modeling:158-159</div></td></tr>
+      <tr><td class="k">query_pre_attn_scalar</td><td><span class="num">256</span></td><td>注意力缩放 = 256<sup>-0.5</sup> = 1/16<div class="src-cell">config:43; modeling:307</div></td></tr>
+      <tr><td class="k">hidden_activation</td><td><span class="num">gelu_pytorch_tanh</span></td><td>GELU 的 tanh 近似（GeGLU 门控）<div class="src-cell">config:13; modeling:128</div></td></tr>
+      <tr><td class="k">attention_bias</td><td><span class="num">false</span></td><td>所有 Q/K/V/O 与 FFN 投影无 bias<div class="src-cell">config:6; modeling:311-322</div></td></tr>
+      <tr><td class="k">attention_dropout</td><td><span class="num">0.0</span></td><td>推理/训练 dropout=0<div class="src-cell">config:7; modeling:308</div></td></tr>
+      <tr><td class="k">rms_norm_eps</td><td><span class="num">1e-6</span></td><td>RMSNorm  eps<div class="src-cell">config:44; modeling:136,327-328</div></td></tr>
+      <tr><td class="k">attn_logit_softcapping</td><td><b style="color:#b45309">null（无）</b></td><td>⚠ 270M 无注意力 soft-cap；家族 1B/4B/12B/27B 为 50.0<div class="src-cell">config:8; modeling:323,281-284</div></td></tr>
+      <tr><td class="k">final_logit_softcapping</td><td><b style="color:#b45309">null（无）</b></td><td>⚠ 270M 无 logit soft-cap；家族大模型为 30.0<div class="src-cell">config:11; modeling:633-636</div></td></tr>
+      <tr><td class="k">use_bidirectional_attention</td><td><span class="num">false</span></td><td>标准因果掩码（文本路）<div class="src-cell">config:51; modeling:309</div></td></tr>
+      <tr><td class="k">torch_dtype</td><td><span class="num">bfloat16</span></td><td>权重精度<div class="src-cell">config:49</div></td></tr>
+      <tr><td class="k">pad / bos / eos</td><td>0 / 2 / 1</td><td>特殊 token id<div class="src-cell">config:9-11,42</div></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">权重共享：<code>_tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}</code><sup class="src" data-tip="modeling_gemma3.py:572">[S:572]</sup>，即输入嵌入与输出头共享同一份 262144×640 矩阵。</p>
+</section>
+
+<!-- ============ 6 关键机制 ============ -->
+<section id="mech">
+  <h2><span class="secno">6</span>关键机制（含可复算公式）</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3>① 双频率 RoPE（按层类型选 base）</h3>
+      <p><code>Gemma3RotaryEmbedding</code> 为<b>每种层类型</b>各建一份逆频率表：full 用 <code>rope_theta=1e6</code>，sliding 用 <code>rope_local_base_freq=1e4</code><sup class="src" data-tip="configuration_gemma3.py:149-156; modeling:163-175">[CFG:149-156]</sup>。forward 时按 <code>layer_type</code> 取对应 <code>{layer_type}_inv_freq</code><sup class="src" data-tip="modeling_gemma3.py:205-206">[S:205-206]</sup>。</p>
+      <div class="formula">inv_freq_i = base ^ (-2i / d_head),  i = 0..127
+θ_i = pos · inv_freq_i
+q_rot = q·cos θ + rotate_half(q)·sin θ</div>
+      <div class="meta">full 层 base=1e6（长程），sliding 层 base=1e4（局部）。<code>d_head=256</code><sup class="src" data-tip="modeling:196,245-246">[S:196]</sup></div>
+    </div>
+
+    <div class="card">
+      <h3>② 每 6 层一个 full（5:1）</h3>
+      <p>层类型由 <code>(i+1) % 6</code> 决定：余数为 0 即第 6/12/18 层为 <code>full_attention</code>，其余 15 层为 <code>sliding_attention</code><sup class="src" data-tip="configuration_gemma3.py:108-112; config layer_types 逐行">[CFG:108-112]</sup>。<code>Gemma3Attention</code> 据此把 <code>sliding_window</code> 设为 512（仅滑窗层），否则为 <code>None</code><sup class="src" data-tip="modeling_gemma3.py:324-325">[S:324-325]</sup>。</p>
+      <div class="formula">for i in 0..17:
+    type = "full" if (i+1)%6==0 else "sliding"
+→ full at layers 6,12,18</div>
+    </div>
+
+    <div class="card">
+      <h3>③ 滑窗因果掩码</h3>
+      <p>文本路建两张掩码字典：<code>full_attention → create_causal_mask</code>、<code>sliding_attention → create_sliding_window_causal_mask</code>，每层按类型取用<sup class="src" data-tip="modeling_gemma3.py:541-544, 555">[S:541-544]</sup>。滑窗层中 token <i>i</i> 只能看过去窗口内的 token。</p>
+      <div class="formula">M[i,j] = 0        if j ≤ i 且 i - j < 512
+       = -∞      否则（因果 + 局部）</div>
+      <div class="meta">全局层不受 512 限制，可attend最长 32K</div>
+    </div>
+
+    <div class="card">
+      <h3>④ QK-norm（逐头 RMSNorm）</h3>
+      <p>Q/K 投影后、RoPE 之前，各过一组 <code>Gemma3RMSNorm(dim=head_dim=256)</code><sup class="src" data-tip="modeling_gemma3.py:327-328, 345-346">[S:327-328]</sup>。配合 270M 的 null softcap：注意力分数不做 tanh 封顶<sup class="src" data-tip="eager_attention_forward softcap 分支 softcap is None 时跳过, modeling:281-284">[S:281-284]</sup>。</p>
+      <div class="formula">q = q_norm(q_proj(x));  k = k_norm(k_proj(x))
+q,k = apply_rotary_pos_emb(q,k,cos,sin)   # norm 在 RoPE 前</div>
+    </div>
+
+    <div class="card">
+      <h3>⑤ RMSNorm（零中心 gamma）</h3>
+      <p>Gemma 变体 RMSNorm：先 fp32 归一，再乘 <code>(1+γ)</code>（γ 初始化为 0，即零中心）<sup class="src" data-tip="modeling_gemma3.py:135-149; 权重初始化 zeros:139, 446-447">[S:135-149]</sup>。</p>
+      <div class="formula">rms(x) = sqrt( mean(x²) + eps )
+y = ( x / rms(x) ) ⊙ ( 1 + γ )</div>
+      <div class="meta">eps=1e-6；QK-norm 作用于 head_dim=256，层 norm 作用于 d=640</div>
+    </div>
+
+    <div class="card">
+      <h3>⑥ GeGLU 前馈</h3>
+      <p>三投影门控 FFN，激活为 GELU 的 tanh 近似<sup class="src" data-tip="modeling_gemma3.py:119-132">[S:119-132]</sup>。</p>
+      <div class="formula">FFN(x) = down_proj( GELU_tanh(gate_proj(x)) ⊙ up_proj(x) )
+640 → 2048 → 2048 → 640</div>
+      <div class="meta">gate/up/down 全部 bias=False</div>
+    </div>
+
+    <div class="card">
+      <h3>⑦ 嵌入缩放 √d</h3>
+      <p><code>embed_tokens</code> 不是普通 Embedding，而是 <code>Gemma3TextScaledWordEmbedding</code>，输出乘 <code>√d_model=√640≈25.30</code><sup class="src" data-tip="modeling_gemma3.py:105-116, 484-486">[S:105-116]</sup>。</p>
+      <div class="formula">e = Embedding[input_ids] · sqrt(640)</div>
+    </div>
+
+    <div class="card">
+      <h3>⑧ Hybrid KV cache</h3>
+      <p>默认 <code>use_cache=True</code>，前向首次创建 <code>DynamicCache(config)</code><sup class="src" data-tip="modeling_gemma3.py:516-517">[S:516-517]</sup>。滑窗层的 cache 单元只保留最近 <code>sliding_window</code> 个 token（<code>keys = keys[:,:,-511:,:]</code>），全局层保留全历史——这就是“hybrid”：层间 cache 容量按层类型异构<sup class="src" data-tip="cache_utils.py:243-246, 201 (is_sliding=True)">[CU:243-246]</sup>。每层更新：<code>past_key_values.update(k,v,layer_idx)</code><sup class="src" data-tip="modeling_gemma3.py:351-352">[S:351-352]</sup>。</p>
+      <div class="meta">15 个滑窗层 KV 上限 ≈ 512·2·1·256；3 个全局层随序列增长</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ 7 vs Gemma2 ============ -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进对比：Gemma 3 270M vs Gemma 2</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th style="width:22%">维度</th><th style="width:33%">Gemma 2（基线）</th><th style="width:45%">Gemma 3 270M（本页）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">滑窗层分布</td><td>逐层 1:1 交替（滑/全/滑/全…）</td><td>每 6 层 1 个 full，即 5:1；第 6/12/18 层全局<div class="src-cell">CFG:110; config:2,17-36</div></td></tr>
+      <tr><td class="k">sliding_window</td><td><span class="num">4096</span></td><td><span class="num">512</span>（窗口更窄，局部层更多）<div class="src-cell">config:48</div></td></tr>
+      <tr><td class="k">RoPE 基频</td><td>统一 θ=<span class="num">10000</span></td><td>双频率：full θ=<span class="num">1e6</span>，sliding θ=<span class="num">1e4</span><div class="src-cell">config:45,47; CFG:149-156</div></td></tr>
+      <tr><td class="k">KV 头数</td><td><span class="num">4</span>（GQA）</td><td><span class="num">1</span>（MQA 式，groups=4）<div class="src-cell">config:41; modeling:306</div></td></tr>
+      <tr><td class="k">attn / logit softcap</td><td><span class="num">50 / 30</span> tanh 封顶</td><td><b>null / null（270M 无）</b>；家族 1B/4B 保留 50/30<div class="src-cell">config:8,11; modeling:633-636</div></td></tr>
+      <tr><td class="k">QK-norm</td><td>无</td><td>逐头 Q/K RMSNorm(256)，RoPE 前<div class="src-cell">modeling:327-328,345-346</div></td></tr>
+      <tr><td class="k">词表</td><td><span class="num">256,000</span></td><td><span class="num">262,144</span><div class="src-cell">config:53</div></td></tr>
+      <tr><td class="k">最大上下文</td><td><span class="num">8,192</span></td><td><span class="num">32,768</span><div class="src-cell">config:37</div></td></tr>
+      <tr><td class="k">hidden / 层数（尺寸）</td><td>2304 / 26 层（9B 级）</td><td><span class="num">640 / 18 层</span>（270M 小尺寸）<div class="src-cell">config:14,40</div></td></tr>
+      <tr><td class="k">intermediate</td><td><span class="num">9216</span></td><td><span class="num">2048</span><div class="src-cell">config:16</div></td></tr>
+      <tr><td class="k">query_pre_attn_scalar</td><td><span class="num">256</span></td><td><span class="num">256</span>（沿用，缩放 1/16）<div class="src-cell">config:43; modeling:307</div></td></tr>
+      <tr><td class="k">激活 / 归一化</td><td>gelu_pytorch_tanh · pre+post RMSNorm</td><td>相同（延续）<div class="src-cell">config:13; modeling:383-386</div></td></tr>
+      <tr><td class="k">KV cache</td><td>hybrid（滑窗层回收）</td><td>hybrid（延续）<div class="src-cell">modeling:516-517; cache_utils:243-246</div></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">注：Gemma 2 的 hidden=2304/26层/8头/4KV/intermediate=9216 与本仓库 <code>Gemma3TextConfig</code> 的类默认值一致<sup class="src" data-tip="configuration_gemma3.py:74-94（默认值沿用自 Gemma 2 风格）">[CFG:74-94]</sup>；270M config 把这些尺寸全面缩小。270M 与 Gemma 2 在归一化范式（pre+post）、激活（GeGLU）、RMSNorm 零中心 gamma 上一脉相承。</p>
+</section>
+
+<!-- ============ 8 来源 ============ -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源（本地材料）</h2>
+  <ol class="src">
+    <li>本模型权威配置文件（逐字段核对）<span class="u">E:\models\model\gemma-3-270m-it\config.json</span></li>
+    <li>transformers 建模源码（类名/维度/数据流/公式/行号）<span class="u">E:\transformers\src\transformers\models\gemma3\modeling_gemma3.py</span></li>
+    <li>transformers 配置类（层类型生成、双 RoPE 映射、默认值）<span class="u">E:\transformers\src\transformers\models\gemma3\configuration_gemma3.py</span></li>
+    <li>transformers KV cache 实现（hybrid / 滑窗层回收）<span class="u">E:\transformers\src\transformers\cache_utils.py（SlidingWindow 层 201-306）</span></li>
+    <li>Gemma 3 技术报告（家族规模、视觉塔、训练范式背景）<span class="u">arXiv:2503.19786（仅作家族背景，270M 具体数字以本地 config 为准）</span></li>
+  </ol>
+  <p class="note">标注约定：<span class="num">[C:n]</span>=config.json 行号；<span class="num">[S:n]</span>=modeling_gemma3.py 行号；<span class="num">[CFG:n]</span>=configuration_gemma3.py 行号；<span class="num">[CU:n]</span>=cache_utils.py 行号。访问/核对日期：2026-10-22。</p>
+</section>
+
+<footer>Gemma 3（gemma-3-270m-it）架构详解 · 仅依据本地 config 与 transformers 源码 · 论文用架构图</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null, tipTimer = null;
+  function showTip(el,x,y){
+    TIP.innerHTML="";
+    var txt=el.getAttribute("data-tip")||"";
+    txt.split("\n").forEach(function(line,i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      TIP.appendChild(document.createTextNode(line));
+    });
+    TIP.style.display="block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight;
+    var vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left=Math.min(Math.max(x+14,8),vw-w-8)+"px";
+    TIP.style.top=Math.max((y+16+h>vh?y-h-10:y+16),8)+"px";
+  }
+  function hideTip(){ if(!pinned) TIP.style.display="none"; }
+  document.querySelectorAll("[data-tip]").forEach(function(el){
+    el.addEventListener("pointerenter",function(e){ if(pinned===el)return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ if(pinned===el)return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ if(pinned!==el) hideTip(); });
+    el.addEventListener("click",function(e){ e.stopPropagation(); pinned=(pinned===el?null:el); if(pinned) showTip(el,e.clientX,e.clientY); else hideTip(); });
+  });
+  document.addEventListener("click",function(){ if(pinned){pinned=null;hideTip();} });
+
+  // ---- 画 18 层条 ----
+  var NS="http://www.w3.org/2000/svg";
+  function buildStrip(g, x0, y0, bw, bh, gap){
+    for(var i=0;i<18;i++){
+      var isFull=((i+1)%6===0);
+      var r=document.createElementNS(NS,"rect");
+      r.setAttribute("x", x0+i*(bw+gap));
+      r.setAttribute("y", y0);
+      r.setAttribute("width", bw); r.setAttribute("height", bh); r.setAttribute("rx","3");
+      r.setAttribute("fill", isFull? "#1d4ed8" : "#dbe7fc");
+      r.setAttribute("stroke", isFull? "#1d4ed8" : "#a9c2f3");
+      g.appendChild(r);
+      var t=document.createElementNS(NS,"text");
+      t.setAttribute("x", x0+i*(bw+gap)+bw/2);
+      t.setAttribute("y", y0-6);
+      t.setAttribute("text-anchor","middle");
+      t.setAttribute("font-size","10");
+      t.setAttribute("fill", isFull? "#1e40af" : "#66707b");
+      t.textContent=(i+1);
+      g.appendChild(t);
+      var lab=document.createElementNS(NS,"text");
+      lab.setAttribute("x", x0+i*(bw+gap)+bw/2);
+      lab.setAttribute("y", y0+bh+14);
+      lab.setAttribute("text-anchor","middle");
+      lab.setAttribute("font-size","9");
+      lab.setAttribute("fill", isFull? "#1e40af" : "#66707b");
+      lab.textContent=isFull? "F":"S";
+      g.appendChild(lab);
+    }
+  }
+  var s2=document.getElementById("strip2");
+  if(s2) buildStrip(s2, 416, 196, 15, 20, 3);
+  var s3=document.getElementById("strip3");
+  if(s3) buildStrip(s3, 20, 60, 56, 46, 8);
+})();
+</script>
+</body>
+</html>

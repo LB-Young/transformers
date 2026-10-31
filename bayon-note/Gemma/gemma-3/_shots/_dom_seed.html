@@ -1,0 +1,542 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemma 1 架构详解 — 2B / 7B</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23B45309'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E1%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#b45309; --accent-ink:#7c3a0a; --accent-soft:#f7ead6; --accent-line:#e8cfae;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#7a5a2e;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  /* ===== 顶部导航 ===== */
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  /* ===== 头部 ===== */
+  header.hero{padding:40px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.7rem,4vw,2.4rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:900px; margin-top:8px;}
+  .hero-links{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px;}
+  .btn{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:10px; text-decoration:none; font-size:.88rem; border:1px solid var(--line); background:var(--panel); color:var(--ink);}
+  .btn:hover{border-color:var(--accent); color:var(--accent-ink);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn.primary:hover{background:var(--accent-ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:10px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px;}
+
+  /* ===== 变体切换 ===== */
+  .vartabs{display:flex; gap:8px; margin:10px 0 4px; flex-wrap:wrap;}
+  .vartabs button{font-size:.9rem; padding:7px 18px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; min-height:44px;}
+  .vartabs button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700;}
+
+  /* ===== 架构总览（桌面 SVG） ===== */
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#fdf3e3; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge-label{font-size:11px; fill:var(--sub);}
+  .dg .layer-strip rect:hover{stroke:var(--accent); stroke-width:2; cursor:pointer;}
+  .dg .arrow-t{font-size:11.5px; fill:var(--sub);}
+
+  /* ===== 移动端纵向流程图 ===== */
+  .flow-mobile{display:none;}
+  @media (max-width:767px){
+    .flow-mobile{display:block;}
+    .flow-mobile .fnode{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; margin:8px 0;}
+    .flow-mobile .fnode .ft{font-weight:700; display:flex; align-items:center; gap:6px;}
+    .flow-mobile .fnode .fd{font-size:.83rem; color:var(--sub); margin-top:4px;}
+    .flow-mobile .fdown{text-align:center; color:var(--accent); font-size:1.1rem; line-height:1; margin:2px 0;}
+  }
+
+  /* ===== 层详情面板 ===== */
+  .layer-panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; margin-top:12px; min-height:120px;}
+  .layer-panel .lp-title{font-weight:700; color:var(--accent-ink);}
+  .layer-panel ul{margin:8px 0 0 18px; font-size:.9rem;}
+  .layer-panel li{margin:4px 0;}
+
+  /* ===== 对照表 ===== */
+  table.cmp{width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto;}
+  table.cmp col.c1{width:30%;}
+  table.cmp col.c2{width:35%;}
+  table.cmp col.c3{width:35%;}
+  table.cmp th,table.cmp td{padding:9px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.88rem;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.92rem; position:sticky; top:0;}
+  table.cmp tbody tr:nth-child(even){background:#fdfbf7;}
+  table.cmp td.k{font-weight:600; color:var(--ink);}
+  table.cmp td small{color:var(--sub); display:block;}
+
+  /* ===== 机制卡片 ===== */
+  .cards{display:grid; grid-template-columns:1fr; gap:14px;}
+  @media (min-width:768px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0;}
+  .card h3 svg{flex:none; color:var(--accent);}
+  .card p{font-size:.9rem; color:var(--ink); margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.8rem; color:var(--sub);}
+
+  /* ===== 来源 ===== */
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.88rem; display:flex; gap:10px;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "]"; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace; flex:none;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.8rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+
+  /* ===== 工具提示 ===== */
+  #tip{position:fixed; z-index:99; display:none; max-width:300px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#f7d3a5;}
+</style>
+</head>
+<body data-var="v7b">
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#b45309"></rect><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">1</text></svg>Gemma 1</div>
+  <a class="link" href="#overview">架构总览</a>
+  <a class="link" href="#params">超参数对照</a>
+  <a class="link" href="#mech">关键机制</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Gemma 1 架构详解</h1>
+  <div class="badges">
+    <span class="badge">2024-02-21 发布</span>
+    <span class="badge">2B / 7B</span>
+    <span class="badge">纯文本 · 解码器</span>
+    <span class="badge">2024-04 Gemma 1.1 更新</span>
+  </div>
+  <p class="lead">Gemma 1 是 Google 基于 Gemini 研究技术发布的首个开放权重模型家族（<sup class="src" data-tip="Gemma: Open Models Based on Gemini Research and Technology, arXiv:2403.08295">[1]</sup>）。仅解码器 Transformer，上下文 8192，词表 256,128；2B 采用 <b>Multi-Query Attention（MQA）</b>，7B 采用 <b>Multi-Head Attention（MHA）</b>；使用 RoPE 位置编码、GeGLU 激活与 RMSNorm（pre-norm）。本页所有架构数字均标注来源。</p>
+  <div class="hero-links">
+    <a class="btn primary" href="https://arxiv.org/abs/2403.08295">技术报告（arXiv 2403.08295）</a>
+    <a class="btn" href="https://huggingface.co/google/gemma-7b">HF 模型卡</a>
+    <a class="btn" href="https://ai.google.dev/gemma">ai.google.dev 文档</a>
+    <a class="btn" href="https://googledevelopers.blogspot.com/2024/08/gemma-explained-overview-gemma-model-family-architectures.html">Google 官方架构解读</a>
+  </div>
+</header>
+
+<!-- ==================== 1 架构总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">1</span>架构总览：数据流</h2>
+  <p class="note">数据流：文本 → 分词 → 嵌入（与输出头共享权重）→ <b>N 个相同的解码层</b> → 最终归一化 → 线性输出头 → 下一 token 分布。悬停 / 点击节点查看细节；可切换 2B / 7B 变体。</p>
+  <div class="vartabs" role="tablist" aria-label="选择模型变体">
+    <button data-var="v2b" aria-pressed="false" role="tab">2B（MQA）</button>
+    <button data-var="v7b" aria-pressed="true" role="tab">7B（MHA）</button>
+  </div>
+
+  <!-- 桌面端 SVG -->
+  <div class="diagram-shell" aria-label="Gemma 1 架构数据流图">
+  <svg viewBox="0 0 1200 620" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"></path></marker>
+    </defs>
+
+    <!-- A 输入 -->
+    <g class="node core" data-tip="输入文本
+原始文本序列（token 序列之前）。">
+      <rect x="20" y="265" width="110" height="90" rx="12"></rect>
+      <text class="t" x="75" y="305" text-anchor="middle">输入文本</text>
+      <text class="s" x="75" y="325" text-anchor="middle">原始字符串</text>
+    </g>
+    <path class="edge" d="M130,310 L172,310"></path>
+
+    <!-- B Tokenizer -->
+    <g class="node dim" data-tip="SentencePiece 分词器
+词表 256,128（256k）
+特殊 token：pad=0, eos=1, bos=2
+拆分数位、字节级回退、保留空白
+来源：[1] §4.1">
+      <rect x="172" y="265" width="140" height="90" rx="12"></rect>
+      <text class="t" x="242" y="300" text-anchor="middle">Tokenizer</text>
+      <text class="m" x="242" y="320" text-anchor="middle">SentencePiece</text>
+      <text class="m" x="242" y="338" text-anchor="middle">词表 256,128</text>
+    </g>
+    <path class="edge" d="M312,310 L356,310"></path>
+
+    <!-- C Embedding -->
+    <g class="node dim" data-tip="输入嵌入层（与输出头共享权重 tie）
+Embedding(256128, d_model)
+d_model：2B=2048 / 7B=3072
+参数量：2B=524,550,144 / 7B=786,825,216
+来源：[1] Table 2, [2]">
+      <rect x="356" y="265" width="160" height="90" rx="12"></rect>
+      <text class="t" x="436" y="300" text-anchor="middle">Embedding</text>
+      <text class="m" x="436" y="320" text-anchor="middle">256128 × </text></g></svg><span class="dv" data-v2b="2048" data-v7b="3072">3072</span>
+      <text class="s" x="436" y="340" text-anchor="middle">与 lm_head 共享权重</text>
+    
+    <path class="edge" d="M516,310 L536,310">
+
+    <!-- D 解码层容器 -->
+    <g class="node core">
+      <rect x="536" y="110" width="320" height="400" rx="14">
+      <text class="t" x="696" y="140" text-anchor="middle">解码层 × <span class="dv" data-v2b="18" data-v7b="28">28</span>（结构相同）</text>
+      <g class="layer-strip" id="layerStrip" data-tip="点击任意层查看层内结构">
+        <g></g><g><rect x="556" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="0" aria-label="第 1 层"></rect><rect x="575" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="1" aria-label="第 2 层"></rect><rect x="594" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="2" aria-label="第 3 层"></rect><rect x="613" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="3" aria-label="第 4 层"></rect><rect x="632" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="4" aria-label="第 5 层"></rect><rect x="651" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="5" aria-label="第 6 层"></rect><rect x="670" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="6" aria-label="第 7 层"></rect><rect x="689" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="7" aria-label="第 8 层"></rect><rect x="708" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="8" aria-label="第 9 层"></rect><rect x="727" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="9" aria-label="第 10 层"></rect><rect x="746" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="10" aria-label="第 11 层"></rect><rect x="765" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="11" aria-label="第 12 层"></rect><rect x="784" y="152" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="12" aria-label="第 13 层"></rect><rect x="803" y="152" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="13" aria-label="第 14 层"></rect><rect x="556" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="14" aria-label="第 15 层"></rect><rect x="575" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="15" aria-label="第 16 层"></rect><rect x="594" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="16" aria-label="第 17 层"></rect><rect x="613" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="17" aria-label="第 18 层"></rect><rect x="632" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="18" aria-label="第 19 层"></rect><rect x="651" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="19" aria-label="第 20 层"></rect><rect x="670" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="20" aria-label="第 21 层"></rect><rect x="689" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="21" aria-label="第 22 层"></rect><rect x="708" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="22" aria-label="第 23 层"></rect><rect x="727" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="23" aria-label="第 24 层"></rect><rect x="746" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="24" aria-label="第 25 层"></rect><rect x="765" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="25" aria-label="第 26 层"></rect><rect x="784" y="172" width="14" height="14" rx="2" fill="#f7ead6" stroke="#d8b77f" data-layer-idx="26" aria-label="第 27 层"></rect><rect x="803" y="172" width="14" height="14" rx="2" fill="#eedcbb" stroke="#d8b77f" data-layer-idx="27" aria-label="第 28 层"></rect></g></g>
+      <text class="s" x="696" y="185" text-anchor="middle">每层：RMSNorm → 注意力 → 残差 → RMSNorm → FFN → 残差</text>
+
+      <!-- 层内：注意力分支 -->
+      <g class="node" data-tip="RMSNorm（输入归一化，pre-norm）
+对注意力子层的输入做 RMSNorm
+eps=1e-6
+来源：[1] §2, [3]">
+        <rect x="556" y="200" width="280" height="34" rx="8">
+        <text class="s" x="696" y="222" text-anchor="middle">RMSNorm（注意力前，eps 1e-6）</text>
+      </rect></g>
+      <g class="node dim" data-tip="自注意力
+2B（MQA）：Q 2048→2048（8头×256）
+            K/V 2048→256（1 组 KV 头）
+7B（MHA）：Q/K/V 3072→4096（16头×256）
+O 投影：2B 2048→2048 / 7B 4096→3072
+RoPE 位置编码，θ=10000
+缩放点积注意力，因果掩码
+来源：[1] Table 1, [2], [3]">
+        <rect x="556" y="244" width="280" height="92" rx="10">
+        <text class="t" x="696" y="266" text-anchor="middle">Attention（Q/K/V/O）</text>
+        <text class="m" x="696" y="286" text-anchor="middle">Q: <span class="dv" data-v2b="2048→2048" data-v7b="3072→4096">3072→4096</span></text>
+        <text class="m" x="696" y="304" text-anchor="middle">K/V: <span class="dv" data-v2b="2048→256（1组）" data-v7b="3072→4096">3072→4096</span></text>
+        <text class="m" x="696" y="322" text-anchor="middle">头数 <span class="dv" data-v2b="8" data-v7b="16">16</span> × head_dim 256 + RoPE(θ=10000)</text>
+      </rect></g>
+      <g class="node core">
+        <circle cx="852" cy="290" r="15" data-tip="残差连接 ⊕
+x + Attention(x)">
+        <text class="s" x="852" y="293" text-anchor="middle" font-size="12">+</text>
+      </circle></g>
+
+      <!-- 层内：FFN 分支 -->
+      <g class="node" data-tip="RMSNorm（FFN 前，pre-norm）
+eps=1e-6
+来源：[1] §2">
+        <rect x="556" y="356" width="280" height="34" rx="8">
+        <text class="s" x="696" y="378" text-anchor="middle">RMSNorm（FFN 前，eps 1e-6）</text>
+      </rect></g>
+      <g class="node dim" data-tip="前馈网络 FFN（GeGLU）
+gate_proj / up_proj：
+  2B: 2048→16384（论文口径双投影合计 32768）
+  7B: 3072→24576（论文口径合计 49152）
+down_proj：16384→2048 / 24576→3072
+门控激活：GELU（tanh 近似），即 GeGLU
+来源：[1] Table 1, [2]">
+        <rect x="556" y="400" width="280" height="88" rx="10">
+        <text class="t" x="696" y="424" text-anchor="middle">FFN（GeGLU）</text>
+        <text class="m" x="696" y="444" text-anchor="middle">gate×GELU ⊙ up → down</text>
+        <text class="m" x="696" y="462" text-anchor="middle"><span class="dv" data-v2b="16384" data-v7b="24576">24576</span>（单投影）/ <span class="dv" data-v2b="32768" data-v7b="49152">49152</span>（双投影合计）</text>
+      </rect></g>
+      <g class="node core">
+        <circle cx="852" cy="444" r="15" data-tip="残差连接 ⊕
+x + FFN(x)">
+        <text class="s" x="852" y="447" text-anchor="middle" font-size="12">+</text>
+      </circle></g>
+      <path class="edge" d="M536,310 L536,470 M536,470 L556,470" style="stroke-dasharray:5 4;">
+      <text class="arrow-t" x="518" y="395" text-anchor="middle" transform="rotate(-90 518 395)">残差流</text>
+    </path></rect></g>
+    <path class="edge" d="M856,310 L902,310">
+
+    <!-- E 最终归一化 -->
+    <g class="node dim" data-tip="最终 RMSNorm（全部层之后，输出头之前）
+来源：[2]（模块结构 norm: GemmaRMSNorm）">
+      <rect x="902" y="265" width="130" height="90" rx="12">
+      <text class="t" x="967" y="305" text-anchor="middle">最终 RMSNorm</text>
+      <text class="s" x="967" y="327" text-anchor="middle">norm（层后）</text>
+    </rect></g>
+    <path class="edge" d="M1032,310 L1060,310">
+
+    <!-- F 输出头 -->
+    <g class="node dim" data-tip="LM Head（线性输出头，无 bias）
+d_model → 256,128
+权重与输入嵌入共享（tie）
+softmax 无 soft-capping（Gemma 1 未引入）
+来源：[2], [3]">
+      <rect x="1060" y="265" width="120" height="90" rx="12">
+      <text class="t" x="1120" y="300" text-anchor="middle">LM Head</text>
+      <text class="m" x="1120" y="320" text-anchor="middle"><span class="dv" data-v2b="2048" data-v7b="3072">3072</span>→256128</text>
+      <text class="s" x="1120" y="340" text-anchor="middle">共享权重 · 无 bias</text>
+    </rect></g>
+    <text class="s" x="1120" y="378" text-anchor="middle">输出：下一 token 概率</text>
+  
+  </path></path></path></div>
+
+  <!-- 移动端纵向流程图 -->
+  <div class="flow-mobile" aria-label="Gemma 1 移动端架构流程">
+    <div class="fnode"><div class="ft">输入文本</div><div class="fd">原始字符串序列</div></div>
+    <div class="fdown">↓</div>
+    <div class="fnode"><div class="ft">Tokenizer</div><div class="fd">SentencePiece，词表 256,128；pad=0, eos=1, bos=2 <sup class="src" data-tip="[1] §4.1；[3] 官方 tokenizer">[1]</sup></div></div>
+    <div class="fdown">↓</div>
+    <div class="fnode"><div class="ft">Embedding（与 lm_head 共享）</div><div class="fd">256128 × <span class="dv" data-v2b="2048" data-v7b="3072">3072</span></div></div>
+    <div class="fdown">↓</div>
+    <div class="fnode"><div class="ft">解码层 × <span class="dv" data-v2b="18" data-v7b="28">28</span></div><div class="fd">每层 = RMSNorm → Attention（Q/K/V/O，RoPE）→ 残差 ⊕ → RMSNorm → FFN（GeGLU）→ 残差 ⊕<br>2B：MQA，8 头×256，K/V 单组；7B：MHA，16 头×256，Q/K/V 投影 4096</div></div>
+    <div class="fdown">↓</div>
+    <div class="fnode"><div class="ft">最终 RMSNorm</div><div class="fd">norm（层后）</div></div>
+    <div class="fdown">↓</div>
+    <div class="fnode"><div class="ft">LM Head（共享权重，无 bias）</div><div class="fd"><span class="dv" data-v2b="2048" data-v7b="3072">3072</span> → 256,128 → softmax（无 soft-capping）→ 下一 token</div></div>
+  </div>
+
+  <!-- 层详情面板 -->
+  <div class="layer-panel" id="layerPanel">
+    <div class="lp-title" id="lpTitle">GemmaDecoderLayer 层内结构（点击上方层条中的任意小方块可定位到该层）</div>
+    <ul>
+      <li><b>注意力子层</b>：RMSNorm（pre-norm，eps 1e-6）→ 缩放点积注意力（RoPE，因果掩码）→ 残差相加 <sup class="src" data-tip="[1] §2；[2] 模块结构">[1][2]</sup></li>
+      <li><b>FFN 子层</b>：RMSNorm（pre-norm）→ gate/up/down 三投影（GeGLU）→ 残差相加 <sup class="src" data-tip="[1] §2；[2] 模块结构">[1][2]</sup></li>
+      <li><b>投影均无 bias</b>；Q/K/V/O 与 gate/up/down 全部为线性层（Linear）<sup class="src" data-tip="[2] 模块结构打印">[2]</sup></li>
+    </ul>
+  </div>
+  <p class="tip">说明：论文与官方博客中“Feedforward hidden dims”按 gate+up 两个投影合计计（2B 32,768 / 7B 49,152）；HF config 的 intermediate_size 为单个投影维度（2B 16,384 / 7B 24,576）。二者为同一结构的两种口径。<sup class="src" data-tip="[1] Table 1；[2]；[3]">[1][2][3]</sup></p>
+</section>
+
+<!-- ==================== 2 超参数对照 ==================== -->
+<section id="params">
+  <h2><span class="secno">2</span>超参数对照表（2B / 7B）</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>超参数</th><th>Gemma 2B</th><th>Gemma 7B</th></tr></thead>
+    <tbody>
+      <tr><td class="k">总参数量（含嵌入）</td><td><span class="num">2,506,434,560</span>（≈2.5B）<sup class="src" data-tip="[1] Table 2：嵌入 524,550,144 + 非嵌入 1,981,884,416">[1]</sup></td><td><span class="num">8,538,074,112</span>（≈8.5B）<sup class="src" data-tip="[1] Table 2：嵌入 786,825,216 + 非嵌入 7,751,248,896">[1]</sup></td></tr>
+      <tr><td class="k">嵌入参数量</td><td><span class="num">524,550,144</span><sup class="src" data-tip="[1] Table 2">[1]</sup></td><td><span class="num">786,825,216</span><sup class="src" data-tip="[1] Table 2">[1]</sup></td></tr>
+      <tr><td class="k">非嵌入参数量</td><td><span class="num">1,981,884,416</span><sup class="src" data-tip="[1] Table 2">[1]</sup></td><td><span class="num">7,751,248,896</span><sup class="src" data-tip="[1] Table 2">[1]</sup></td></tr>
+      <tr><td class="k">层数（Layers）</td><td><span class="num">18</span><sup class="src" data-tip="[1] Table 1；[2]">[1][2]</sup></td><td><span class="num">28</span><sup class="src" data-tip="[1] Table 1；[2]">[1][2]</sup></td></tr>
+      <tr><td class="k">d_model（隐藏维度）</td><td><span class="num">2048</span><sup class="src" data-tip="[1] Table 1">[1]</sup></td><td><span class="num">3072</span><sup class="src" data-tip="[1] Table 1">[1]</sup></td></tr>
+      <tr><td class="k">FFN 中间维度<small>config 单投影（gate/up 各）/ 论文口径（双投影合计）</small></td><td><span class="num">16,384 / 32,768</span><sup class="src" data-tip="[1] Table 1；[3] config intermediate_size">[1][3]</sup></td><td><span class="num">24,576 / 49,152</span><sup class="src" data-tip="[1] Table 1；[3] config">[1][3]</sup></td></tr>
+      <tr><td class="k">Q 头数</td><td><span class="num">8</span><sup class="src" data-tip="[1] Table 1">[1]</sup></td><td><span class="num">16</span><sup class="src" data-tip="[1] Table 1">[1]</sup></td></tr>
+      <tr><td class="k">KV 头数（注意力类型）</td><td><span class="num">1 → MQA</span><sup class="src" data-tip="[1] §2：2B 使用 multi-query attention（num_kv_heads=1）">[1]</sup></td><td><span class="num">16 → MHA</span><sup class="src" data-tip="[1] §2：7B 使用 multi-head attention">[1]</sup></td></tr>
+      <tr><td class="k">head_dim</td><td><span class="num">256</span><sup class="src" data-tip="[1] Table 1">[1]</sup></td><td><span class="num">256</span><sup class="src" data-tip="[1] Table 1（注意：7B 中 16×256=4096 ≠ d_model 3072，head_dim 独立配置，Q/K/V 投影为 4096）">[1]</sup></td></tr>
+      <tr><td class="k">Q 投影维度</td><td><span class="num">2048→2048</span><sup class="src" data-tip="[2] 模块结构打印">[2]</sup></td><td><span class="num">3072→4096</span><sup class="src" data-tip="[2] 模块结构打印">[2]</sup></td></tr>
+      <tr><td class="k">K/V 投影维度</td><td><span class="num">2048→256</span>（1 组共享）<sup class="src" data-tip="[2] 模块结构打印">[2]</sup></td><td><span class="num">3072→4096</span><sup class="src" data-tip="[2] 模块结构打印">[2]</sup></td></tr>
+      <tr><td class="k">O 投影维度</td><td><span class="num">2048→2048</span><sup class="src" data-tip="[2]">[2]</sup></td><td><span class="num">4096→3072</span><sup class="src" data-tip="[2]">[2]</sup></td></tr>
+      <tr><td class="k">激活函数</td><td colspan="2"><span class="num">GeGLU</span>（gate 为 GELU 的 tanh 近似，gelu_pytorch_tanh）<sup class="src" data-tip="[1] §2；[2] act_fn: PytorchGELUTanh">[1][2]</sup></td></tr>
+      <tr><td class="k">归一化</td><td colspan="2">RMSNorm，<b>pre-norm</b>（每个子层输入前 + 最终层后）；无 post-norm；<span class="num">eps 1e-6</span><sup class="src" data-tip="[1] §2；[3] config rms_norm_eps">[1][3]</sup></td></tr>
+      <tr><td class="k">位置编码</td><td colspan="2">RoPE（每层旋转位置编码），<span class="num">θ=10000</span><sup class="src" data-tip="[1] §2；[3] config rope_theta">[1][3]</sup></td></tr>
+      <tr><td class="k">词表大小</td><td colspan="2"><span class="num">256,128</span><sup class="src" data-tip="[1] Table 1">[1]</sup></td></tr>
+      <tr><td class="k">Tokenizer</td><td colspan="2">SentencePiece（Gemini 分词器的子集：拆分数位、字节级回退处理未知 token、不删除额外空白）<sup class="src" data-tip="[1] §4.1">[1]</sup></td></tr>
+      <tr><td class="k">上下文长度（训练窗口）</td><td colspan="2"><span class="num">8192</span> tokens<sup class="src" data-tip="[1] §2；[2]">[1][2]</sup></td></tr>
+      <tr><td class="k">注意力窗口</td><td colspan="2">全局全注意力（无滑动窗口）<sup class="src" data-tip="[1] §2（报告未提及滑动窗口）">[1]</sup></td></tr>
+      <tr><td class="k">KV cache / 推理特性</td><td colspan="2">标准 KV cache；2B 仅 1 组 KV 头 → KV cache 占用与 7B 相比小约 16 倍（7B 为 16 组）<sup class="src" data-tip="[1] Table 1；[2]">[1][2]</sup></td></tr>
+      <tr><td class="k">logit / attention soft-capping</td><td colspan="2"><b>无</b>（Gemma 1 未引入 soft-capping，Gemma 2 起引入）<sup class="src" data-tip="[1] §2 仅列出 MQA/RoPE/GeGLU/RMSNorm 四项改进">[1]</sup></td></tr>
+      <tr><td class="k">多模态</td><td colspan="2">无（纯文本模型）<sup class="src" data-tip="[1] §4.1：与 Gemini 不同，非多模态">[1]</sup></td></tr>
+      <tr><td class="k">MoE</td><td colspan="2">无（稠密模型）<sup class="src" data-tip="[1] Table 1（无专家路由配置）">[1]</sup></td></tr>
+      <tr><td class="k">嵌入共享</td><td colspan="2">输入与输出 embedding 共享（tied），以减小模型体积<sup class="src" data-tip="[1] §2；[2]">[1][2]</sup></td></tr>
+      <tr><td class="k">预训练 token 量</td><td><span class="num">2T</span><sup class="src" data-tip="[1] §4.1">[1]</sup></td><td><span class="num">6T</span><sup class="src" data-tip="[1] §4.1">[1]</sup></td></tr>
+      <tr><td class="k">训练基础设施</td><td colspan="2">JAX / Pathways 单控制器范式、GSPMD 分区、TPU（MegaScale XLA 编译）<sup class="src" data-tip="[1] §3">[1]</sup></td></tr>
+      <tr><td class="k">指令微调</td><td colspan="2">SFT + RLHF（Bradley-Terry 奖励模型，REINFORCE 变体 + KL 正则）<sup class="src" data-tip="[1] §5">[1]</sup></td></tr>
+      <tr><td class="k">Gemma 1.1（2024-04）</td><td colspan="2">架构不变；采用新型 RLHF 方法，改善质量/编码/事实性/多轮对话，修复多轮对话 bug（回复不再总以 “Sure,” 开头）<sup class="src" data-tip="[4] Google 博客；[5] HF 模型卡">[4][5]</sup></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 3 关键机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">3</span>关键机制详解</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M12 3v18M4 7.5l8 4.5 8-4.5"></path></svg>注意力机制：2B=MQA，7B=MHA</h3>
+      <p>7B 使用标准多头注意力（MHA），16 个 Query 头与 16 组 K/V 头并行；2B 使用多查询注意力（MQA），8 个 Query 头共享 <b>1 组</b> K/V 投影，大幅减少 KV cache 与带宽占用。报告指出该分工来自消融实验：每种注意力变体在各自规模下表现更优<sup class="src" data-tip="[1] §2；[2]">[1][2]</sup>。注意 Gemma 1 <b>未使用 GQA</b>（分组查询注意力）。</p>
+      <div class="meta">head_dim=256；2B Q 投影 2048（8×256），K/V 投影 256；7B Q/K/V 投影 4096（16×256）<sup class="src" data-tip="[1] Table 1；[2]">[1][2]</sup></div>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>位置编码：RoPE</h3>
+      <p>与绝对位置嵌入不同，Gemma 1 在每一层对 Q/K 应用旋转位置编码（RoPE），旋转基频 θ=10000<sup class="src" data-tip="[1] §2；[3] config">[1][3]</sup>。共享输入/输出 embedding 也用于减小参数量<sup class="src" data-tip="[1] §2">[1]</sup>。</p>
+      <div class="meta">RoPE 相对位置编码；context 8192 内无需外推（未做窗口/长上下文扩展）<sup class="src" data-tip="[1] §2">[1]</sup></div>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>归一化：RMSNorm（纯 pre-norm）</h3>
+      <p>每个 Transformer 子层（注意力与 FFN）的<b>输入</b>都做 RMSNorm，即 pre-norm 结构；全部层之后、输出头之前还有一个最终 RMSNorm<sup class="src" data-tip="[1] §2；[2]">[1][2]</sup>。Gemma 1 <b>没有</b> Gemma 2 引入的 post-norm 第二组归一化。</p>
+      <div class="meta">rms_norm_eps=1e-6<sup class="src" data-tip="[3] config">[3]</sup></div>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M12 3v18"></path><path d="M5 7l4 4M15 13l4 4"></path></svg>FFN 与 GeGLU 激活</h3>
+      <p>标准 ReLU 被 GeGLU 取代：gate 投影与 up 投影并行，gate 输出经 GELU（tanh 近似）后与 up 输出逐元素相乘，再经 down 投影压回 d_model<sup class="src" data-tip="[1] §2；[2]">[1][2]</sup>。论文与官方博客的 “Feedforward hidden dims” 为 gate+up 两投影合计（2B 32,768 / 7B 49,152），config 中单投影维度为 16,384 / 24,576<sup class="src" data-tip="[1] Table 1；[2]；[3]">[1][2][3]</sup>。</p>
+      <div class="meta">gate/up: d_model→中间维；down: 中间维→d_model；全无 bias<sup class="src" data-tip="[2]">[2]</sup></div>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"></path><circle cx="19" cy="17" r="2"></circle></svg>分词器与词表</h3>
+      <p>SentencePiece 分词器（Gemini 分词器的子集），词表 256,128。特性：拆分数位、不删除额外空白、未知 token 用字节级编码回退<sup class="src" data-tip="[1] §4.1">[1]</sup>。特殊 token：pad=0、eos=1、bos=2<sup class="src" data-tip="[3] 官方 tokenizer 配置">[3]</sup>。指令模型另有格式控制 token（&lt;start_of_turn&gt; / &lt;end_of_turn&gt; 等）<sup class="src" data-tip="[1] §5.3">[1]</sup>。</p>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M8 8h8M8 12h8M8 16h5"></path></svg>嵌入共享与参数分布</h3>
+      <p>输入 embedding 与输出 lm_head 权重共享（tied），降低模型体积<sup class="src" data-tip="[1] §2">[1]</sup>。嵌入参数在 2B 中占约 21%（524M / 2.5B），在 7B 中占约 9.2%（787M / 8.5B），这是词表 256k 的直接代价<sup class="src" data-tip="[1] Table 2（作者计算）">[1]</sup>。</p>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8l8-5 8 5v8l-8 5-8-5z"></path><path d="M4 8l8 5 8-5M12 13v8"></path></svg>上下文长度与 KV cache</h3>
+      <p>训练上下文 8192 tokens，全注意力（无滑动窗口），因此注意力计算与 KV cache 随序列二次增长<sup class="src" data-tip="[1] §2；[2]">[1][2]</sup>。推理时 2B 因 MQA（1 组 KV 头）KV cache 显著更小，适合端侧/CPU 部署<sup class="src" data-tip="[1] §1；[2]">[1][2]</sup>。</p>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path><circle cx="12" cy="12" r="4"></circle></svg>为何没有 soft-capping</h3>
+      <p>Gemma 1 技术报告 §2 列出的相对原始 Transformer 的改进仅四项：MQA、RoPE、GeGLU、RMSNorm<sup class="src" data-tip="[1] §2">[1]</sup>。attention/logit soft-capping（Gemma 2 引入）在 Gemma 1 中不存在，其 config 亦无相关字段<sup class="src" data-tip="[3] config 无 attn_logit_softcapping/logit_softcapping 字段">[3]</sup>。</p>
+    </div>
+
+    <div class="card">
+      <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 4v10l-7 4-7-4V7z"></path><path d="M8 9l4 2 4-2M12 11v5"></path></svg>训练要点</h3>
+      <p>2B 预训练 2T、7B 预训练 6T tokens（以英文网页/数学/代码为主）<sup class="src" data-tip="[1] §4.1">[1]</sup>。指令模型经 SFT + RLHF（REINFORCE 变体 + KL 正则）<sup class="src" data-tip="[1] §5">[1]</sup>。2024-04 发布 Gemma 1.1：架构不变，改用新型 RLHF，修复多轮对话 bug<sup class="src" data-tip="[4][5]">[4][5]</sup>。</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================== 4 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">4</span>来源</h2>
+  <ol class="src">
+    <li>Gemma: Open Models Based on Gemini Research and Technology（技术报告，Google DeepMind）<span class="u">https://arxiv.org/abs/2403.08295（Table 1 / Table 2 / §2 / §3 / §4 / §5）</span></li>
+    <li>Gemma explained: An overview of Gemma model family architectures（Google Developers Blog，2024-08-15）<span class="u">https://googledevelopers.blogspot.com/2024/08/gemma-explained-overview-gemma-model-family-architectures.html（含 transformers 模块结构打印）</span></li>
+    <li>google/gemma-2b 与 google/gemma-7b 官方模型卡 config.json / tokenizer（Hugging Face；仓库为 gated，本文数字经公开镜像核验）<span class="u">https://huggingface.co/google/gemma-7b（config.json：intermediate_size、rope_theta=10000、rms_norm_eps=1e-6、head_dim=256）</span></li>
+    <li>Gemma Family Expands with Models Tailored for Developers and Researchers（Google Developers Blog，2024-04-09，Gemma 1.1 公告）<span class="u">https://googledevelopers.blogspot.com/2024/04/gemma-family-expands-with-models-tailored-for-developers-and-researchers.html</span></li>
+    <li>google/gemma-1.1-7b-it 模型卡（Hugging Face，1.1 版本说明）<span class="u">https://huggingface.co/google/gemma-1.1-7b-it</span></li>
+    <li>Gemma 官方文档与模型列表（Google AI for Developers）<span class="u">https://ai.google.dev/gemma</span></li>
+  </ol>
+  <p class="note">数据口径：页面所有架构数字均来自上述官方来源并在页内标注；未在官方来源披露的细节不作臆测。访问日期：2026-10-20。</p>
+</section>
+
+<footer>Gemma 1 架构详解 · 数据来源：arXiv 2403.08295 / Google 官方博客 / Hugging Face 官方模型卡 · 仅用于技术学习</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  var tipTarget = null;
+  var tipTimer = null;
+
+  function showTip(el, x, y){
+    TIP.innerHTML = "";
+    var txt = el.getAttribute("data-tip") || "";
+    // 将 [n] 或 [n][m] 形式的来源标记加粗显示
+    txt.split("\n").forEach(function(line, i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      var parts = line.split(/(\[\d+\](?:\[\d+\])*)/);
+      parts.forEach(function(p){
+        if(/^\[\d+\]/.test(p)){
+          var b = document.createElement("b"); b.textContent = p; TIP.appendChild(b);
+        } else if(p){
+          TIP.appendChild(document.createTextNode(p));
+        }
+      });
+    });
+    TIP.style.display = "block";
+    var w = TIP.offsetWidth, h = TIP.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var px = Math.min(Math.max(x + 14, 8), vw - w - 8);
+    var py = y + 16 + h > vh ? y - h - 10 : y + 16;
+    TIP.style.left = px + "px"; TIP.style.top = Math.max(py, 8) + "px";
+  }
+  function hideTip(){ if(!pinned){ TIP.style.display = "none"; } }
+  function attachTips(){
+    var els = document.querySelectorAll("[data-tip]");
+    for(var i=0;i<els.length;i++){
+      (function(el){
+        el.addEventListener("pointerenter", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+        el.addEventListener("pointermove", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+        el.addEventListener("pointerleave", function(){ if(pinned===el) return; hideTip(); });
+        el.addEventListener("click", function(e){
+          e.stopPropagation();
+          if(pinned===el){ pinned=null; hideTip(); }
+          else { pinned=el; showTip(el, e.clientX, e.clientY); }
+        });
+      })(els[i]);
+    }
+    document.addEventListener("click", function(){ if(pinned){ pinned=null; hideTip(); } });
+  }
+
+  // 变体切换
+  var btns = document.querySelectorAll(".vartabs button");
+  function setVar(v){
+    document.body.dataset.var = v;
+    for(var i=0;i<btns.length;i++){ btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-var")===v ? "true" : "false"); }
+    var els = document.querySelectorAll(".dv");
+    for(var j=0;j<els.length;j++){
+      var k = "data-" + v;
+      if(els[j].hasAttribute(k)) els[j].textContent = els[j].getAttribute(k);
+    }
+    renderStrip();
+  }
+  for(var i=0;i<btns.length;i++){
+    (function(b){ b.addEventListener("click", function(){ setVar(b.getAttribute("data-var")); }); })(btns[i]);
+  }
+
+  // 层条渲染
+  var counts = { v2b: 18, v7b: 28 };
+  function renderStrip(){
+    var svg = document.getElementById("layerStrip");
+    var ph = svg.querySelector("[data-strip-placeholder]");
+    if(ph) ph.parentNode.removeChild(ph);
+    var old = svg.querySelectorAll("[data-layer-idx]");
+    for(var i=0;i<old.length;i++) old[i].parentNode.removeChild(old[i]);
+    var v = document.body.dataset.var || "v7b";
+    var n = counts[v];
+    var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    var per = 19, startX = 556;
+    for(var k=0;k<n;k++){
+      var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      var row = Math.floor(k/14), col = k%14;
+      r.setAttribute("x", startX + col*per);
+      r.setAttribute("y", 152 + row*20);
+      r.setAttribute("width", "14"); r.setAttribute("height", "14"); r.setAttribute("rx", "2");
+      r.setAttribute("fill", (k%2===0) ? "#f7ead6" : "#eedcbb");
+      r.setAttribute("stroke", "#d8b77f");
+      r.setAttribute("data-layer-idx", k);
+      r.setAttribute("aria-label", "第 " + (k+1) + " 层");
+      (function(idx, rect){
+        rect.addEventListener("click", function(ev){
+          ev.stopPropagation();
+          var title = document.getElementById("lpTitle");
+          title.textContent = "第 " + (idx+1) + " / " + n + " 层（GemmaDecoderLayer，结构同其余层）";
+          // 让该块高亮
+          var blocks = svg.querySelectorAll("[data-layer-idx]");
+          for(var b=0;b<blocks.length;b++) blocks[b].setAttribute("stroke", "#d8b77f");
+          rect.setAttribute("stroke", "#b45309"); rect.setAttribute("stroke-width","2.5");
+        });
+      })(k, r);
+      g.appendChild(r);
+    }
+    svg.appendChild(g);
+  }
+  renderStrip();
+  setVar("v7b");
+
+  attachTips();
+})();
+</script>
+
+
+</body></html>

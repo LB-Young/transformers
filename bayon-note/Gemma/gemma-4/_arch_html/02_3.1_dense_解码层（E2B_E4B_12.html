@@ -1,0 +1,182 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#be185d; --accent-ink:#9d174d; --accent-soft:#fae4ee; --accent-line:#f0c4d7;
+    --moe:#6d28d9; --moe-ink:#5b21b6; --moe-soft:#ede9fe; --moe-line:#ddd0f7;
+    --node:#fffdfb; --edge:#c9c4ba; --mono:#9d174d;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.moe{color:var(--moe-ink); background:var(--moe-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  nav.top a.link.moe-link{color:var(--moe-ink);}
+  nav.top a.link.moe-link:hover{background:var(--moe-soft);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.moe{background:var(--moe-soft); border-color:var(--moe-line); color:var(--moe-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h2.moe .secno{color:var(--moe-ink); background:var(--moe-soft); border-color:var(--moe-line);}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.moe{background:var(--moe-soft); border-color:var(--moe-line); color:var(--moe-ink);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#fdeef5; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.moe rect{fill:var(--moe-soft); stroke:var(--moe); stroke-width:1.6;}
+  .dg .node.mm rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .node.moe text.m{fill:var(--moe-ink);}
+  .dg .node.moe text.t{fill:var(--moe-ink);}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.mm{stroke:#b9b3a8; stroke-dasharray:5 4;}
+  .dg .edge.moe{stroke:var(--moe); stroke-width:1.8; marker-end:url(#arrm);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .node.core circle{fill:#fdeef5; stroke:var(--accent); stroke-width:1.5;}
+  .dg .node.core circle + text, .dg .g-circle-text{fill:var(--accent-ink); font-weight:700;}
+  .dg .node.moe circle{fill:var(--moe-soft); stroke:var(--moe); stroke-width:1.5;}
+  .dg .node.moe circle + text{fill:var(--moe-ink); font-weight:700;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+  .dg .lgb{font-size:11.5px; fill:var(--accent-ink); font-weight:600;}
+  .dg .lgm{font-size:11.5px; fill:var(--moe-ink); font-weight:600;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp thead th.moe-th{background:var(--moe-soft); color:var(--moe-ink);}
+  table.cmp tbody tr:nth-child(even){background:#fdf8fa;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp td.moe-td{background:var(--moe-soft);}
+  table.cmp col.c1{width:16%;}
+  table.cmp col.cx{width:16.8%;}
+  table.cmp tr.hl td{background:#fdf3f7;}
+
+  .cards{display:grid; grid-template-columns:1fr; gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .card.moe{background:var(--moe-soft); border-color:var(--moe-line);}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card.moe h3{color:var(--moe-ink);}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#2b2229; color:#f9c3db; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  .formula.moe{background:#241d3a; color:#d8cbf8;}
+  .formula .cm{color:#8b93a7;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#f9c3db;}
+  #tip b.m{color:#d8cbf8;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1180 520" class="dg" role="img">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+
+    <!-- 输入 -->
+    <g class="node core" data-tip="输入 hidden_states&#10;形状 [B, T, d_model]&#10;E2B d_model=1536；26B 2816">
+      <rect x="20" y="190" width="110" height="70" rx="12"/>
+      <text class="t" x="75" y="220" text-anchor="middle">输入 x</text>
+      <text class="m" x="75" y="240" text-anchor="middle">[B,T,d]</text>
+    </g>
+    <path class="edge" d="M130,225 L160,225"/>
+
+    <!-- 注意力子层 -->
+    <g class="node dim" data-tip="input_layernorm&#10;Gemma4RMSNorm(eps 1e-6)&#10;fp32 计算·可选 weight&#10;来源：modeling_gemma4.py:1352">
+      <rect x="160" y="120" width="150" height="34" rx="8"/>
+      <text class="s" x="235" y="142" text-anchor="middle">input_layernorm (RMSNorm)</text>
+    </g>
+    <path class="edge" d="M130,225 L235,170 L235,154"/>
+    <g class="node" data-tip="自注意力 Gemma4TextAttention&#10;per-layer 维度（见 §5）&#10;E2B: sliding 8 头×256 / full 8 头×512&#10;Q/K/V 独立 RMSNorm（head-wise）&#10;RoPE 按层类型（full: proportional θ1e6 / sliding: default θ1e4）&#10;sliding 层窗口 512/1024，full 层全局因果&#10;来源：modeling_gemma4.py:1151-1264">
+      <rect x="160" y="180" width="290" height="110" rx="10"/>
+      <text class="t" x="305" y="204" text-anchor="middle">Self-Attention（Q/K/V/O）</text>
+      <text class="m" x="305" y="226" text-anchor="middle">q_proj → q_norm → RoPE</text>
+      <text class="m" x="305" y="244" text-anchor="middle">k_proj → k_norm → RoPE</text>
+      <text class="m" x="305" y="262" text-anchor="middle">v_proj → v_norm（或 K=V）</text>
+      <text class="m" x="305" y="280" text-anchor="middle">scaling=1.0（无 query_scalar）</text>
+    </g>
+    <g class="node core">
+      <circle cx="500" cy="235" r="16" data-tip="残差 ⊕：x + attn(x)"/>
+      <text class="s" x="500" y="239" text-anchor="middle" font-size="12">+</text>
+    </g>
+    <g class="node dim" data-tip="post_attention_layernorm&#10;残差相加后再归一化（Gemma 2 起的两组归一化传统）&#10;来源：modeling_gemma4.py:1396">
+      <rect x="160" y="320" width="150" height="34" rx="8"/>
+      <text class="s" x="235" y="342" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+    <path class="edge" d="M516,235 L560,235 L560,337 L310,337"/>
+    <path class="edge" d="M310,320 L310,354"/>
+    <path class="edge faint" d="M75,225 L75,330 C75,360 120,360 130,360 L150,360"/>
+
+    <!-- FFN 子层 -->
+    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一化&#10;来源：modeling_gemma4.py:1354">
+      <rect x="160" y="380" width="150" height="34" rx="8"/>
+      <text class="s" x="235" y="402" text-anchor="middle">pre_feedforward_layernorm</text>
+    </g>
+    <path class="edge" d="M235,360 L235,380"/>
+    <g class="node" data-tip="dense MLP（GeGLU）&#10;gate/up: d→intermediate；down: intermediate→d&#10;E2B: 6144（共享层 double-wide 12288）&#10;26B: 2112 · 31B: 21504 · 12B: 15360&#10;激活：gelu_pytorch_tanh（tanh 近似 GELU）&#10;来源：config intermediate_size；modeling_gemma4.py:1060-1076">
+      <rect x="160" y="420" width="290" height="88" rx="10"/>
+      <text class="t" x="305" y="444" text-anchor="middle">FFN（GeGLU dense MLP）</text>
+      <text class="m" x="305" y="464" text-anchor="middle">gate×GELU(tanh) ⊙ up → down</text>
+      <text class="m" x="305" y="482" text-anchor="middle">d → intermediate → d · 无 bias</text>
+    </g>
+    <g class="node core">
+      <circle cx="500" cy="464" r="16" data-tip="残差 ⊕：x + ffn(x)"/>
+      <text class="s" x="500" y="468" text-anchor="middle" font-size="12">+</text>
+    </g>
+    <g class="node dim" data-tip="post_feedforward_layernorm&#10;FFN 后归一化 → 残差相加 → ×layer_scalar&#10;来源：modeling_gemma4.py:1417-1429">
+      <rect x="160" y="100" width="150" height="34" rx="8"/>
+      <text class="s" x="235" y="122" text-anchor="middle">post_feedforward_layernorm</text>
+    </g>
+    <g class="node core" data-tip="输出 = residual + post_ffn_norm(mlp+attn 路径)&#10;× layer_scalar（初始 1，可学习）&#10;来源：modeling_gemma4.py:1417-1429">
+      <rect x="600" y="215" width="120" height="70" rx="12"/>
+      <text class="t" x="660" y="244" text-anchor="middle">输出 y</text>
+      <text class="m" x="660" y="266" text-anchor="middle">× layer_scalar</text>
+    </g>
+    <path class="edge" d="M516,464 L560,464 L560,250 L600,250"/>
+    <text class="lg" x="560" y="340" transform="rotate(90 560 340)">残差流</text>
+    <text class="lgb" x="180" y="96">注意力子层</text>
+    <text class="lgb" x="180" y="358">FFN 子层</text>
+  </svg></body></html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.mm{color:var(--mm-ink); background:var(--mm-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  nav.top a.link.mm-link{color:var(--mm-ink);}
+  nav.top a.link.mm-link:hover{background:var(--mm-soft);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h2.mm .secno{color:var(--mm-ink); background:var(--mm-soft); border-color:var(--mm-line);}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.mm rect{fill:var(--mm-soft); stroke:var(--mm); stroke-width:1.6;}
+  .dg .node.text rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .node.mm text.t{fill:var(--mm-ink);}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.mm{stroke:var(--mm); stroke-width:1.8; marker-end:url(#arrm);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+  .dg .lgb{font-size:11.5px; fill:var(--accent-ink); font-weight:600;}
+  .dg .lgm{font-size:11.5px; fill:var(--mm-ink); font-weight:600;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp thead th.mm-th{background:var(--mm-soft); color:var(--mm-ink);}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:18%;}
+  table.cmp col.cx{width:16.4%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  .formula.mm{background:#134e4a; color:#c7f0e8;}
+  .formula .cm{color:#8b93a7;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#bfd3ff;}
+  #tip b.m{color:#99e9dc;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1240 600" class="dg" role="img">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+
+    <!-- 输入 -->
+    <g class="node core" data-tip="输入 hidden_states&#10;(B, T, d_model)&#10;270M d=640；27B d=5376">
+      <rect x="20" y="240" width="110" height="70" rx="12"/>
+      <text class="t" x="75" y="270" text-anchor="middle">输入 x</text>
+      <text class="m" x="75" y="290" text-anchor="middle">[B,T,d]</text>
+    </g>
+    <path class="edge" d="M130,275 L160,275"/>
+
+    <!-- 注意力子层 -->
+    <g class="node dim" data-tip="input_layernorm&#10;Gemma3RMSNorm(d, eps 1e-6)&#10;fp32 归一 · ×(1+γ) · γ 零初始化&#10;来源：modeling_gemma3.py:383, 135-149">
+      <rect x="160" y="150" width="160" height="34" rx="8"/>
+      <text class="s" x="240" y="172" text-anchor="middle">input_layernorm (RMSNorm)</text>
+    </g>
+    <path class="edge" d="M130,275 L240,184"/>
+    <g class="node" data-tip="自注意力 Gemma3Attention（296-372）&#10;q/k/v/o_proj 全部 bias=False&#10;q_proj: d→Q头×head_dim；k/v_proj: d→KV头×head_dim&#10;Q/K 各过 head_dim 维 RMSNorm（QK-Norm）&#10;再按层类型做 RoPE（global θ1e6 / local θ1e4）&#10;GQA: repeat_kv 把 KV 头复制到 Q 头数&#10;scaling = query_pre_attn_scalar^-0.5&#10;来源：modeling_gemma3.py:311-349, 370-371">
+      <rect x="160" y="200" width="300" height="130" rx="10"/>
+      <text class="t" x="310" y="224" text-anchor="middle">Self-Attention（Q/K/V/O）</text>
+      <text class="m" x="310" y="246" text-anchor="middle">q_proj → q_norm → RoPE</text>
+      <text class="m" x="310" y="264" text-anchor="middle">k_proj → k_norm → RoPE</text>
+      <text class="m" x="310" y="282" text-anchor="middle">v_proj → repeat_kv → @softmax·V</text>
+      <text class="m" x="310" y="300" text-anchor="middle">→ o_proj（无 softcap）</text>
+      <text class="s" x="310" y="318" text-anchor="middle">270M: 4Q/1KV·head256；27B: 32Q/16KV·head128</text>
+    </g>
+    <g class="node core">
+      <circle cx="510" cy="265" r="16" data-tip="残差 ⊕：x + attn(x)&#10;来源：modeling_gemma3.py:397-410"/>
+      <text class="s" x="510" y="269" text-anchor="middle" font-size="12">+</text>
+    </g>
+    <g class="node dim" data-tip="post_attention_layernorm&#10;残差相加之前对子层输出再归一&#10;来源：modeling_gemma3.py:384, 409">
+      <rect x="160" y="360" width="160" height="34" rx="8"/>
+      <text class="s" x="240" y="382" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+    <path class="edge" d="M526,265 L560,265 L560,377 L320,377"/>
+    <path class="edge" d="M310,330 L310,360"/>
+    <path class="edge faint" d="M75,275 L75,377 L160,377"/>
+
+    <!-- FFN 子层 -->
+    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一&#10;来源：modeling_gemma3.py:385, 413">
+      <rect x="160" y="410" width="160" height="34" rx="8"/>
+      <text class="s" x="240" y="432" text-anchor="middle">pre_feedforward_layernorm</text>
+    </g>
+    <path class="edge" d="M240,394 L240,410"/>
+    <g class="node" data-tip="Gemma3MLP（GeGLU，119-132）&#10;gate/up: d→intermediate；down: intermediate→d&#10;激活 = gelu_pytorch_tanh（tanh 近似 GELU）&#10;270M inter 2048；4B 10240；27B 21504&#10;全部 Linear bias=False&#10;来源：modeling_gemma3.py:125-132">
+      <rect x="160" y="450" width="300" height="86" rx="10"/>
+      <text class="t" x="310" y="474" text-anchor="middle">FFN（GeGLU dense MLP）</text>
+      <text class="m" x="310" y="494" text-anchor="middle">down( gelu_tanh(gate) ⊙ up )</text>
+      <text class="s" x="310" y="512" text-anchor="middle">d → intermediate → d · 无 bias</text>
+    </g>
+    <g class="node dim" data-tip="post_feedforward_layernorm&#10;FFN 输出归一后与残差相加&#10;来源：modeling_gemma3.py:386, 415-416">
+      <rect x="160" y="548" width="160" height="30" rx="8"/>
+      <text class="s" x="240" y="568" text-anchor="middle">post_feedforward_layernorm</text>
+    </g>
+    <path class="edge" d="M310,536 L310,548"/>
+
+    <g class="node core">
+      <circle cx="510" cy="493" r="16" data-tip="残差 ⊕：h₁ + ffn(h₁)&#10;来源：modeling_gemma3.py:412-416"/>
+      <text class="s" x="510" y="497" text-anchor="middle" font-size="12">+</text>
+    </g>
+    <path class="edge" d="M560,377 L560,493 L526,493"/>
+    <path class="edge" d="M460,493 L494,493"/>
+
+    <!-- 输出 -->
+    <g class="node core" data-tip="输出 hidden_states → 下一层&#10;无 layer_scalar（区别于 Gemma 4）&#10;来源：modeling_gemma3.py:418">
+      <rect x="600" y="250" width="120" height="70" rx="12"/>
+      <text class="t" x="660" y="279" text-anchor="middle">输出 y</text>
+      <text class="m" x="660" y="301" text-anchor="middle">[B,T,d]</text>
+    </g>
+    <path class="edge" d="M526,493 L580,493 L580,285 L600,285"/>
+    <text class="lg" x="588" y="400" transform="rotate(90 588 400)">残差流</text>
+    <text class="lgb" x="180" y="130">注意力子层</text>
+    <text class="lgb" x="180" y="400">FFN 子层</text>
+  </svg></body></html>

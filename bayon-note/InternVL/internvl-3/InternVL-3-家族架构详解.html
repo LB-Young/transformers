@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InternVL-3 家族架构详解 — InternVLForConditionalGeneration（1B–78B · 原生多模态预训练）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%230e7490'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E3%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#24292f; --sub:#6b7280; --line:#e3e6ea;
+  --accent:#0e7490; --accent-ink:#155e75; --accent-soft:#e0f2f5; --accent-line:#b7dbe4;
+  --hl:#b45309; --hl-soft:#f7ead6; --hl-line:#e8cfae; --mono:#6d5a2e; --radius:12px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif; line-height:1.66; font-size:14px;}
+.wrap{max-width:1180px; margin:0 auto; padding:0 14px;}
+code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:.92em;}
+.num{color:var(--mono); background:var(--hl-soft); padding:0 4px; border-radius:4px; white-space:nowrap; font-family:ui-monospace,Consolas,monospace; font-size:.9em;}
+.num.acc{color:var(--accent-ink); background:var(--accent-soft);}
+a{color:var(--accent-ink);}
+
+nav.top{position:sticky; top:0; z-index:50; background:rgba(246,247,249,.95); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+nav.top .wrap{display:flex; align-items:center; gap:6px; padding-top:9px; padding-bottom:9px; overflow-x:auto; white-space:nowrap;}
+nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink); flex:none; font-size:.9rem;}
+nav.top a.link{color:var(--ink); text-decoration:none; font-size:.82rem; padding:5px 9px; border-radius:8px; flex:none;}
+nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+header.hero{padding:26px 0 4px;}
+.badges{display:flex; flex-wrap:wrap; gap:7px; margin:12px 0;}
+.badge{font-size:.74rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+.badge.hl{border-color:var(--hl-line); background:var(--hl-soft); color:var(--hl);}
+h1{font-size:clamp(1.45rem,4.5vw,2.1rem); letter-spacing:.3px;}
+.lead{color:var(--sub); max-width:960px; margin-top:10px; font-size:.92rem;}
+.lead b{color:var(--ink);}
+
+section{margin:28px 0; scroll-margin-top:60px;}
+h2{font-size:1.18rem; display:flex; align-items:center; gap:9px; margin-bottom:10px;}
+h2 .secno{font-size:.78rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:26px; height:26px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+h3{font-size:.98rem; margin:14px 0 6px;}
+.note{font-size:.84rem; color:var(--sub); margin-bottom:8px;}
+.tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:9px 13px; border-radius:10px; margin-top:10px;}
+.tip.hl{background:var(--hl-soft); border-color:var(--hl-line); color:#7c4a12;}
+
+.diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; overflow-x:auto;}
+.diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+.dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+.dg .node rect{fill:var(--panel); stroke:#c9cfd6; stroke-width:1.3;}
+.dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+.dg .node.core rect{fill:var(--hl-soft); stroke:var(--hl); stroke-width:1.6;}
+.dg .node text{font-size:12px; fill:var(--ink);}
+.dg .node text.t{font-weight:700; font-size:12.5px;}
+.dg .node text.s{fill:var(--sub); font-size:10.5px;}
+.dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:10.5px;}
+.dg .edge{stroke:#c9cfd6; stroke-width:1.6; fill:none; marker-end:url(#arr);}
+.dg .edge.rm{stroke:var(--hl); stroke-width:1.6; fill:none; stroke-dasharray:6 4; marker-end:url(#arrH);}
+.dg .edge.acc{stroke:var(--accent); stroke-width:1.7; fill:none; marker-end:url(#arrA);}
+.dg text.lbl{font-size:10.5px; fill:var(--sub);}
+
+.table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+table.cmp{width:100%; min-width:680px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+table.cmp th,table.cmp td{padding:7px 9px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.82rem;}
+table.cmp tbody tr:nth-child(even){background:#fafbfc;}
+table.cmp tbody tr:last-child td{border-bottom:none;}
+table.cmp td.k{font-weight:600;}
+table.cmp td small{color:var(--sub); display:block; margin-top:2px; font-size:.72rem;}
+table.cmp tr.hl td{background:var(--hl-soft);}
+
+.cards{display:grid; grid-template-columns:1fr; gap:12px;}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; min-width:0;}
+.card.hl{background:var(--hl-soft); border-color:var(--hl-line);}
+.card h3{margin-top:0; font-size:.95rem;}
+.card p{font-size:.84rem; margin-top:5px;}
+.card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+.formula{background:#22303a; color:#d9ecf2; font-family:ui-monospace,Consolas,monospace; font-size:.8rem; padding:9px 12px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+.formula .cm{color:#7fa8b8;}
+
+#chart{width:100%; height:300px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); margin-top:10px;}
+
+.tl{--time:92px; --axis:26px; display:grid; grid-template-columns:var(--time) var(--axis) 1fr; row-gap:0; margin-top:12px; position:relative;}
+.tl::before{content:""; position:absolute; left:calc(var(--time) + var(--axis)/2); top:6px; bottom:6px; width:2px; transform:translateX(-50%); background:var(--accent-line);}
+.tl-time{font-size:.78rem; color:var(--accent-ink); font-weight:700; text-align:right; padding:4px 10px 0 0;}
+.tl-axis{display:flex; justify-content:center; align-self:start; position:relative;}
+.tl-dot{width:12px; height:12px; border-radius:50%; background:var(--accent); border:2px solid #fff; box-shadow:0 0 0 2px var(--accent-line); margin-top:6px;}
+.tl-body{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:11px 14px; margin-bottom:16px; min-width:0;}
+.tl-body h4{font-size:.9rem; margin-bottom:4px;}
+.tl-body p{font-size:.82rem; color:var(--sub);}
+
+ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
+ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.82rem;}
+ol.src li:last-child{border-bottom:none;}
+ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.76rem; margin-top:2px;}
+
+footer{margin:34px 0 22px; color:var(--sub); font-size:.76rem; text-align:center;}
+#tip{position:fixed; z-index:99; display:none; max-width:340px; background:#24292f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.8rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+#tip b{color:#f0c384;}
+
+@media (min-width:768px){
+  body{font-size:15px;}
+  .cards{grid-template-columns:repeat(2,1fr);}
+  #chart{height:360px;}
+  .tl{--time:130px;}
+}
+@media print{
+  nav.top{display:none;} body{background:#fff;}
+  .diagram-shell{overflow:visible; border:none; padding:0;}
+  .diagram-shell svg{min-width:0;}
+  table.cmp{min-width:0;}
+}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="19" height="19"><rect x="2" y="2" width="20" height="20" rx="5" fill="#0e7490"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">3</text></svg>InternVL-3 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">端到端总览</a>
+  <a class="link" href="#vit">视觉编码器</a>
+  <a class="link" href="#projector">投影与底座</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#pipeline">训练管线</a>
+  <a class="link" href="#evo">2.5→3.0 演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>InternVL-3 家族架构详解（1B–78B）</h1>
+  <div class="badges">
+    <span class="badge">2025-04 发布 · ViT–MLP–LLM 范式</span>
+    <span class="badge">入口类 InternVLForConditionalGeneration</span>
+    <span class="badge">本地 config：InternVL3-1B-hf（transformers 原生 internvl 格式）</span>
+    <span class="badge hl">原生多模态预训练 · V2PE · 测试时扩展</span>
+  </div>
+  <p class="lead">InternVL3 是上海 AI Lab InternVL 系列第三代开放多模态大模型，家族共 <b>7 个尺寸（1B–78B）</b>，统一遵循 ViT–MLP–LLM 三段式架构。本页以本地 <b>E:\models\model\InternVL3-1B-hf</b> 的 config.json、本地 transformers 源码 <b>modeling_internvl.py</b> 与论文 <b>arXiv:2504.10479</b> 为唯一依据：视觉塔取 InternViT-300M 或 InternViT-6B（均为 448px-V2.5），语言底座取 Qwen2.5 系列 base 模型，投影层为随机初始化的两层 MLP。</p>
+</header>
+
+<!-- ==================== 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：InternVL3 七尺寸与本地 config 对照</h2>
+  <p class="note">下表来自论文 Table 1（OpenCompass 为官方本地测试口径）。家族规格为：≤14B 用 InternViT-300M-448px-V2.5，38B/78B 用 InternViT-6B-448px-V2.5；LLM 一律用预训练 base 模型（不用 instruction-tuned 版）。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:18%"><col style="width:11%"><col style="width:31%"><col style="width:24%"><col style="width:16%"></colgroup>
+    <thead><tr><th>模型</th><th>总参数</th><th>视觉编码器</th><th>语言模型</th><th>OpenCompass</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td class="k">InternVL3-1B（本地）</td><td><span class="num">0.9B</span></td><td>InternViT-300M-448px-V2.5</td><td>Qwen2.5-0.5B</td><td>57.4</td></tr>
+      <tr><td class="k">InternVL3-2B</td><td><span class="num">1.9B</span></td><td>InternViT-300M-448px-V2.5</td><td>Qwen2.5-1.5B</td><td>63.9</td></tr>
+      <tr><td class="k">InternVL3-8B</td><td><span class="num">8.1B</span></td><td>InternViT-300M-448px-V2.5</td><td>Qwen2.5-7B</td><td>73.3</td></tr>
+      <tr><td class="k">InternVL3-9B</td><td><span class="num">9.2B</span></td><td>InternViT-300M-448px-V2.5</td><td>InternLM3-8B</td><td>72.4</td></tr>
+      <tr><td class="k">InternVL3-14B</td><td><span class="num">15.1B</span></td><td>InternViT-300M-448px-V2.5</td><td>Qwen2.5-14B</td><td>75.5</td></tr>
+      <tr><td class="k">InternVL3-38B</td><td><span class="num">38.4B</span></td><td>InternViT-6B-448px-V2.5</td><td>Qwen2.5-32B</td><td>77.3</td></tr>
+      <tr><td class="k">InternVL3-78B</td><td><span class="num">78.4B</span></td><td>InternViT-6B-448px-V2.5</td><td>Qwen2.5-72B</td><td>79.5</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div id="chart"></div>
+
+  <h3>1.1 本地 1B config 关键实参（来源：E:\models\model\InternVL3-1B-hf\config.json）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:26%"><col style="width:22%"><col style="width:52%"></colgroup>
+    <thead><tr><th>字段</th><th>取值</th><th>含义 / 源码佐证</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td><code>InternVLForConditionalGeneration</code> / <code>internvl</code></td><td>顶层模型类<small>modeling_internvl.py:741；configuration_internvl.py:108</small></td></tr>
+      <tr><td class="k">image_seq_length</td><td><span class="num acc">256</span></td><td>每个 448×448 切片的视觉 token 数 = (448/14)²×0.5²<small>processing_internvl.py:58</small></td></tr>
+      <tr><td class="k">image_token_id</td><td><span class="num acc">151667</span></td><td>图像占位 token id，forward 中 masked_scatter 的掩码依据<small>:602</small></td></tr>
+      <tr><td class="k">downsample_ratio</td><td><span class="num acc">0.5</span></td><td>Pixel Unshuffle 缩放因子<small>:578, :670</small></td></tr>
+      <tr><td class="k">vision_feature_layer / strategy</td><td><span class="num acc">-1</span> / <code>default</code></td><td>取最后一层隐藏态；default = 丢弃 CLS<small>:559-567</small></td></tr>
+      <tr><td class="k">text_config（Qwen2.5-0.5B）</td><td>hidden 896 · 24 层</td><td>14 Q 头 / 2 KV 头（GQA 分组 7）· intermediate 4864 · vocab 151674 · RoPE dynamic×2 · max_pos 32768</td></tr>
+      <tr><td class="k">vision_config（InternViT-300M-V2.5）</td><td>hidden 1024 · 24 层</td><td>16 头 · patch 14×14 · 448×448 · attention_bias=true · layer_scale_init_value=0.1 · use_mean_pooling=true · 绝对位置编码=true</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：3.0 是 <b>transformers 原生 internvl 格式</b>——顶层直接嵌套 <code>text_config</code> 与 <code>vision_config</code>，不再是 1.5/2.x 的 legacy <code>internvl_chat</code> 格式；本地自核算总参数 ≈0.80–0.9B，与论文 0.9B 同量级。</p>
+</section>
+
+<!-- ==================== 端到端总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端架构总览（以本地 1B 为主尺寸）</h2>
+  <p class="note">输入图像经动态分辨率切片 → 逐切片过 InternViT-300M → Pixel Unshuffle 压缩 token → 两层 MLP 投影进 LLM 残差流 → 在 embedding 层用视觉特征替换图像占位 token → Qwen2.5-0.5B 自回归解码。38B/78B 仅把视觉塔换成 InternViT-6B-V2.5。</p>
+  <div class="diagram-shell" aria-label="InternVL-3 端到端架构">
+  <svg viewBox="0 0 1240 230" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9cfd6"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0e7490"/></marker>
+      <marker id="arrH" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+    <g class="node core"><rect x="16" y="70" width="130" height="80" rx="12"/>
+      <text class="t" x="81" y="98" text-anchor="middle">输入图像</text>
+      <text class="s" x="81" y="118" text-anchor="middle">H×W×3 动态分辨率</text>
+      <text class="s" x="81" y="136" text-anchor="middle">最多 12 个 448 切片</text></g>
+    <path class="edge" d="M146,110 L182,110"/>
+    <g class="node dim" data-tip="动态分辨率切片预处理&#10;resize 到 448 的倍数 → 切 448×448 切片&#10;另加一张整图缩略图（thumbnail）&#10;preprocessor_config：max_patches=12, min_patches=1">
+      <rect x="182" y="78" width="150" height="64" rx="12"/>
+      <text class="t" x="257" y="104" text-anchor="middle">切片预处理</text>
+      <text class="s" x="257" y="124" text-anchor="middle">N 个 448×448 + 缩略图</text></g>
+    <path class="edge" d="M332,110 L368,110"/>
+    <g class="node dim" data-tip="InternViT-300M-448px-V2.5&#10;hidden 1024 · 24 层 · 16 头 · intermediate 4096&#10;patch 14×14；输出最后一层隐藏态&#10;default 策略丢弃 CLS → (B,1024,1024)&#10;38B/78B 换成 InternViT-6B-V2.5">
+      <rect x="368" y="66" width="190" height="88" rx="12"/>
+      <text class="t" x="463" y="94" text-anchor="middle">InternViT-300M</text>
+      <text class="m" x="463" y="114" text-anchor="middle">(B,1025,1024) 含 CLS</text>
+      <text class="s" x="463" y="134" text-anchor="middle">24 层 · LayerScale · mean pooling</text></g>
+    <path class="edge" d="M558,110 L594,110"/>
+    <g class="node" data-tip="Pixel Unshuffle（:670）&#10;空间维减半 32×32→16×16&#10;通道维 ×4：1024→4096&#10;每切片 1024 patch → 256 个视觉 token">
+      <rect x="594" y="74" width="170" height="72" rx="12"/>
+      <text class="t" x="679" y="100" text-anchor="middle">Pixel Unshuffle</text>
+      <text class="m" x="679" y="120" text-anchor="middle">(B,256,4096)</text>
+      <text class="s" x="679" y="138" text-anchor="middle">token 数压到 1/4</text></g>
+    <path class="edge" d="M764,110 L800,110"/>
+    <g class="node core" data-tip="InternVLMultiModalProjector（:485-500）&#10;LayerNorm(4096) → Linear 4096→896&#10;→ GELU → Linear 896→896&#10;随机初始化的两层 MLP">
+      <rect x="800" y="70" width="170" height="80" rx="12"/>
+      <text class="t" x="885" y="96" text-anchor="middle">MLP 投影器</text>
+      <text class="m" x="885" y="116" text-anchor="middle">(B,256,896)</text>
+      <text class="s" x="885" y="136" text-anchor="middle">投影进 LLM 残差流</text></g>
+    <path class="edge acc" d="M970,110 L1006,110"/>
+    <g class="node dim" data-tip="Qwen2.5-0.5B（Qwen2ForCausalLM）&#10;hidden 896 · 24 层 · 14Q/2KV（GQA 分组 7）&#10;SwiGLU intermediate 4864 · vocab 151674&#10;RoPE θ=1e6 dynamic×2">
+      <rect x="1006" y="66" width="218" height="88" rx="12"/>
+      <text class="t" x="1115" y="94" text-anchor="middle">Qwen2.5-0.5B</text>
+      <text class="s" x="1115" y="114" text-anchor="middle">图像占位 embedding 被视觉特征</text>
+      <text class="s" x="1115" y="132" text-anchor="middle">masked_scatter 替换后自回归解码</text></g>
+    <text class="lbl" x="81" y="180" text-anchor="middle">pixel_values</text>
+    <text class="lbl" x="463" y="180" text-anchor="middle">ViT 取最后一层隐藏态</text>
+    <text class="lbl" x="679" y="180" text-anchor="middle">256 token / 切片</text>
+    <text class="lbl" x="1115" y="180" text-anchor="middle">logits → 下一 token</text>
+  </svg>
+  </div>
+  <p class="tip">源码路径：<span class="num">InternVLModel.__init__</span> 组装 vision_tower / projector / language_model（:530-536）；<span class="num">get_image_features</span>（:543-587）；forward 中 embed_tokens 查表后 masked_scatter 替换（:634-652）。</p>
+</section>
+
+<!-- ==================== 视觉编码器 ==================== -->
+<section id="vit">
+  <h2><span class="secno">3</span>视觉编码器 InternViT-300M-448px-V2.5</h2>
+  <p class="note">448×448 切片 = (448/14)² = 32×32 = 1024 个 patch token + 1 个 CLS。V2.5 相对 1.5/2.x 时代的 InternViT 有三个 config 可证的新特性：<b>LayerScale（init 0.1）</b>、<b>mean pooling</b>、<b>可学习绝对位置编码 + V2PE</b>。</p>
+  <div class="diagram-shell" aria-label="InternViT 层结构">
+  <svg viewBox="0 0 1240 430" class="dg" role="img">
+    <defs>
+      <marker id="arr2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9cfd6"/></marker>
+    </defs>
+    <g class="node dim"><rect x="370" y="16" width="500" height="52" rx="12"/>
+      <text class="t" x="620" y="40" text-anchor="middle">Patch Embedding：448×448×3 → patch 14×14</text>
+      <text class="s" x="620" y="60" text-anchor="middle">32×32=1024 个 patch token + 1 个 CLS token</text></g>
+    <path class="edge" d="M620,68 L620,92"/>
+    <g class="node"><rect x="370" y="92" width="500" height="44" rx="12"/>
+      <text class="s" x="620" y="119" text-anchor="middle">可学习二维绝对位置编码（use_absolute_position_embeddings=true）+ V2PE（δ=1）</text></g>
+    <path class="edge" d="M620,136 L620,160"/>
+    <g class="node core"><rect x="280" y="160" width="680" height="180" rx="14"/>
+      <text class="t" x="620" y="186" text-anchor="middle">× 24 个 ViT Block（hidden 1024 · intermediate 4096 · GELU）</text>
+      <g class="node" data-tip="注意力子层&#10;LayerNorm → 16 头自注意力（qkv_bias=true）&#10;输出 × LayerScale(0.1) → 残差相加">
+        <rect x="330" y="200" width="380" height="42" rx="9"/>
+        <text class="s" x="520" y="225" text-anchor="middle">LayerNorm → MHSA（16 头 · qkv_bias）</text></g>
+      <g class="node hl" style="display:none"></g>
+      <rect x="330" y="250" width="380" height="34" rx="9" fill="#f7ead6" stroke="#e8cfae"/>
+      <text class="s" x="520" y="271" text-anchor="middle">× LayerScale(init=0.1) → 残差</text>
+      <g class="node" data-tip="MLP 子层&#10;LayerNorm → Linear 1024→4096（GELU）→ Linear 4096→1024&#10;输出 × LayerScale(0.1) → 残差相加">
+        <rect x="330" y="292" width="380" height="42" rx="9"/>
+        <text class="s" x="520" y="317" text-anchor="middle">LayerNorm → MLP：1024→4096(GELU)→1024</text></g>
+    </g>
+    <path class="edge" d="M620,340 L620,364"/>
+    <g class="node dim"><rect x="330" y="364" width="580" height="48" rx="12"/>
+      <text class="s" x="620" y="384" text-anchor="middle">取最后一层隐藏态（vision_feature_layer=-1）；default 策略丢弃 CLS</text>
+      <text class="s" x="620" y="402" text-anchor="middle">1024 个 patch 特征 reshape 回 32×32 空间网格 → 进入 Pixel Unshuffle</text></g>
+  </svg>
+  </div>
+  <p class="tip">本地 config 佐证：<span class="num">attention_bias=true</span>（qkv 带 bias）、<span class="num">layer_scale_init_value=0.1</span>、<span class="num">use_mean_pooling=true</span>（分类侧）、<span class="num">use_qk_norm=false</span>、<span class="num">layer_norm_eps=1e-6</span>。</p>
+</section>
+
+<!-- ==================== 投影与底座 ==================== -->
+<section id="projector">
+  <h2><span class="secno">4</span>投影层与语言底座</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>4.1 Pixel Unshuffle：视觉 token 压到 1/4</h3>
+      <p>沿用 InternVL2.5 的像素重组（论文 §2.1）：32×32 空间网格按 r=0.5 重组，空间减半、通道 ×4，每切片 <b>1024 patch → 256 个视觉 token</b>，与 <span class="num acc">image_seq_length=256</span> 严格相等。</p>
+      <div class="formula">S = H / p = 448 / 14 = 32
+n_tok = (S·r)² = (32×0.5)² = <b>256</b>
+d_out = d_v / r² = 1024 / 0.25 = <b>4096</b></div>
+      <div class="meta">源码 pixel_shuffle（:670-703）：空间维减半、通道维按 1/r² 扩张。</div>
+    </div>
+    <div class="card">
+      <h3>4.2 两层 MLP 投影器（随机初始化）</h3>
+      <p>论文 §2.1：投影器为随机初始化的两层网络；源码（:485-500）结构固定：</p>
+      <div class="formula">hidden = LayerNorm(4096)
+out = Linear2( GELU( Linear1(hidden) ) )
+Linear1: 4096 → 896
+Linear2:  896 → 896</div>
+      <div class="meta">4096 = d_v/r²；896 = 语言模型 hidden_size。投影器把视觉特征送进 LLM 残差流空间。</div>
+    </div>
+    <div class="card">
+      <h3>4.3 语言底座 Qwen2.5-0.5B</h3>
+      <p>HF 架构类 <b>Qwen2ForCausalLM</b>：hidden 896、24 层、14 个 Q 头 / 2 个 KV 头（GQA 分组数 7）、head_dim=64、SwiGLU（silu）intermediate 4864。</p>
+      <div class="meta">vocab 151674（嵌入与 lm_head 绑定）；RoPE θ=1e6 + dynamic 缩放 ×2；rms_norm_eps=1e-6。论文强调：LLM 一律用 base 模型初始化，不用 instruction-tuned 版本。</div>
+    </div>
+    <div class="card hl">
+      <h3>4.4 本地 1B 参数量自核算</h3>
+      <p>视觉塔 ≈302M（每层 qkv 1024×3072 + out 1024² + MLP 2×1024×4096 ≈12.6M ×24）；LLM ≈494M（嵌入 151674×896≈135.9M + 每层注意力 ≈1.84M + MLP 每层 ≈13.06M ×24）；投影器 ≈4.5M。</p>
+      <div class="meta">合计 ≈0.80–0.9B，与论文 Table 1 的 0.9B 同量级。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">5</span>核心机制专节</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>5.1 动态分辨率切片（tile）与缩略图</h3>
+      <p>图像不强制 resize 到固定尺寸：按宽高比动态切为若干 448×448 切片，另加整图缩略图补全全局视野。本地 preprocessor_config：<span class="num acc">max_patches=12</span>、<span class="num acc">min_patches=1</span>、size 448×448。</p>
+      <div class="meta">processing_internvl.py:148-150 把每个 <image> 占位展开为 256×切片数 个图像 token，并用 BOI/EOI 特殊 token 包裹。</div>
+    </div>
+    <div class="card">
+      <h3>5.2 视觉 token 流与 masked_scatter</h3>
+      <p>文本侧写入 BOI、重复 N 次的图像占位 token（id=151667）与 EOI；forward 时 embed_tokens 查表后用占位 id 构造掩码，把 ViT 输出的 (B, 256N, 896) 特征写回占位位置（:646-652）。</p>
+      <div class="meta">源码同时校验：占位 token 总数 ×896 == 视觉特征元素数，不等即报错（:607-610）。视觉 token 只作条件上下文，不参与 loss。</div>
+    </div>
+    <div class="card">
+      <h3>5.3 原生多模态预训练目标</h3>
+      <p>语言预训练与多模态对齐合并进<b>同一预训练阶段</b>：纯文本语料与多模态语料交错混合、全部参数联合优化；loss 只在文本 token 上计算。</p>
+      <div class="formula">L_text-only(θ) = − Σ wᵢ · log pθ(xᵢ | x₁..xᵢ₋1)
+                  <span class="cm"># 求和仅取 xᵢ ∈ Text</span>
+wᵢ = 1 / l^0.5        <span class="cm"># square averaging</span></div>
+      <div class="meta">语料配比 文本:多模态 = 1:3；总 token 约 200B（文本 50B + 多模态 150B）。</div>
+    </div>
+    <div class="card">
+      <h3>5.4 V2PE 可变视觉位置编码</h3>
+      <p>为支持更长多模态上下文引入 Variable Visual Position Encoding：视觉 token 位置增量 δ 可调，全文实验默认 δ=1；训练侧配合头并行与序列并行支持最长 <b>32K token</b> 序列。</p>
+      <div class="meta">本地 config 中 use_absolute_position_embeddings=true，V2PE 是在绝对位置编码之上叠加的机制。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 训练管线（时间轴） ==================== -->
+<section id="pipeline">
+  <h2><span class="secno">6</span>训练管线：原生预训练 → SFT → MPO → 测试时扩展</h2>
+  <p class="note">InternVL3 完整管线分三大训练阶段，外加推理期的测试时扩展策略（论文 §2.2–§2.4）。</p>
+  <div class="tl">
+    <div class="tl-time">阶段一<br>预训练</div>
+    <div class="tl-axis"><span class="tl-dot"></span></div>
+    <div class="tl-body"><h4>原生多模态预训练（Native Multimodal Pretraining）</h4>
+      <p>约 200B token：文本 50B + 多模态 150B（配比 1:3）。文本与多模态语料单阶段交错联合训练，全部参数不冻结；loss 仅在文本 token 上，square averaging 加权。多模态语料在 InternVL2.5 语料（caption、QA、数学、图表、OCR、文档、多轮对话、医疗）基础上新增 GUI、工具调用、3D 场景、视频理解。</p></div>
+
+    <div class="tl-time">阶段二<br>SFT</div>
+    <div class="tl-axis"><span class="tl-dot"></span></div>
+    <div class="tl-body"><h4>监督微调（SFT）</h4>
+      <p>样本量从 InternVL2.5 的 16.3M 扩到 <b>21.7M</b>。沿用 2.5 的随机 JPEG 压缩、square loss 重加权、多模态数据打包；新增工具调用、GUI、3D、长上下文、视频、科学图表、创意写作与多模态推理样本。</p></div>
+
+    <div class="tl-time">阶段三<br>MPO</div>
+    <div class="tl-axis"><span class="tl-dot"></span></div>
+    <div class="tl-body"><h4>混合偏好优化（Mixed Preference Optimization）</h4>
+      <p>约 <b>30 万偏好对</b>（基于 MMPR v1.2），用 InternVL3-8B/38B/78B 的 SFT 版产出 rollout。损失 = DPO 偏好损失 + BCO 质量损失 + LM 生成损失，缓解训练-推理分布偏移，增强思维链推理（78B 推理均分 +4.1）。</p></div>
+
+    <div class="tl-time">推理期<br>测试时</div>
+    <div class="tl-axis"><span class="tl-dot"></span></div>
+    <div class="tl-body"><h4>测试时扩展（Test-Time Scaling）</h4>
+      <p><b>Best-of-N</b> 采样 + <b>VisualPRM-8B</b> 评审模型：对思维链每一步预测 +/− 并取概率作为步质量分，平均后选最优回答；小尺寸模型也能获得可观推理增益。基础设施：扩展 InternEVO 框架，同规模训练吞吐较 InternVL2.5 提升 50%–200%。</p></div>
+  </div>
+</section>
+
+<!-- ==================== 演进对比 ==================== -->
+<section id="evo">
+  <h2><span class="secno">7</span>版本演进对比：InternVL 2.5 → InternVL 3.0</h2>
+  <p class="note">InternVL2.5（arXiv:2412.05271）已引入原生多模态预训练雏形与像素 unshuffle；InternVL3.0 把范式收敛为完整的单阶段原生预训练，并升级视觉塔、语言底座与后训练/测试时策略。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:16%"><col style="width:42%"><col style="width:42%"></colgroup>
+    <thead><tr><th>维度</th><th>InternVL 2.5</th><th>InternVL 3.0</th></tr></thead>
+    <tbody>
+      <tr><td class="k">预训练范式</td><td>MLP warmup 对齐 + 多阶段微调，语言与多模态训练分离</td><td><b>语言+多模态语料单阶段原生联合训练</b>，全部参数共同优化，约 200B token</td></tr>
+      <tr class="hl"><td class="k">视觉编码器</td><td>InternViT-300M / 6B-448px（基础 ViT 结构）</td><td><b>InternViT-V2.5</b>：LayerScale(0.1)、mean pooling、绝对位置编码 + V2PE</td></tr>
+      <tr><td class="k">语言底座</td><td>Qwen2.5 / InternLM2.5 系列</td><td>Qwen2.5 全系列 + InternLM3-8B（9B 型号），统一用 base 模型初始化</td></tr>
+      <tr><td class="k">后训练</td><td>SFT（16.3M 样本）</td><td>SFT 扩到 21.7M + <b>MPO 混合偏好优化</b>（DPO+BCO+LM，约 30 万偏好对）</td></tr>
+      <tr><td class="k">测试时策略</td><td>常规推理</td><td><b>Best-of-N + VisualPRM-8B</b> 分步奖励评分，思维链可叠加选优</td></tr>
+      <tr><td class="k">上下文长度</td><td>4K–32K 常规</td><td>V2PE + 头/序列并行支持 <b>32K 序列</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip hl">演进主线：原生多模态预训练从可选实验收敛为标准范式——语言与视觉能力在同一阶段联合塑形；后训练用 MPO 补上思维链推理；推理期用 VisualPRM 做测试时扩展。家族从 1B 连续扩到 78B，1B 级视觉塔在保留 300M 规格的同时完成 V2.5 结构升级。</p>
+</section>
+
+<!-- ==================== 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>本地 config：InternVL3-1B-hf<span class="u">E:\models\model\InternVL3-1B-hf\config.json（model_type=internvl；text_config=Qwen2ForCausalLM hidden 896/24 层/14Q/2KV；vision_config=internvl_vision hidden 1024/24 层/layer_scale_init_value=0.1/use_mean_pooling=true）</span></li>
+    <li>本地预处理配置<span class="u">E:\models\model\InternVL3-1B-hf\preprocessor_config.json（size=448×448，max_patches=12，min_patches=1）</span></li>
+    <li>本地 transformers 源码<span class="u">E:\transformers\src\transformers\models\internvl\modeling_internvl.py（InternVLForConditionalGeneration:741；get_image_features:543；pixel_shuffle:670；InternVLMultiModalProjector:485；masked_scatter:646-652）；configuration_internvl.py；processing_internvl.py（占位展开:148）</span></li>
+    <li>InternVL3 论文（主引用）<span class="u">InternVL3: Exploring Advanced Training and Test-Time Recipes for Open-Source Multimodal Models, arXiv:2504.10479 — https://arxiv.org/abs/2504.10479</span></li>
+    <li>InternVL2.5 论文（演进对照）<span class="u">Expanding Performance Boundaries of Open-Source Multimodal Models with Model, Data, and Test-Time Scaling, arXiv:2412.05271 — https://arxiv.org/abs/2412.05271</span></li>
+    <li>InternVL3 官方博客<span class="u">2025-04-11 — https://internvl.github.io/blog/2025-04-11-InternVL-3.0/</span></li>
+    <li>InternVL 开源仓库<span class="u">https://github.com/OpenGVLab/InternVL</span></li>
+  </ol>
+  <p class="note">凡本地 config 与论文口径并列处均已标注；本文未采用无法核实的传闻性结论。访问与核验日期：2026-10-26。</p>
+</section>
+
+<footer>InternVL-3 家族架构详解（1B–78B）· 以本地 config.json 与 transformers modeling_internvl.py 逐字段核对 · 行号为本地源码行号 · 仅用于技术学习与论文配图</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el, x, y){
+    TIP.innerHTML = "";
+    var txt = el.getAttribute("data-tip") || "";
+    txt.split("\n").forEach(function(line, i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      TIP.appendChild(document.createTextNode(line));
+    });
+    TIP.style.display = "block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight, vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left = Math.min(Math.max(x+14,8), vw-w-8)+"px";
+    TIP.style.top = Math.max(y+16+h>vh ? y-h-10 : y+16, 8)+"px";
+  }
+  function hideTip(){ if(!pinned) TIP.style.display="none"; }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){ if(pinned===el)return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ if(pinned===el)return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ if(pinned===el) hideTip();});
+    el.addEventListener("click",function(e){ e.stopPropagation();
+      if(pinned===el){pinned=null;hideTip();} else {pinned=el; showTip(el,e.clientX,e.clientY);}
+    });
+  })(els[i]);}
+  document.addEventListener("click",function(){ if(pinned){pinned=null;hideTip();} });
+})();
+
+(function(){
+  var chart = echarts.init(document.getElementById("chart"));
+  chart.setOption({
+    title:{text:"InternVL3 家族：总参数（柱）与 OpenCompass（线）", left:10, top:8, textStyle:{fontSize:13, color:"#24292f"}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:4, data:["总参数 (B)","OpenCompass"]},
+    grid:{left:44, right:44, top:48, bottom:40},
+    xAxis:{type:"category", data:["1B","2B","8B","9B","14B","38B","78B"],
+      axisLabel:{color:"#6b7280", fontSize:11}},
+    yAxis:[
+      {type:"value", name:"参数 (B)", nameTextStyle:{color:"#6b7280",fontSize:10}, axisLabel:{color:"#6b7280",fontSize:10}, splitLine:{lineStyle:{color:"#e3e6ea"}}},
+      {type:"value", name:"OpenCompass", min:50, max:85, nameTextStyle:{color:"#6b7280",fontSize:10}, axisLabel:{color:"#6b7280",fontSize:10}, splitLine:{show:false}}
+    ],
+    series:[
+      {name:"总参数 (B)", type:"bar", data:[0.9,1.9,8.1,9.2,15.1,38.4,78.4],
+        itemStyle:{color:"#0e7490", borderRadius:[4,4,0,0]}, barWidth:"46%"},
+      {name:"OpenCompass", type:"line", yAxisIndex:1, data:[57.4,63.9,73.3,72.4,75.5,77.3,79.5],
+        itemStyle:{color:"#b45309"}, lineStyle:{width:2.2}, symbolSize:7}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+</body>
+</html>

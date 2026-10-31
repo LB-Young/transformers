@@ -1,0 +1,234 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#b45309; --accent-ink:#7c3a0a; --accent-soft:#f7ead6; --accent-line:#e8cfae;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#7a5a2e;
+    --kv:#0f766e; --kv-soft:#dcf3ef; --kv-line:#9fd4cc;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.66; font-size:15px;}
+  .wrap{max-width:1200px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.kv{color:var(--kv); background:var(--kv-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:10px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink); flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.88rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 6px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.teal{border-color:var(--kv-line); background:var(--kv-soft); color:var(--kv);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:980px; margin-top:10px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:34px 0;}
+  h2{font-size:1.32rem; display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  h2 .secno{font-size:.82rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.86rem; color:var(--sub);}
+  .tip{font-size:.83rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:9px 13px; border-radius:10px; margin-top:10px;}
+  .tip.warn{background:#fdecec; border-color:#e6b3b3; color:#8a3b3b;}
+  .tip.teal{background:var(--kv-soft); border-color:var(--kv-line); color:var(--kv);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#fdf3e3; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.kv rect{fill:var(--kv-soft); stroke:var(--kv); stroke-width:1.4;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.rm{stroke:var(--accent); stroke-width:1.6; fill:none; stroke-dasharray:6 4; marker-end:url(#arrA);}
+  .dg .edge.kve{stroke:var(--kv); stroke-width:1.7; fill:none; marker-end:url(#arrK);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4; fill:none;}
+  .dg text.lbl{font-size:11px; fill:var(--sub);}
+  .dg text.lblK{font-size:11px; fill:var(--kv); font-weight:600;}
+
+  table.cmp{width:100%; min-width:760px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.82rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.86rem;}
+  table.cmp thead th.kv-th{background:var(--kv-soft); color:var(--kv);}
+  table.cmp tbody tr:nth-child(even){background:#fdfbf7;}
+  table.cmp tbody tr:last-child td{border-bottom:none;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp tr.hl td{background:#fdf3e3;}
+  table.cmp td.kv-td{background:var(--kv-soft);}
+  table.cmp code{color:var(--accent-ink);}
+
+  .cards{display:grid; grid-template-columns:1fr; gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .cards > *{min-width:0;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0;}
+  .card.kv{background:var(--kv-soft); border-color:var(--kv-line);}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card.kv h3{color:var(--kv);}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:9px; font-size:.8rem; color:var(--sub);}
+  .formula{background:#2b2218; color:#f0d9b5; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  .formula .cm{color:#9a8a70;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.85rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem; margin-top:2px;}
+
+  footer{margin:40px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#f0c384;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+    table.cmp{min-width:0;}
+  }
+</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1240 720" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+      <marker id="arrK" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+    </defs>
+
+    <!-- 输入 -->
+    <g class="node core"><rect x="40" y="20" width="150" height="46" rx="10"/>
+      <text class="t" x="115" y="40" text-anchor="middle">hidden_states 入</text>
+      <text class="m" x="115" y="57" text-anchor="middle">(b, s, 2048)</text></g>
+    <path class="edge" d="M115,66 L115,96"/>
+
+    <!-- input_layernorm -->
+    <g class="node dim" data-tip="input_layernorm = GemmaRMSNorm(2048, eps=1e-6)（:292）&#10;pre-norm：对子层输入归一化（:306）&#10;公式见 §4.1。">
+      <rect x="30" y="96" width="170" height="44" rx="10"/>
+      <text class="s" x="115" y="115" text-anchor="middle">input_layernorm</text>
+      <text class="m" x="115" y="131" text-anchor="middle">RMSNorm · eps 1e-6</text></g>
+    <path class="edge" d="M200,118 L258,118"/>
+
+    <!-- Attention 大框 -->
+    <g class="node core"><rect x="258" y="86" width="600" height="270" rx="14"/>
+      <text class="t" x="558" y="110" text-anchor="middle">self_attn = GemmaAttention（:289, :217-281）</text></g>
+
+    <!-- Q 分支 -->
+    <g class="node" data-tip="q_proj = Linear(2048 → 8×256=2048, bias=False)（:230-232）&#10;reshape 成 (b, 8, s, 256)（:252,254）&#10;8 个 query 头。7B 为 3072→16×256=4096。">
+      <rect x="278" y="126" width="180" height="52" rx="9"/>
+      <text class="s" x="368" y="146" text-anchor="middle">q_proj（无 bias）</text>
+      <text class="m" x="368" y="164" text-anchor="middle">2048 → 8头×256</text></g>
+
+    <!-- K 分支 -->
+    <g class="node kv" data-tip="k_proj = Linear(2048 → 1×256=256, bias=False)（:233-235）&#10;2B 只有 1 个 KV 头！reshape (b,1,s,256)（:255）&#10;7B 为 3072→16×256=4096（MHA，无压缩）。">
+      <rect x="278" y="196" width="180" height="52" rx="9"/>
+      <text class="s" x="368" y="216" text-anchor="middle">k_proj（无 bias）</text>
+      <text class="m" x="368" y="234" text-anchor="middle">2048 → 1头×256</text></g>
+
+    <!-- V 分支 -->
+    <g class="node kv" data-tip="v_proj = Linear(2048 → 1×256=256, bias=False)（:236-238）&#10;2B 为 1 个 KV 头；7B 为 16 个头。">
+      <rect x="278" y="266" width="180" height="52" rx="9"/>
+      <text class="s" x="368" y="286" text-anchor="middle">v_proj（无 bias）</text>
+      <text class="m" x="368" y="304" text-anchor="middle">2048 → 1头×256</text></g>
+
+    <!-- RoPE -->
+    <g class="node dim" data-tip="apply_rotary_pos_emb（:154-176, :259）&#10;只对 Q 和 K 旋转，V 不旋转！&#10;q' = q·cos + rotate_half(q)·sin（:174）&#10;rotate_half：前半/后半互换取负（:146-150）&#10;θ=10000，作用维度=head_dim=256（:127-132）。">
+      <rect x="490" y="126" width="160" height="122" rx="9"/>
+      <text class="s" x="570" y="146" text-anchor="middle">RoPE（仅 Q、K）</text>
+      <text class="m" x="570" y="166" text-anchor="middle">θ = 10000</text>
+      <text class="m" x="570" y="184" text-anchor="middle">rotate_half 式</text>
+      <text class="s" x="570" y="204" text-anchor="middle">V 不做旋转</text>
+      <text class="s" x="570" y="224" text-anchor="middle">位置编码在每层</text></g>
+    <path class="edge" d="M458,152 L490,152"/>
+    <path class="edge kve" d="M458,222 L490,200"/>
+
+    <!-- repeat_kv -->
+    <g class="node kv" data-tip="repeat_kv（:179-188，调用 :201-202）&#10;num_key_value_groups = 8//1 = 8（:225）&#10;把 1 个 KV 头 expand 成 8 个，广播到 8 个 query 头&#10;形状：(b,1,s,256) → (b,8,s,256)。这就是 MQA。&#10;7B：groups=1，n_rep==1 时直接 return（:185-186），广播是空操作。">
+      <rect x="686" y="196" width="156" height="122" rx="9"/>
+      <text class="s" x="764" y="218" text-anchor="middle">repeat_kv ×8</text>
+      <text class="m" x="764" y="238" text-anchor="middle">KV: 1头 → 8头</text>
+      <text class="s" x="764" y="258" text-anchor="middle">MQA 广播（2B）</text>
+      <text class="s" x="764" y="278" text-anchor="middle">expand 不复制显存</text>
+      <text class="m" x="764" y="298" text-anchor="middle">(b,1,s,256)→(b,8,s,256)</text></g>
+    <path class="edge" d="M650,152 L686,152 L686,196"/>
+    <path class="edge kve" d="M650,200 L686,200"/>
+    <path class="edge kve" d="M458,292 L660,292 L660,257 L686,257"/>
+
+    <!-- 注意力打分 -->
+    <g class="node dim" data-tip="eager_attention_forward（:191-213）&#10;scores = Q·Kᵀ / √256（:204，scaling=head_dim⁻⁰·⁵ :226）&#10;+ 因果掩码（:206）&#10;softmax 在 fp32（:208）→ @ V（:210）&#10;eval 无 dropout（:274）、无 soft-capping。">
+      <rect x="490" y="256" width="160" height="82" rx="9"/>
+      <text class="s" x="570" y="276" text-anchor="middle">缩放点积注意力</text>
+      <text class="m" x="570" y="294" text-anchor="middle">QKᵀ/√256</text>
+      <text class="s" x="570" y="312" text-anchor="middle">因果掩码·softmax(fp32)</text>
+      <text class="m" x="570" y="328" text-anchor="middle">@ V</text></g>
+
+    <!-- o_proj 注释 -->
+    <text class="lbl" x="848" y="250">o_proj：Linear(2048→2048, 无 bias)</text>
+    <text class="lbl" x="848" y="266">多头拼回后投影（:239-241, :280）</text>
+    <path class="edge" d="M842,257 L860,257"/>
+
+    <!-- 残差1 ⊕ -->
+    <circle cx="200" cy="404" r="16" fill="#fffdf9" stroke="#b45309" stroke-width="1.8"/>
+    <text x="200" y="409" text-anchor="middle" font-size="15" fill="#b45309" font-weight="700">+</text>
+    <path class="edge" d="M558,356 L558,404 L216,404"/>
+    <path class="edge rm" d="M40,43 L40,404 L184,404"/>
+    <text class="lbl" x="52" y="230" fill="#b45309">残差捷径（:305,:317）</text>
+
+    <!-- post_attention_layernorm -->
+    <path class="edge" d="M200,420 L200,448"/>
+    <g class="node dim" data-tip="post_attention_layernorm = GemmaRMSNorm(2048, eps=1e-6)（:293）&#10;对 attention 子层输出再做 pre-norm，送入 MLP（:321）&#10;Gemma 1 仅此一处 norm 喂给 FFN——没有独立的 post_feedforward_layernorm。">
+      <rect x="115" y="448" width="170" height="44" rx="10"/>
+      <text class="s" x="200" y="467" text-anchor="middle">post_attn_layernorm</text>
+      <text class="m" x="200" y="483" text-anchor="middle">RMSNorm · eps 1e-6</text></g>
+    <path class="edge" d="M285,470 L330,470"/>
+
+    <!-- MLP 大框 -->
+    <g class="node core"><rect x="330" y="408" width="560" height="170" rx="14"/>
+      <text class="t" x="610" y="432" text-anchor="middle">mlp = GemmaMLP（:291, :83-96）</text></g>
+
+    <g class="node" data-tip="gate_proj = Linear(2048→16384, bias=False)（:89）&#10;7B 为 3072→24576。">
+      <rect x="350" y="446" width="150" height="46" rx="9"/>
+      <text class="s" x="425" y="465" text-anchor="middle">gate_proj</text>
+      <text class="m" x="425" y="482" text-anchor="middle">2048→16384</text></g>
+    <g class="node" data-tip="up_proj = Linear(2048→16384, bias=False)（:90）&#10;7B 为 3072→24576。">
+      <rect x="350" y="516" width="150" height="46" rx="9"/>
+      <text class="s" x="425" y="535" text-anchor="middle">up_proj</text>
+      <text class="m" x="425" y="552" text-anchor="middle">2048→16384</text></g>
+
+    <g class="node dim" data-tip="act_fn = ACT2FN[config.hidden_act]（:92）&#10;config hidden_act='gelu'（精确 erf 版）&#10;注意：新版 configuration_gemma.py:90-95 会把 legacy 'gelu' 警告并改写为 gelu_pytorch_tanh&#10;GeGLU: act(gate) ⊙ up（:95）">
+      <rect x="530" y="476" width="140" height="58" rx="9"/>
+      <text class="s" x="600" y="498" text-anchor="middle">GELU ⊙（GeGLU）</text>
+      <text class="m" x="600" y="516" text-anchor="middle">act(gate)·up</text></g>
+    <path class="edge" d="M500,469 L530,490"/>
+    <path class="edge" d="M500,539 L530,520"/>
+
+    <g class="node" data-tip="down_proj = Linear(16384→2048, bias=False)（:91）&#10;7B 为 24576→3072。">
+      <rect x="700" y="476" width="150" height="58" rx="9"/>
+      <text class="s" x="775" y="498" text-anchor="middle">down_proj</text>
+      <text class="m" x="775" y="516" text-anchor="middle">16384→2048</text></g>
+    <path class="edge" d="M670,505 L700,505"/>
+
+    <!-- 残差2 ⊕ -->
+    <circle cx="200" cy="636" r="16" fill="#fffdf9" stroke="#b45309" stroke-width="1.8"/>
+    <text x="200" y="641" text-anchor="middle" font-size="15" fill="#b45309" font-weight="700">+</text>
+    <path class="edge" d="M775,534 L775,636 L216,636"/>
+    <path class="edge rm" d="M285,470 L300,470 L300,636 L184,636"/>
+    <text class="lbl" x="306" y="600" fill="#b45309">残差捷径（:320,:323）</text>
+
+    <path class="edge" d="M200,652 L200,686"/>
+    <g class="node core"><rect x="125" y="686" width="150" height="30" rx="9"/>
+      <text class="s" x="200" y="705" text-anchor="middle">hidden_states 出（b,s,2048）→ 下一层</text></g>
+  </svg></body></html>

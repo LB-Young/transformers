@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-26T08:11:44.351451+00:00",
+  "status": "failed",
+  "visual_review": "pending",
+  "channel": "lark-cli docs +word-to-pdf",
+  "input": {
+    "path": "E:\\transformers\\bayon-note\\Qwen\\qwen3\\Qwen-3-家族架构详解.docx",
+    "sha256": "ed8ff181ae48e8eb2bcd994e19585e368e1ee0cfc84bc6fd20bc3bb0c0b52d6c",
+    "size": 420450
+  },
+  "cli": {
+    "path": "C:\\Users\\LBY\\AppData\\Local\\Doubao\\User Data\\Default\\sandbox_envs_dir\\envs\\f603aaf6-186d-4189-99d5-e7bf17ac9a87\\override_dlcs\\lark-cli.exe",
+    "version": "lark-cli version v1.0.103+1171c1f",
+    "sha256": "b2c108f9e8b5e87cd92b816856a5ed44c6fee80a363efab59ef7e6d10da6a768",
+    "size": 51821056
+  },
+  "dpi": 150,
+  "attempts": [
+    {
+      "argv": [
+        "C:\\Users\\LBY\\AppData\\Local\\Doubao\\User Data\\Default\\sandbox_envs_dir\\envs\\f603aaf6-186d-4189-99d5-e7bf17ac9a87\\override_dlcs\\lark-cli.exe",
+        "docs",
+        "+word-to-pdf",
+        "--file",
+        "./input.docx",
+        "--wait-timeout-seconds",
+        "120",
+        "--output",
+        "./document.pdf",
+        "--if-exists",
+        "error",
+        "--format",
+        "json"
+      ],
+      "returncode": 4,
+      "stdout": "",
+      "stderr": {
+        "ok": false,
+        "identity": "user",
+        "error": {
+          "type": "network",
+          "subtype": "timeout",
+          "message": "word_to_pdf.poll: API call failed: server time out error",
+          "log_id": "2026102615453283C471A4D6E48031BF4C"
+        }
+      }
+    }
+  ],
+  "error": {
+    "code": "CLI_FAILED",
+    "message": "CLI 退出码 4，详见本轮清单中的脱敏错误。"
+  }
+}

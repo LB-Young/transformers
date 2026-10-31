@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemma 3n 家族架构详解 — E2B / E4B 全尺寸 · MatFormer + 原生音频</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='21' font-size='12' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E3n%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#5c6672; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#5b21b6; --accent-soft:#ede4fc; --accent-line:#d5c5f6;
+    --teal:#0f766e; --teal-soft:#d7efec; --teal-line:#9ad4cd;
+    --amber:#b45309; --amber-soft:#fdeccd; --amber-line:#f2cf8f;
+    --rose:#be123c; --rose-soft:#fbdce4;
+    --node:#fffdf9; --edge:#b9b4a9; --mono:#6d28d9;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  html,body{max-width:100%; overflow-x:hidden;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.66; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 5px; border-radius:4px; white-space:normal; overflow-wrap:anywhere; word-break:break-word;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; white-space:nowrap; cursor:help;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.95); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:10px; padding:10px 0; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink); flex:none;}
+  nav.top a{color:var(--ink); text-decoration:none; font-size:.86rem; padding:6px 10px; border-radius:8px;}
+  nav.top a:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:34px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.teal{border-color:var(--teal-line); background:var(--teal-soft); color:var(--teal);}
+  .badge.amber{border-color:var(--amber-line); background:var(--amber-soft); color:var(--amber);}
+  h1{font-size:clamp(1.6rem,3.6vw,2.3rem); letter-spacing:.3px;}
+  .lead{color:var(--sub); max-width:1020px; margin-top:10px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.34rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.82rem; color:#fff; background:var(--accent); border-radius:8px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.03rem; margin:16px 0 8px;}
+  .note{font-size:.86rem; color:var(--sub);}
+  .tip{font-size:.84rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:9px 13px; border-radius:10px; margin-top:10px;}
+  .tip.teal{background:var(--teal-soft); border-color:var(--teal-line);}
+  .tip.amber{background:var(--amber-soft); border-color:var(--amber-line);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#f3ecfd; stroke:var(--accent); stroke-width:1.7;}
+  .dg .node.teal rect{fill:var(--teal-soft); stroke:var(--teal-line);}
+  .dg .node.amber rect{fill:var(--amber-soft); stroke:var(--amber-line);}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:10.8px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.dash{stroke-dasharray:5 4;}
+  .dg .edge.teal{stroke:var(--teal); marker-end:url(#arrT);}
+  .dg .edge.amber{stroke:var(--amber); marker-end:url(#arrA);}
+  .dg text.lg{font-size:11px; fill:var(--sub);}
+  .dg text.lgt{font-size:11px; fill:var(--teal); font-weight:600;}
+  .dg text.lga{font-size:11px; fill:var(--amber); font-weight:600;}
+
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp{width:100%; min-width:760px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#faf7ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp tr.hl td{background:#f3ecfd;}
+  table.cmp col.c1{width:24%;}
+  table.cmp col.cx{width:38%;}
+
+  .cards{display:grid; grid-template-columns:1fr; gap:14px;}
+  @media (min-width:860px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:15px 18px;}
+  .card h3{margin-top:0; display:flex; align-items:center; gap:8px; font-size:.98rem;}
+  .card h3 .dot{width:10px; height:10px; border-radius:3px; background:var(--accent); flex:none;}
+  .card.teal h3 .dot{background:var(--teal);}
+  .card.amber h3 .dot{background:var(--amber);}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub); font-family:ui-monospace,Consolas,monospace;}
+  .formula{background:#241d3a; color:#dcd2f7; font-family:ui-monospace,Consolas,monospace; font-size:.8rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  .formula .cm{color:#8b93a7;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.85rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:380px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#d8cbf8;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#7c3aed"/><text x="12" y="16" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">3n</text></svg>Gemma 3n 家族</div>
+  <a href="#family">家族全景</a>
+  <a href="#overview">数据流总览</a>
+  <a href="#layer">解码层解剖</a>
+  <a href="#mech">核心机制</a>
+  <a href="#attn">注意力</a>
+  <a href="#mm">多模态</a>
+  <a href="#tokens">特殊 Token</a>
+  <a href="#evo">vs Gemma 3</a>
+  <a href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Gemma 3n 家族架构详解 — E2B / E4B 全尺寸</h1>
+  <div class="badges">
+    <span class="badge">入口类 Gemma3nForConditionalGeneration</span>
+    <span class="badge">两个尺寸：E2B（有效≈2B）· E4B（有效≈4B）</span>
+    <span class="badge teal">原生三路：文本 + 图像(MobileNetV5-300M) + 音频(Conformer×12)</span>
+    <span class="badge amber">MatFormer 嵌套 · AltUp · LAuReL(rank64) · PLE · 激活稀疏</span>
+  </div>
+  <p class="lead">本页以<b>本地检查点 <span class="num">gemma-3n-E2B-it/config.json</span></b>（权威基准）、ModelScope 下载的 <b>google/gemma-3n-E4B-it/config.json</b>，以及本地 <b>transformers 源码 <span class="num">modeling_gemma3n.py / configuration_gemma3n.py</span></b> 为唯一依据。Gemma 3n 是 Google 面向端侧（手机/笔记本）的开放权重多模态模型：文本骨干是 <b>MatFormer 嵌套 Transformer</b>（AltUp 四输入 + LAuReL 低秩增强残差 + 逐层 PLE 门控 + 前 10 层高斯 top-k 激活稀疏），混合注意力为「4 层滑窗 512 + 1 层全局」交错、末段共享 KV；视觉塔输出 256 个 soft token、音频塔输出至多 188 个 soft token。下文所有数字逐字段标注 config 来源，所有机制标注源码文件:行号。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：E2B / E4B 真实 config 对照</h2>
+  <p class="note">两尺寸均为 <span class="num">Gemma3nForConditionalGeneration</span>。下列全部为 config 原文（<span class="num">text_config</span> 子对象）：E2B 来自本地 <span class="num">E:\models\model\gemma-3n-E2B-it\config.json</span>，E4B 来自 ModelScope <span class="num">google/gemma-3n-E4B-it/config.json</span>（2026-10-22 下载核验）。</p>
+
+  <h3>1.1 文本塔核心超参数（text_config）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段（text_config）</th><th>E2B（本地检查点）</th><th>E4B（ModelScope config）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures 入口类</td><td colspan="2" class="num">Gemma3nForConditionalGeneration</td></tr>
+      <tr class="hl"><td class="k">hidden_size</td><td class="num">2048</td><td class="num">2048</td></tr>
+      <tr class="hl"><td class="k">num_hidden_layers</td><td class="num">30</td><td class="num">35</td></tr>
+      <tr><td class="k">num_attention_heads（Q）</td><td class="num">8</td><td class="num">8</td></tr>
+      <tr><td class="k">num_key_value_heads（GQA）</td><td class="num">2（组比 8:2=4）</td><td class="num">2（组比 8:2=4）</td></tr>
+      <tr><td class="k">head_dim</td><td class="num">256（8×256=2048）</td><td class="num">256（8×256=2048）</td></tr>
+      <tr class="hl"><td class="k">intermediate_size（逐层数组）<small>MatFormer：每层一个 FFN 中间维</small></td><td class="num">[8192]×30<small>逐层数组，本检查点 30 层同值</small></td><td class="num">[16384]×35<small>逐层数组，本检查点 35 层同值</small></td></tr>
+      <tr><td class="k">layer_types（full 层位置，1-based）</td><td>第 5,10,15,20,25,30 层 <span class="num">full_attention</span>（6 层），余 24 层滑窗</td><td>第 5,10,15,20,25,30,35 层 <span class="num">full_attention</span>（7 层），余 28 层滑窗</td></tr>
+      <tr><td class="k">sliding_window</td><td class="num">512</td><td class="num">512</td></tr>
+      <tr class="hl"><td class="k">num_kv_shared_layers<small>末段共享 KV 层数</small></td><td class="num">10</small><small>即第 21–30 层（1-based）共享</small></td><td class="num">15</small><small>即第 21–35 层（1-based）共享</small></td></tr>
+      <tr class="hl"><td class="k">activation_sparsity_pattern</td><td class="num">[0.95]×10 + [0.0]×20</td><td class="num">[0.95]×10 + [0.0]×25</td></tr>
+      <tr><td class="k">altup_num_inputs（AltUp 路数）</td><td class="num">4</small><small>altup_active_idx=0 · coef_clip=120</small></td><td class="num">4</small><small>同上</small></td></tr>
+      <tr><td class="k">laurel_rank（LAuReL 瓶颈维）</td><td class="num">64</td><td class="num">64</td></tr>
+      <tr><td class="k">hidden_size_per_layer_input（PLE 逐层小维）</td><td class="num">256</small><small>vocab_size_per_layer_input=262144</small></td><td class="num">256</small><small>vocab_size_per_layer_input=262144</small></td></tr>
+      <tr><td class="k">rope_theta（全局层 base）</td><td class="num">1,000,000</td><td class="num">1,000,000</td></tr>
+      <tr><td class="k">rope_local_base_freq（滑窗层 base）</td><td class="num">10,000</td><td class="num">10,000</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td class="num">32,768（32K）</td><td class="num">32,768（32K）</td></tr>
+      <tr><td class="k">final_logit_softcapping</td><td class="num">30.0</td><td class="num">30.0</td></tr>
+      <tr><td class="k">hidden_activation / rms_norm_eps</td><td colspan="2" class="num">gelu_pytorch_tanh（GeGLU） · 1e-6</td></tr>
+      <tr><td class="k">vocab_size</td><td colspan="2" class="num">262,400（tie_word_embeddings=true，输入/输出共享）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：E2B 与 E4B <b>文本骨干维度完全相同</b>（hidden 2048 / 8Q-2KV / head_dim 256 / PLE 256 / laurel 64 / AltUp 4 / 滑窗 512 / 32K）。两尺寸的差异只有三处：<b>层数 30→35、FFN 中间维 8192→16384、KV 共享 10→15</b>。「E2B / E4B」是<b>有效参数</b>口径（≈2B / ≈4B），原始权重约 5B / 8B（Technical Report）。</p>
+
+  <h3>1.2 视觉塔 / 音频塔（vision_config / audio_config，两尺寸完全一致）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段</th><th>视觉塔 vision_config</th><th>音频塔 audio_config</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architecture</td><td class="num">mobilenetv5_300m_enc</small><small>timm MobileNetV5-300M 编码器</small></td><td class="num">gemma3n_audio</small><small>SSCP 下采样 + Conformer×12</small></td></tr>
+      <tr><td class="k">hidden_size</td><td class="num">2048</td><td class="num">1536</td></tr>
+      <tr><td class="k">层数 / 头数</td><td>—（CNN 主干，非 Transformer）</td><td class="num">12 层 / 8 头</td></tr>
+      <tr><td class="k">下采样</td><td>do_pooling=false；输出 reshape 16×16</td><td>SSCP 卷积 [128,32] 通道，3×3 stride (2,2)×2；conf_reduction_factor=4</td></tr>
+      <tr><td class="k">输入</td><td>pixel_values（归一化图像）</td><td>input_features：128 维 mel 频谱</td></tr>
+      <tr><td class="k">soft token 数</td><td class="num">256 / 图</small><small>vision_soft_tokens_per_image=256</small></td><td class="num">≤188 / 段</small><small>audio_soft_tokens_per_image=188，不足补齐</small></td></tr>
+      <tr><td class="k">内部 attention cap</td><td>—</td><td class="num">50.0</small><small>conf_attention_logit_cap（仅 Conformer 内部）</small></td></tr>
+      <tr><td class="k">vocab_offset / vocab_size</td><td class="num">262144 / 128</td><td class="num">262272 / 128</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 2 数据流总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览（文本 + 图像 + 音频三路）</h2>
+  <p class="note">三路输入：文本 <span class="num">input_ids</span>、图像 <span class="num">pixel_values</span>、音频 <span class="num">input_features</span>。视觉/音频特征经各自 embedder（<span class="num">Gemma3nMultimodalEmbedder</span>）投影进 2048 维文本空间，再以 <span class="num">masked_scatter</span> 填进序列中 <span class="num">image_token_id=262145 / audio_token_id=262273</span> 的占位位。主干：嵌入 ×√d → AltUp 四路线堆叠 → N 个解码层 → 四分支求均值 → 最终 RMSNorm → 共享 LM Head → softcap 30。悬停节点看细节与源码行号。</p>
+  <div class="diagram-shell" aria-label="Gemma 3n 端到端数据流图">
+  <svg viewBox="0 0 1280 820" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker>
+      <marker id="arrT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+
+    <!-- 左列输入 -->
+    <g class="node teal" data-tip="图像输入 pixel_values&#10;归一化像素；MobileNetV5 主干&#10;来源：modeling_gemma3n.py:1961（get_image_features）">
+      <rect x="16" y="70" width="120" height="56" rx="10"/>
+      <text class="t" x="76" y="94" text-anchor="middle">图像像素</text>
+      <text class="s" x="76" y="112" text-anchor="middle">pixel_values</text>
+    </g>
+    <g class="node core" data-tip="文本输入 input_ids&#10;与视觉/音频占位 token 交错成统一序列&#10;来源：modeling_gemma3n.py:2276-2291">
+      <rect x="16" y="380" width="120" height="60" rx="12"/>
+      <text class="t" x="76" y="406" text-anchor="middle">文本 token</text>
+      <text class="s" x="76" y="424" text-anchor="middle">input_ids</text>
+    </g>
+    <g class="node amber" data-tip="音频输入 input_features&#10;128 维 mel 频谱 + input_features_mask&#10;来源：config audio_config.input_feat_size=128；modeling:2167">
+      <rect x="16" y="640" width="120" height="56" rx="10"/>
+      <text class="t" x="76" y="664" text-anchor="middle">音频 mel</text>
+      <text class="s" x="76" y="682" text-anchor="middle">input_features</text>
+    </g>
+
+    <!-- 编码塔列 -->
+    <g class="node teal" data-tip="视觉塔 vision_tower&#10;timm MobileNetV5-300M（约 300M）&#10;hidden=2048，do_pooling=false&#10;输出特征图 reshape [B,2048,16,16] → [B,256,2048]&#10;乘 √2048 后交 embed_vision&#10;来源：config vision_config；modeling:1945,1961-1972">
+      <rect x="196" y="46" width="236" height="130" rx="12"/>
+      <text class="t" x="314" y="72" text-anchor="middle">视觉塔 MobileNetV5-300M</text>
+      <text class="m" x="314" y="96" text-anchor="middle">CNN 主干 · hidden 2048</text>
+      <text class="m" x="314" y="114" text-anchor="middle">reshape → [B,256,2048]</text>
+      <text class="s" x="314" y="136" text-anchor="middle">256 个视觉 soft token/图</text>
+      <text class="s" x="314" y="154" text-anchor="middle">×√2048 缩放</text>
+    </g>
+    <g class="node teal" data-tip="embed_vision（Gemma3nMultimodalEmbedder）&#10;soft_embedding_norm → Linear(2048→2048) → post_proj_norm&#10;（视觉塔 hidden 本身即 2048，故为同维投影）&#10;来源：modeling:1883-1930, 1950">
+      <rect x="196" y="196" width="236" height="66" rx="12"/>
+      <text class="t" x="314" y="220" text-anchor="middle">embed_vision</text>
+      <text class="m" x="314" y="240" text-anchor="middle">RMSNorm → Linear 2048→2048</text>
+      <text class="s" x="314" y="256" text-anchor="middle">→ RMSNorm</text>
+    </g>
+    <path class="edge teal" d="M314,176 L314,196"/>
+
+    <g class="node amber" data-tip="音频塔 audio_tower&#10;hidden=1536，12 个 Conformer 块，8 头&#10;2 层 SSCP 卷积下采样（stride 2×2）&#10;块内 attention logit cap=50 · chunk=12/left ctx=13&#10;时间维再 ÷4（conf_reduction_factor=4）&#10;来源：config audio_config；modeling:1448-1526">
+      <rect x="196" y="560" width="236" height="130" rx="12"/>
+      <text class="t" x="314" y="586" text-anchor="middle">音频塔 Conformer×12</text>
+      <text class="m" x="314" y="610" text-anchor="middle">SSCP 下采样 → d=1536</text>
+      <text class="m" x="314" y="628" text-anchor="middle">12 层 · 8 头 · logit cap 50</text>
+      <text class="s" x="314" y="650" text-anchor="middle">时间维 ÷4 → ≤188 帧</text>
+      <text class="s" x="314" y="668" text-anchor="middle">[B, ≤188, 1536]</text>
+    </g>
+    <g class="node amber" data-tip="embed_audio（Gemma3nMultimodalEmbedder）&#10;soft_embedding_norm → Linear(1536→2048) → post_proj_norm&#10;不足 188 帧用最后一条硬嵌入补齐&#10;来源：modeling:1883-1930, 1951, 2167">
+      <rect x="196" y="710" width="236" height="60" rx="12"/>
+      <text class="t" x="314" y="734" text-anchor="middle">embed_audio</text>
+      <text class="m" x="314" y="754" text-anchor="middle">RMSNorm → Linear 1536→2048</text>
+    </g>
+    <path class="edge amber" d="M314,690 L314,710"/>
+
+    <!-- 融合 -->
+    <g class="node dim" data-tip="序列融合（masked_scatter）&#10;视觉/音频 soft token 填入 input_ids 中占位位&#10;image_token_id=262145 · audio_token_id=262273&#10;与文本 embedding 拼成统一 [B,T,2048]&#10;来源：modeling:1976-2012（placeholder mask）">
+      <rect x="486" y="330" width="120" height="90" rx="12"/>
+      <text class="t" x="546" y="366" text-anchor="middle">masked_</text>
+      <text class="t" x="546" y="386" text-anchor="middle">scatter</text>
+      <text class="s" x="546" y="406" text-anchor="middle">统一序列 [B,T,2048]</text>
+    </g>
+    <path class="edge teal" d="M432,229 C460,229 460,360 486,368"/>
+    <path class="edge amber" d="M432,740 C470,740 470,420 486,408"/>
+    <path class="edge" d="M136,410 C300,410 340,380 486,378"/>
+
+    <!-- 主嵌入 + PLE -->
+    <g class="node dim" data-tip="输入嵌入 embed_tokens&#10;Gemma3nTextScaledWordEmbedding(262400, 2048)&#10;输出 × √2048≈45.25&#10;与 lm_head 共享权重（tied）&#10;来源：modeling:918-929, 1602-1604">
+      <rect x="640" y="322" width="150" height="78" rx="12"/>
+      <text class="t" x="715" y="350" text-anchor="middle">Embedding</text>
+      <text class="m" x="715" y="370" text-anchor="middle">262400 × 2048</text>
+      <text class="s" x="715" y="388" text-anchor="middle">×√2048 · tied</text>
+    </g>
+    <path class="edge" d="M606,375 L640,375"/>
+    <g class="node amber" data-tip="PLE 逐层嵌入表 embed_tokens_per_layer&#10;Embedding(262144, 30×256=7680)，×√256&#10;reshape 成 [B,T,N,256]（N=层数）&#10;另有 per_layer_model_projection 分支与其相加 ×1/√2&#10;来源：modeling:1616-1621, 1678, 1767-1799">
+      <rect x="640" y="424" width="150" height="80" rx="12"/>
+      <text class="t" x="715" y="450" text-anchor="middle">PLE 逐层嵌入</text>
+      <text class="m" x="715" y="470" text-anchor="middle">262144 × N×256</text>
+      <text class="s" x="715" y="488" text-anchor="middle">每层 256 维注入</text>
+    </g>
+    <path class="edge dash" d="M715,400 L715,424"/>
+
+    <g class="node dim" data-tip="AltUp 四路线堆叠&#10;h0=嵌入；另 3 路由 altup_projections(2048→2048) 生成，&#10;幅值归一化对齐 h0 的 RMS，stack 成 [4,B,T,2048]&#10;来源：modeling:1631-1633, 1711-1721">
+      <rect x="822" y="330" width="130" height="80" rx="12"/>
+      <text class="t" x="887" y="358" text-anchor="middle">AltUp 堆叠</text>
+      <text class="m" x="887" y="378" text-anchor="middle">[4,B,T,2048]</text>
+      <text class="s" x="887" y="396" text-anchor="middle">emb + 3 投影分支</text>
+    </g>
+    <path class="edge" d="M790,361 L822,368"/>
+
+    <!-- 主干解码层 -->
+    <g class="node core" data-tip="解码层 × N&#10;E2B: 30 层（full 在 5/10/…/30）&#10;E4B: 35 层（full 在 5/10/…/35）&#10;每层 = AltUp.predict → RMSNorm → LAuReL 分支&#10;  → GQA 注意力（滑窗512/全局交错）→ ⊕/√2&#10;  → MLP（前10层高斯top-k稀疏）→ AltUp.correct + PLE&#10;末段共享 KV：E2B 第21-30层 / E4B 第21-35层&#10;来源：modeling:1273-1346">
+      <rect x="986" y="180" width="256" height="440" rx="14"/>
+      <text class="t" x="1114" y="210" text-anchor="middle">Gemma3nTextDecoderLayer × N</text>
+      <text class="s" x="1114" y="230" text-anchor="middle">E2B 30 层 · E4B 35 层</text>
+      <rect x="1006" y="248" width="8" height="14" rx="2" fill="#ede4fc" stroke="#7c3aed"/>
+      <text class="s" x="1020" y="260" text-anchor="start">滑窗层 sliding_attention（窗口512）</text>
+      <rect x="1006" y="270" width="8" height="14" rx="2" fill="#7c3aed" stroke="#5b21b6"/>
+      <text class="s" x="1020" y="282" text-anchor="start">全局层 full_attention（每 5 层 1 个）</text>
+      <g class="node" data-tip="层内子结构（详见 §3/§4）&#10;① AltUp.predict → input_layernorm&#10;② LAuReL(2048→64→2048) 增强残差&#10;③ GQA 注意力 → post_attn_norm&#10;④ (active+attn+laurel)/√2 → pre_ffn_norm&#10;⑤ MLP（前10层稀疏0.95）→ post_ffn_norm&#10;⑥ AltUp.correct + PLE 门控注入&#10;来源：modeling:1306-1346">
+        <rect x="1006" y="300" width="216" height="200" rx="10"/>
+        <text class="t" x="1114" y="326" text-anchor="middle">每层结构</text>
+        <text class="s" x="1114" y="350" text-anchor="middle">RMSNorm → 注意力 → ⊕/√2</text>
+        <text class="s" x="1114" y="374" text-anchor="middle">RMSNorm → MLP → ⊕</text>
+        <text class="m" x="1114" y="398" text-anchor="middle">Q8/KV2 · head_dim 256</text>
+        <text class="m" x="1114" y="418" text-anchor="middle">GeGLU · softcap 仅输出端30</text>
+        <text class="m" x="1114" y="438" text-anchor="middle">LAuReL rank64 · PLE 256</text>
+      </g>
+      <g class="node amber" data-tip="KV 共享区&#10;E2B 第21-30层 / E4B 第21-35层&#10;不建 k_proj/v_proj，复用前一同类层 KV&#10;shared_kv_states[type]&#10;来源：modeling:1177-1189, 1232-1250">
+        <rect x="1006" y="512" width="216" height="88" rx="10"/>
+        <text class="t" x="1114" y="536" text-anchor="middle">末段共享 KV</text>
+        <text class="m" x="1114" y="558" text-anchor="middle">E2B 后10层 / E4B 后15层</text>
+        <text class="s" x="1114" y="578" text-anchor="middle">滑窗↔滑窗 · 全局↔全局 各自复用</text>
+      </g>
+    </g>
+    <path class="edge" d="M952,368 L986,368"/>
+
+    <!-- 输出 -->
+    <g class="node dim" data-tip="四分支求均值 + 最终 RMSNorm&#10;4 路经 altup_unembed_projections 幅值对齐后求均值&#10;再过 Gemma3nRMSNorm（eps 1e-6）&#10;来源：modeling:1747-1760">
+      <rect x="1020" y="660" width="150" height="70" rx="12"/>
+      <text class="t" x="1095" y="688" text-anchor="middle">均值 → RMSNorm</text>
+      <text class="s" x="1095" y="708" text-anchor="middle">final norm eps 1e-6</text>
+    </g>
+    <path class="edge" d="M1114,620 L1114,660"/>
+    <g class="node dim" data-tip="LM Head（共享权重，无 bias）&#10;2048 → 262400&#10;logit soft-capping：logits×tanh(logits/30)×30&#10;来源：config final_logit_softcapping=30；modeling:2296-2300">
+      <rect x="1190" y="650" width="76" height="90" rx="12"/>
+      <text class="t" x="1228" y="680" text-anchor="middle">LM</text>
+      <text class="t" x="1228" y="700" text-anchor="middle">Head</text>
+      <text class="m" x="1228" y="720" text-anchor="middle">softcap 30</text>
+    </g>
+    <path class="edge" d="M1170,695 L1190,695"/>
+    <text class="lg" x="1190" y="758">下一 token 分布</text>
+  </svg>
+  </div>
+  <p class="note">全家族统一主干：<span class="num">嵌入(×√d) → AltUp 4 路 → 解码层×N → 四分支均值 → RMSNorm → 共享 LM Head → softcap 30</span>；E2B/E4B 差异仅在层数、FFN 中间维、KV 共享层数。</p>
+</section>
+<!-- ==================== 3 解码层解剖 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：Gemma3nTextDecoderLayer</h2>
+  <p class="note">源码 <span class="num">modeling_gemma3n.py:1273-1346</span>。这是 MatFormer 的核心单元：输入是 <span class="num">[4,B,T,2048]</span> 的 AltUp 四路线；残差路径叠加 LAuReL 低秩分支，FFN 门控带高斯 top-k 稀疏，末尾用 PLE（逐层小嵌入）做门控注入。</p>
+  <div class="diagram-shell" aria-label="Gemma 3n 解码层结构图">
+  <svg viewBox="0 0 1240 660" class="dg" role="img">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker></defs>
+
+    <g class="node core" data-tip="输入 hidden_states&#10;[4,B,T,2048]（AltUp 四路线）&#10;来源：modeling:1721">
+      <rect x="30" y="300" width="150" height="60" rx="12"/>
+      <text class="t" x="105" y="326" text-anchor="middle">输入 h（4 路）</text>
+      <text class="m" x="105" y="346" text-anchor="middle">[4,B,T,2048]</text>
+    </g>
+    <path class="edge" d="M180,330 L220,330"/>
+
+    <g class="node dim" data-tip="AltUp.predict&#10;modality_router(tanh) 预测 4×4 系数矩阵，&#10;对 4 路线做可学习混合；coef_clip=120（仅训练时）&#10;取 active_idx=0 路进入主计算&#10;来源：modeling:988-1041, 1306-1307">
+      <rect x="220" y="290" width="190" height="80" rx="10"/>
+      <text class="t" x="315" y="316" text-anchor="middle">AltUp.predict</text>
+      <text class="m" x="315" y="336" text-anchor="middle">router(tanh)·4×4 系数</text>
+      <text class="s" x="315" y="354" text-anchor="middle">predictions[active_idx]</text>
+    </g>
+    <path class="edge" d="M410,330 L450,330"/>
+
+    <g class="node dim" data-tip="input_layernorm&#10;Gemma3nRMSNorm(2048, eps 1e-6)&#10;来源：modeling:1281,1309">
+      <rect x="450" y="308" width="160" height="44" rx="8"/>
+      <text class="s" x="530" y="334" text-anchor="middle">input_layernorm (RMSNorm)</text>
+    </g>
+    <path class="edge" d="M610,330 L650,330"/>
+
+    <!-- LAuReL 分支 -->
+    <g class="node amber" data-tip="LAuReL（Learned Augmented Residual Layer）&#10;对归一化输入走低秩瓶颈：&#10;Linear 2048→64 → Linear 64→2048 → post RMSNorm&#10;作为增强残差加回主路（见下式）&#10;来源：modeling:932-947, 1310">
+      <rect x="430" y="150" width="240" height="100" rx="10"/>
+      <text class="t" x="550" y="176" text-anchor="middle">LAuReL 分支（rank 64）</text>
+      <text class="m" x="550" y="198" text-anchor="middle">2048 → 64 → 2048</text>
+      <text class="s" x="550" y="218" text-anchor="middle">→ post_laurel RMSNorm</text>
+      <text class="s" x="550" y="236" text-anchor="middle">约 0.26M 参数/层</text>
+    </g>
+    <path class="edge dash" d="M530,308 L530,250"/>
+
+    <!-- 注意力 -->
+    <g class="node" data-tip="Gemma3nTextAttention（GQA）&#10;q_proj 2048→8×256；q_norm → RoPE&#10;k/v_proj 2048→2×256；k_norm / v_norm&#10;滑窗层窗口512 θ=1e4；全局层 θ=1e6&#10;scaling=1.0（Q/K 各自 RMSNorm，不再 1/√d）&#10;末段共享层无 k/v 权重&#10;来源：modeling:1162-1270">
+      <rect x="650" y="280" width="280" height="100" rx="10"/>
+      <text class="t" x="790" y="306" text-anchor="middle">Self-Attention（GQA 8Q / 2KV）</text>
+      <text class="m" x="790" y="328" text-anchor="middle">q_norm · k_norm · v_norm · RoPE</text>
+      <text class="m" x="790" y="348" text-anchor="middle">sliding 512 / full 全局交错</text>
+      <text class="s" x="790" y="368" text-anchor="middle">o_proj → 2048</text>
+    </g>
+
+    <g class="node core"><circle cx="980" cy="330" r="17" data-tip="注意力残差合并&#10;attn_gated = active_prediction + attn&#10;attn_laurel = (attn_gated + laurel_output)/√2&#10;来源：modeling:1323-1324"/>
+      <text class="s" x="980" y="335" text-anchor="middle" font-size="13">+</text></g>
+    <path class="edge" d="M930,330 L963,330"/>
+    <path class="edge dash" d="M670,250 C700,250 760,300 963,322"/>
+
+    <g class="node dim" data-tip="post_attention_layernorm&#10;对 attn 输出再归一化后加残差&#10;来源：modeling:1282,1321">
+      <rect x="1010" y="250" width="180" height="40" rx="8"/>
+      <text class="s" x="1100" y="274" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+
+    <!-- FFN -->
+    <path class="edge" d="M980,347 L980,430 L560,430 L560,470"/>
+    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一化&#10;来源：modeling:1283,1326">
+      <rect x="480" y="470" width="160" height="40" rx="8"/>
+      <text class="s" x="560" y="494" text-anchor="middle">pre_feedforward_layernorm</text>
+    </g>
+    <path class="edge" d="M560,510 L560,540"/>
+
+    <g class="node" data-tip="Gemma3nTextMLP（GeGLU）&#10;gate/up: 2048→intermediate[layer]&#10;  E2B: 8192 · E4B: 16384&#10;down: intermediate→2048；act=gelu_pytorch_tanh&#10;前 10 层 gate 输出经高斯 top-k 稀疏&#10;来源：modeling:950-969">
+      <rect x="430" y="540" width="270" height="90" rx="10"/>
+      <text class="t" x="565" y="566" text-anchor="middle">FFN（GeGLU dense MLP）</text>
+      <text class="m" x="565" y="588" text-anchor="middle">gate×GELU ⊙ up → down</text>
+      <text class="m" x="565" y="608" text-anchor="middle">E2B 8192 / E4B 16384</text>
+    </g>
+    <g class="node amber" data-tip="高斯 top-k 激活稀疏（仅前 10 层）&#10;cutoff = mean(gate) + std(gate)·Φ⁻¹(0.95)&#10;gate ← ReLU(gate − cutoff)，约 95% 维置零&#10;第 11 层起 sparsity=0，稠密&#10;来源：modeling:962-985">
+      <rect x="60" y="520" width="300" height="100" rx="10"/>
+      <text class="t" x="210" y="546" text-anchor="middle">高斯 top-k 稀疏（前 10 层）</text>
+      <text class="s" x="210" y="568" text-anchor="middle">cutoff=mean+std·Φ⁻¹(0.95)</text>
+      <text class="s" x="210" y="588" text-anchor="middle">gate ← ReLU(gate−cutoff)</text>
+      <text class="m" x="210" y="608" text-anchor="middle">modeling:971-985</text>
+    </g>
+    <path class="edge dash" d="M360,570 L430,580"/>
+
+    <!-- 输出 -->
+    <path class="edge" d="M700,585 L760,585 L760,430 L980,430"/>
+    <g class="node core" data-tip="AltUp.correct + PLE 门控&#10;corrected = altup.correct(predictions, 残差输出)&#10;first = corrected[active_idx]·correct_output_scale&#10;first = act(gate 2048→256) ⊙ per_layer_input&#10;first = proj 256→2048 → RMSNorm → 加到 corrected[1:]&#10;来源：modeling:1330-1344">
+      <rect x="820" y="470" width="330" height="110" rx="12"/>
+      <text class="t" x="985" y="498" text-anchor="middle">AltUp.correct + PLE 门控注入</text>
+      <text class="m" x="985" y="520" text-anchor="middle">gate 2048→256 → ⊙ 逐层查表</text>
+      <text class="m" x="985" y="540" text-anchor="middle">proj 256→2048 → norm → 累加到路[1:]</text>
+      <text class="s" x="985" y="560" text-anchor="middle">返回 corrected（4 路）</text>
+    </g>
+    <path class="edge" d="M980,430 L980,470"/>
+    <text class="lg" x="60" y="120">注意力子层</text>
+    <text class="lg" x="60" y="140">（post_attn_norm 在右侧标注）</text>
+  </svg>
+  </div>
+
+  <h3>3.1 残差与门控前向（源码 :1323-1344 直录）</h3>
+  <div class="formula">predictions        = altup.predict(h)                 # :1306
+active_prediction  = predictions[altup_active_idx]        # :1307
+z                  = input_layernorm(active_prediction)    # :1309
+laurel_output      = z + post_laurel_norm(W2·W1·z)       # :1310  (LAuReL, W1:2048→64)
+attn               = post_attn_norm( self_attn(z, ...) ) # :1312-1321
+attn_gated         = active_prediction + attn             # :1323
+attn_laurel        = (attn_gated + laurel_output) / √2    # :1324
+ffn                = post_ffn_norm( mlp(pre_ffn_norm(attn_laurel)) )  # :1326-1328
+resid              = attn_laurel + ffn                   # :1329
+corrected          = altup.correct(predictions, resid)    # :1330
+first              = corrected[active_idx]·correct_scale# :1332-1334
+first              = per_layer_proj( act(gate(first)) ⊙ per_layer_input ) # :1337-1342
+corrected[1:]     += post_per_layer_norm(first)          # :1344  PLE 注入
+return corrected</div>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制专节（本代独有）</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3><span class="dot"></span>MatFormer 嵌套：intermediate_size 逐层数组</h3>
+      <p><span class="num">config.intermediate_size</span> 是<b>逐层数组</b>：每层 MLP 取 <span class="num">intermediate_size[layer_idx]</span>（<span class="num">modeling:955</span>）。配置类允许标量（自动广播成 N 层，<span class="num">configuration:138-139</span>）或显式 N 元列表（长度校验，<span class="num">configuration:131-137</span>）。这是 MatFormer「嵌套子模型」的载体：理论上可对不同层配不同 FFN 中间维以抽取嵌套子网络；但发货的 E2B/E4B 检查点内部各层同值——E2B 全 30 层 <span class="num">8192</span>，E4B 全 35 层 <span class="num">16384</span>。</p>
+      <div class="formula">mlp 中间维 = config.intermediate_size[layer_idx]
+E2B: [8192]×30   E4B: [16384]×35</div>
+      <div class="meta">config text_config.intermediate_size；modeling:955；configuration:131-139</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>AltUp：Alternating Updates（altup_num_inputs=4）</h3>
+      <p>每个解码层同时维护 <b>4 路隐藏态</b>（<span class="num">[4,B,T,2048]</span>）：第 0 路是词嵌入，第 1–3 路由 3 个 <span class="num">altup_projections</span>（2048→2048 Linear）生成并做幅值归一化（对齐第 0 路 RMS）。层内 <span class="num">predict</span> 用 modality_router(tanh) 预测 4×4 系数矩阵做可学习混合；<span class="num">correct</span> 再用真实残差 innovation=activated−prediction 修正 4 路；层末 4 路经 unembed 投影后<b>求均值</b>出主干。论文出处见 <span class="num">modeling:989-997</span> 注释（NeurIPS 2023）。</p>
+      <div class="formula">stack=[h0, P1h0, P2h0, P3h0]  # 幅值对齐, :1711-1721
+predictions = altup.predict(stack)      # :1015-1041
+corrected   = altup.correct(predict, resid)  # :1043-1072
+out = mean_i( unembed_i(corrected_i) )  # :1747-1759</div>
+      <div class="meta">config altup_num_inputs=4 / active_idx=0 / coef_clip=120；modeling:988-1084,1631-1637,1711-1759</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>PLE：Per-Layer Embeddings（逐层嵌入）</h3>
+      <p>一张大查表 <span class="num">embed_tokens_per_layer = Embedding(262144, N×256)</span>（×√256），reshape 成每层一条 256 维向量；另有一条从主嵌入投影而来的分支，二者相加 ×1/√2。层内把主隐态经 gate 压到 256 维、与该层查表向量逐元素相乘，再投回 2048 维注入。可整体预计算并卸载到 CPU。</p>
+      <div class="formula">ple_lookup = Emb(262144, N·256) → [B,T,N,256]   # :1616-1621,1767-1772
+ple = (proj_norm(proj(h0)) + ple_lookup)·(1/√2)  # :1774-1799
+z = proj256→2048( act(gate2048→256 h) ⊙ ple_l )  # :1337-1342</div>
+      <div class="meta">config hidden_size_per_layer_input=256 / vocab_size_per_layer_input=262144；modeling:1616-1621,1767-1799,1336-1344</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>激活稀疏：高斯 top-k（前 10 层 cutoff 0.95）</h3>
+      <p>仅作用于 GeGLU 的 <span class="num">gate_proj</span> 输出：按正态分布分位点 <span class="num">Φ⁻¹(0.95)</span> 求阈值，低于阈值的门控值经 <span class="num">ReLU(x−cutoff)</span> 直接置零——即中间维约 95% 维度在每 token 上被关掉。E2B/E4B 均为<b>前 10 层 sparsity=0.95、其后稠密（0.0）</b>（配置默认规则 <span class="num">configuration:146-150</span>）。注意 up_proj 不稀疏，稀疏的是门控支路。</p>
+      <div class="formula">cutoff = mean(g) + std(g)·Normal(0,1).icdf(0.95)   # :982-984
+g ← ReLU(g − cutoff)                                # :985
+# E2B: [0.95]×10+[0.0]×20 ; E4B: [0.95]×10+[0.0]×25</div>
+      <div class="meta">config activation_sparsity_pattern；modeling:962-985；configuration:146-156</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>LAuReL：Learned Augmented Residual Layer</h3>
+      <p>在注意力子层前，对归一化输入额外走一条低秩瓶颈增强残差：<span class="num">laurel_rank=64</span>，即 2048→64→2048，再过 post RMSNorm，最后与主残差在 <span class="num">/√2</span> 处合并。每层仅 2×2048×64≈0.26M 参数，却显著改变信息流。</p>
+      <div class="formula">laurel_output = z + post_norm( W2·W1·z )   # :943-947
+attn_laurel = (active+attn + laurel_output)/√2  # :1324</div>
+      <div class="meta">config laurel_rank=64；modeling:932-947,1310,1324</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>共享 KV（末段层）</h3>
+      <p>末段层不再拥有 <span class="num">k_proj/v_proj/k_norm/v_norm</span>（权重直接不建，<span class="num">_keys_to_ignore_on_load_unexpected</span> 跳过加载），而是复用进入共享区前最后一个<b>同类型</b>层（滑窗↔滑窗、全局↔全局）算好的 K/V 状态。E2B 共享后 10 层（第 21–30 层），E4B 共享后 15 层（第 21–35 层）。</p>
+      <div class="formula">first_shared = num_layers − num_kv_shared_layers  # :1177
+E2B: 30−10=20(0-based) → 1-based 21..30
+E4B: 35−15=20(0-based) → 1-based 21..35
+k,v = shared_kv_states[same_type_last_non_shared]  # :1232-1236</div>
+      <div class="meta">config num_kv_shared_layers=10/15；modeling:1177-1189,1232-1250,1642-1648</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>双 RoPE 基频（按层类型）</h3>
+      <p>位置编码按层类型分别缓存逆频率：全局层用 <span class="num">rope_theta=1e6</span>，滑窗层用 <span class="num">rope_local_base_freq=1e4</span>。<span class="num">configuration:182-200</span> 把它们映射进 <span class="num">rope_parameters[layer_type]["rope_theta"]</span>。</p>
+      <div class="formula">inv_freq(full)     = 1/(1e6^(2i/256))   # θ=1e6
+inv_freq(sliding)  = 1/(1e4^(2i/256))   # θ=1e4
+# modeling:1529-1588；configuration:193-200</div>
+      <div class="meta">config rope_theta=1e6 / rope_local_base_freq=1e4</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>输出端 logit soft-capping（=30）</h3>
+      <p>LM Head 与主词嵌入共享权重（tied）。输出 logits 先除以 30、过 tanh、再乘回 30，压到 ±30 抑制极端 logit。<b>注意</b>：文本注意力内部<b>没有</b> softcap（仅音频 Conformer 内部有 logit cap=50）。</p>
+      <div class="formula">logits ← 30 · tanh( logits / 30 )   # :2297-2300</div>
+      <div class="meta">config final_logit_softcapping=30.0；modeling:2296-2300；tied :2195</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================== 5 注意力机制 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：GQA + 每 5 层 1 full + 共享 KV</h2>
+  <p class="note">Gemma 3n 注意力（<span class="num">modeling:1162-1270</span>）：Q/K/V 各经 head-wise RMSNorm（q_norm/k_norm/v_norm），<span class="num">scaling=1.0</span>（取代 Gemma 2/3 的显式 query 缩放）；Q 8 头、K/V 2 头（GQA 组比 4:1），head_dim=256。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>层模式</th><th>E2B（30 层）</th><th>E4B（35 层）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">sliding_attention 层</td><td>24 层，窗口 512，RoPE θ=1e4</td><td>28 层，窗口 512，RoPE θ=1e4</td></tr>
+      <tr class="hl"><td class="k">full_attention 层（1-based）</td><td>第 5,10,15,20,25,30（6 层），全局因果，θ=1e6</td><td>第 5,10,15,20,25,30,35（7 层），全局因果，θ=1e6</td></tr>
+      <tr><td class="k">KV 共享层</td><td>第 21–30 层（10 层），无 k/v 权重</td><td>第 21–35 层（15 层），无 k/v 权重</td></tr>
+      <tr><td class="k">投影维度</td><td colspan="2">q: 2048→8×256=2048；k/v: 2048→2×256=512；o: 2048→2048（共享层仅 q/o 有）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">层类型由 config <span class="num">layer_types</span> 显式给出；缺省时配置类规则为「每 5 层第 5 层 full」（<span class="num">configuration:141-144</span>）。滑窗层用 <span class="num">create_sliding_window_causal_mask</span>、全局层用普通因果掩码（<span class="num">modeling:1699-1702</span>）。</p>
+</section>
+
+<!-- ==================== 6 多模态 ==================== -->
+<section id="mm">
+  <h2><span class="secno">6</span>多模态：MobileNetV5 视觉塔 + Conformer 音频塔</h2>
+  <h3>6.1 视觉塔（两尺寸一致）</h3>
+  <p class="note">与 Gemma 3 使用的 ViT 系 SigLIP/SoViT 不同，Gemma 3n 面向端侧改用<b>轻量 CNN 主干 timm MobileNetV5-300M</b>（<span class="num">vision_config.architecture=mobilenetv5_300m_enc</span>，hidden=2048）。输出特征图 <span class="num">[B,2048,16,16]</span> reshape 为 <span class="num">[B,256,2048]</span>，乘 √2048 后经 embed_vision（RMSNorm→Linear 2048→2048→RMSNorm）注入 256 个 image_token 占位位（<span class="num">modeling:1956-1974</span>）。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段（vision_config）</th><th>Gemma 3n（E2B/E4B）</th><th>Gemma 3（对照口径）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">视觉编码器</td><td>MobileNetV5-300M（CNN，约 300M）</td><td>SigLIP/SoViT（ViT 系）</td></tr>
+      <tr><td class="k">hidden_size</td><td class="num">2048</td><td>—</td></tr>
+      <tr><td class="k">soft token / 图</td><td class="num">256</td><td>每图 256–1024 patch（分辨率相关）</td></tr>
+      <tr><td class="k">do_pooling</td><td class="num">false（16×16 网格展平）</td><td>—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>6.2 音频塔（两尺寸一致，端侧原生）</h3>
+  <p class="note">Gemma 3n 相比 Gemma 3 新增<b>端侧原生音频</b>：128 维 mel 频谱先经 2 层 SSCP 卷积（通道 [128,32]，3×3 stride (2,2)）下采样，过 12 个 Conformer 块（hidden=1536，8 头，块内 attention logit cap=50，chunk=12/左上下文 13，残差权重 0.5），时间维再 ÷4（<span class="num">conf_reduction_factor=4</span>），得到至多 188 帧 ×1536；经 embed_audio（RMSNorm→Linear 1536→2048→RMSNorm）升维，不足 188 用最后一条硬嵌入补齐（<span class="num">modeling:1448-1526, 2167</span>）。</p>
+</section>
+
+<!-- ==================== 7 特殊 Token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">7</span>特殊 Token 与词表布局（vocab 262400）</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>token 字段</th><th>ID</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">boi_token_id</td><td class="num">255999</td><td>图像开始（begin of image）</td></tr>
+      <tr><td class="k">boa_token_id</td><td class="num">256000</td><td>音频开始（begin of audio）</td></tr>
+      <tr><td class="k">eoi_token_id</td><td class="num">262144</td><td>图像结束 = 视觉硬嵌入区间起点（vocab_offset=262144）</td></tr>
+      <tr><td class="k">image_token_id</td><td class="num">262145</td><td>图像特征占位，每图 256 个，运行时被视觉特征替换</td></tr>
+      <tr><td class="k">eoa_token_id</td><td class="num">262272</td><td>音频结束 = 音频硬嵌入区间起点（audio_config.vocab_offset=262272）</td></tr>
+      <tr><td class="k">audio_token_id</td><td class="num">262273</td><td>音频特征占位，每段最长 188 个</td></tr>
+      <tr><td class="k">eos_token_id</td><td class="num">[1, 106]</td><td>结束符列表（106 为 IT 对话结束）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">词表区间：普通文本 [0, 262144)；视觉硬嵌入 [262144, 262272)（128 条）；音频硬嵌入 [262272, 262400)（128 条）。视觉/音频软特征经 masked_scatter 直接填入 hidden 序列，不经过主 embedding 查表（<span class="num">modeling:1976-2012</span>）。</p>
+</section>
+
+<!-- ==================== 8 演进视角 ==================== -->
+<section id="evo">
+  <h2><span class="secno">8</span>演进视角：Gemma 3 → Gemma 3n</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>维度</th><th>Gemma 3（官方口径）</th><th>Gemma 3n（E2B/E4B，本页 config 核对）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">定位</td><td>云端/通用，1B–27B</td><td>端侧（手机/笔记本），E2B/E4B 有效≈2B/≈4B</td></tr>
+      <tr><td class="k">模态</td><td>文本 + 图像（SigLIP/SoViT）</td><td><b>文本 + 图像(MobileNetV5) + 音频(Conformer)</b>，原生三路</td></tr>
+      <tr><td class="k">上下文</td><td>128K</td><td>32K（max_position_embeddings=32768）</td></tr>
+      <tr><td class="k">FFN</td><td>标准 dense GeGLU</td><td>MatFormer 逐层中间维数组 + 前 10 层高斯 top-k 激活稀疏</td></tr>
+      <tr><td class="k">嵌套/残差技巧</td><td>无</td><td><b>AltUp 四路线 · LAuReL(rank64) · PLE 逐层嵌入</b></td></tr>
+      <tr><td class="k">KV 共享</td><td>无</td><td>末段共享（E2B 后10层 / E4B 后15层）</td></tr>
+      <tr><td class="k">混合注意力</td><td>滑窗 512 + 每 6 层 1 full</td><td>滑窗 512 + 每 5 层 1 full；双 RoPE θ=1e6/1e4</td></tr>
+      <tr><td class="k">视觉编码器</td><td>ViT 系 SigLIP/SoViT</td><td>轻量 MobileNetV5-300M（CNN），256 soft token/图</td></tr>
+      <tr><td class="k">vocab</td><td>262144</td><td>262400（+256 多模态特殊 token）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">主线：Gemma 3n 把「端侧高效」做到极致——用 MatFormer 嵌套 + AltUp/LAuReL/PLE + 激活稀疏 + KV 共享，在约 2B/4B 有效参数下获得接近更大模型的质量，并首次原生并入音频；代价是上下文从 128K 回收到 32K。Gemma 3 侧数字为官方口径（128K、文本+图像、SigLIP），Gemma 3n 侧均为本地 config + 源码核对。</p>
+</section>
+
+<!-- ==================== 9 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">9</span>来源</h2>
+  <ol class="src">
+    <li>本地检查点 config.json（E2B 权威基准）<span class="u">E:\models\model\gemma-3n-E2B-it\config.json（text_config / vision_config / audio_config 逐字段核对）</span></li>
+    <li>E4B config.json（ModelScope 下载核验，2026-10-22）<span class="u">google/gemma-3n-E4B-it/config.json：hidden 2048 / 35 层 / intermediate 16384×35 / kv_shared 15 / 稀疏 [0.95]×10+[0.0]×25</span></li>
+    <li>transformers 源码 modeling_gemma3n.py（本地 E:\transformers）<span class="u">RMSNorm:130；ScaledEmbedding:918；LAuReL:932-947；MLP+高斯top-k:950-985；AltUp:988-1084；TextAttention:1162-1270；DecoderLayer:1273-1346；Rotary:1529-1588；TextModel:1592-1799；MultimodalEmbedder:1883-1930；Model/图像特征:1939-1974；ForConditionalGeneration+softcap:2194-2300</span></li>
+    <li>transformers 源码 configuration_gemma3n.py<span class="u">intermediate 逐层校验:131-139；默认层型每5层full:141-144；默认稀疏前10层0.95:146-150；双 RoPE 映射:182-200</span></li>
+    <li>Gemma 3n Technical Report（arXiv 2505.05146）<span class="u">https://arxiv.org/abs/2505.05146（E2B/E4B 有效参数、MatFormer 嵌套、PLE、端侧效率）</span></li>
+    <li>Gemma 3n 模型卡片（Google AI for Developers）<span class="u">https://ai.google.dev/gemma/docs/core/model_card_3n（参数量与部署规格）</span></li>
+  </ol>
+  <p class="note">数据口径：所有数字来自上述来源并在页内标注；E2B/E4B 核心差异（层数 30→35、FFN 8192→16384、KV 共享 10→15）逐项对到 config 原文。访问与核验日期：2026-10-22。</p>
+</section>
+
+<footer>Gemma 3n 家族架构详解（E2B / E4B）· 数据来源：本地 config + ModelScope E4B config + transformers 源码 + arXiv 2505.05146 · 单页自包含 HTML，可整页截图用于论文</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el, x, y){
+    TIP.innerHTML = "";
+    var txt = el.getAttribute("data-tip") || "";
+    txt.split("\n").forEach(function(line, i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      TIP.appendChild(document.createTextNode(line));
+    });
+    TIP.style.display = "block";
+    var w = TIP.offsetWidth, h = TIP.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    TIP.style.left = Math.min(Math.max(x + 14, 8), vw - w - 8) + "px";
+    TIP.style.top = (y + 16 + h > vh ? y - h - 10 : y + 16) + "px";
+  }
+  function hideTip(){ if(!pinned){ TIP.style.display = "none"; } }
+  var els = document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){
+    (function(el){
+      el.addEventListener("pointerenter", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+      el.addEventListener("pointermove", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+      el.addEventListener("pointerleave", function(){ if(pinned===el) return; hideTip(); });
+      el.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(pinned===el){ pinned=null; hideTip(); }
+        else { pinned=el; showTip(el, e.clientX, e.clientY); }
+      });
+    })(els[i]);
+  }
+  document.addEventListener("click", function(){ if(pinned){ pinned=null; hideTip(); } });
+})();
+</script>
+</body>
+</html>

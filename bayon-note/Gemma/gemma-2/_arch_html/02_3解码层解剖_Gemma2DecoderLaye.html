@@ -1,0 +1,181 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#0e7490; --accent-ink:#155e75; --accent-soft:#dff1f5; --accent-line:#b7dfe8;
+    --warn:#b45309; --warn-soft:#fef3c7; --warn-line:#fcd34d;
+    --node:#fbfdfe; --edge:#c9d4d8; --mono:#0f6076;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.66; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:12px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px; white-space:nowrap;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.warn{background:var(--warn-soft); border-color:var(--warn-line); color:var(--warn);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1020px; margin-top:10px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.86rem; color:var(--sub);}
+  .tip{font-size:.84rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:9px 13px; border-radius:10px; margin-top:10px;}
+  .tip.warn{background:var(--warn-soft); border-color:var(--warn-line); color:#7c4a03;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef8fa; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.rm{stroke:#94a3b8; stroke-dasharray:5 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+  .dg .lgb{font-size:11.5px; fill:var(--accent-ink); font-weight:600;}
+
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f7fbfc;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp tr.hl td{background:#fff7e6;}
+  table.cmp col.c1{width:22%;}
+  table.cmp col.cx{width:26%;}
+  table.cmp col.csrc{width:20%;}
+
+  .cards{display:grid; grid-template-columns:1fr; gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,1fr);}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:9px; font-size:.78rem; color:var(--sub); border-top:1px dashed var(--line); padding-top:7px;}
+  .formula{background:#0f2a33; color:#d7f3fb; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:9px; overflow-x:auto; white-space:pre; line-height:1.65;}
+  .formula .cm{color:#7fb8c9;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "]"; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace; margin-right:8px;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem; font-family:ui-monospace,Consolas,monospace; margin-top:2px;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#a5e3f3;}
+
+  @media (max-width:600px){
+    .num{white-space:normal; word-break:break-all;}
+  }
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+
+.dg .e2{stroke:#c9d4d8;stroke-width:1.6;fill:none;marker-end:url(#arr2);}.dg .e2rm{stroke:#94a3b8;stroke-width:1.5;fill:none;stroke-dasharray:5 4;}</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1200 560" class="dg" role="img">
+    <defs>
+      <marker id="arr2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9d4d8"/></marker>
+    </defs>
+    <style>.dg .e2{stroke:#c9d4d8;stroke-width:1.6;fill:none;marker-end:url(#arr2);}.dg .e2rm{stroke:#94a3b8;stroke-width:1.5;fill:none;stroke-dasharray:5 4;}</style>
+
+    <!-- 输入 -->
+    <g class="node core" data-tip="hidden_states 进入本层 [B,T,2304]（2B）&#10;residual = hidden_states （line 305）&#10;9B: [B,T,3584]；27B: [B,T,4608]">
+      <rect x="30" y="240" width="120" height="70" rx="12"/>
+      <text class="t" x="90" y="270" text-anchor="middle">x 输入</text>
+      <text class="m" x="90" y="290" text-anchor="middle">[B,T,2304]</text>
+    </g>
+    <path class="e2" d="M150,275 L190,275"/>
+
+    <!-- pre-attn norm -->
+    <g class="node" data-tip="① input_layernorm = Gemma2RMSNorm(2304, eps=1e-6)&#10;定义 line 290 / 调用 line 307&#10;公式：x / sqrt(mean(x²)+eps) * (1+γ)，fp32 计算（line 54-61）">
+      <rect x="190" y="245" width="150" height="60" rx="9"/>
+      <text class="t" x="265" y="270" text-anchor="middle">RMSNorm_a</text>
+      <text class="s" x="265" y="289" text-anchor="middle">pre-attn · line 307</text>
+    </g>
+    <path class="e2" d="M340,275 L380,275"/>
+
+    <!-- Attention -->
+    <g class="node dim" data-tip="self_attn(hidden_states)  line 310&#10;GQA：Q[B,8,T,256]，K/V 各 [B,4,T,256]&#10;repeat_kv 把 K/V 复制到 8 头（line 190-191）&#10;scores = QKᵀ * 256^-0.5（line 193, 221）&#10;softcap: tanh(scores/50)*50（line 195-198）&#10;+ mask → softmax(fp32) → @V（line 199-205）&#10;→ o_proj 2048→2304（line 278-279）&#10;RoPE 施加于 Q/K（line 255-256）">
+      <rect x="380" y="225" width="200" height="100" rx="10"/>
+      <text class="t" x="480" y="250" text-anchor="middle">Self-Attention (GQA)</text>
+      <text class="m" x="480" y="270" text-anchor="middle">QKᵀ·0.0625</text>
+      <text class="m" x="480" y="288" text-anchor="middle">tanh(/50)·50</text>
+      <text class="s" x="480" y="307" text-anchor="middle">RoPE θ=10000 · 滑窗/全局</text>
+    </g>
+    <path class="e2" d="M580,275 L620,275"/>
+
+    <!-- post-attn norm -->
+    <g class="node" data-tip="② post_attention_layernorm&#10;定义 line 291 / 调用 line 318&#10;Gemma 2 新增：注意力输出在残差相加前再过一次 RMSNorm">
+      <rect x="620" y="245" width="150" height="60" rx="9"/>
+      <text class="t" x="695" y="270" text-anchor="middle">RMSNorm_b</text>
+      <text class="s" x="695" y="289" text-anchor="middle">post-attn · line 318</text>
+    </g>
+
+    <!-- 残差相加 1 -->
+    <circle cx="820" cy="275" r="17" fill="#eef8fa" stroke="#0e7490" stroke-width="1.6"/>
+    <text class="t" x="820" y="281" text-anchor="middle">+</text>
+    <path class="e2" d="M770,275 L803,275"/>
+    <path class="e2rm" d="M90,240 L90,120 L820,120 L820,258"/>
+    <text class="lg" x="430" y="112" text-anchor="middle">残差旁路 residual = x（line 305）→ 相加 line 319</text>
+
+    <!-- 第二子层 -->
+    <path class="e2" d="M820,292 L820,400 L190,400 L190,415"/>
+    <g class="node" data-tip="③ pre_feedforward_layernorm&#10;定义 line 293 / 调用 line 322&#10;注意：line 321 residual = hidden_states（取第一个残差相加后的结果）">
+      <rect x="190" y="415" width="150" height="60" rx="9"/>
+      <text class="t" x="265" y="440" text-anchor="middle">RMSNorm_c</text>
+      <text class="s" x="265" y="459" text-anchor="middle">pre-ffn · line 322</text>
+    </g>
+    <path class="e2" d="M340,445 L380,445"/>
+
+    <g class="node dim" data-tip="mlp(hidden_states)  line 323&#10;down_proj( act(gate_proj(x)) * up_proj(x) )（line 80）&#10;act = ACT2FN[gelu_pytorch_tanh]（line 77）&#10;2B: gate/up 2304→9216；down 9216→2304；bias=False（line 74-76）&#10;9B: 14336；27B: 36864">
+      <rect x="380" y="395" width="200" height="100" rx="10"/>
+      <text class="t" x="480" y="420" text-anchor="middle">MLP (GeGLU)</text>
+      <text class="m" x="480" y="440" text-anchor="middle">GELU_tanh(gate)·up</text>
+      <text class="m" x="480" y="458" text-anchor="middle">9216 → 2304</text>
+      <text class="s" x="480" y="477" text-anchor="middle">line 80</text>
+    </g>
+    <path class="e2" d="M580,445 L620,445"/>
+
+    <g class="node" data-tip="④ post_feedforward_layernorm&#10;定义 line 294 / 调用 line 324&#10;FFN 输出在残差相加前再过一次 RMSNorm（line 325 相加）">
+      <rect x="620" y="415" width="150" height="60" rx="9"/>
+      <text class="t" x="695" y="440" text-anchor="middle">RMSNorm_d</text>
+      <text class="s" x="695" y="459" text-anchor="middle">post-ffn · line 324</text>
+    </g>
+    <circle cx="820" cy="445" r="17" fill="#eef8fa" stroke="#0e7490" stroke-width="1.6"/>
+    <text class="t" x="820" y="451" text-anchor="middle">+</text>
+    <path class="e2" d="M770,445 L803,445"/>
+
+    <!-- 输出 -->
+    <g class="node core" data-tip="本层输出 hidden_states&#10;= residual + post_ffn_norm(mlp(...))  line 325&#10;送入下一层">
+      <rect x="960" y="240" width="150" height="70" rx="12"/>
+      <text class="t" x="1035" y="270" text-anchor="middle">输出 → 下一层</text>
+      <text class="m" x="1035" y="290" text-anchor="middle">[B,T,2304]</text>
+    </g>
+    <path class="e2" d="M820,292 L820,275 L960,275"/>
+  </svg></body></html>

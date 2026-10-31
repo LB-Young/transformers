@@ -1,0 +1,255 @@
+# Gemma 4 家族架构详解 — E2B / E4B / 12B / 26B-A4B MoE / 31B
+
+本页以 **ModelScope 各变体真实 `config.json`** 与本地 **transformers 源码 `modeling_gemma4.py / configuration_gemma4.py`**（v5.5.0.dev0）为唯一依据。核心对象是家族中唯一的 **MoE 模型 26B-A4B**（总参 26.1B、每 token 仅激活约 3.8B、**`128 专家 × Top-8`**、dense MLP 与专家**并行融合**），同时给出 E2B（本地检查点 `gemma-4-E2B-it`）、E4B、12B（encoder-free）、31B 的对照架构。所有数字均标注来源（config 字段或源码文件:行号）。
+
+## 1 家族全景：五个尺寸的架构对照
+
+> 以下全部为各变体 ModelScope config.json 原文（`text_config` 子对象）；transformers 在 `configuration_gemma4.py:210-223` 按 `global_head_dim` 与 `num_global_key_value_heads` 为 full_attention 层构造 `per_layer_config`（见 §5）。MoE 列高亮。
+
+### 1.1 文本塔核心超参数
+
+| 字段（text_config） | E2B | E4B | 12B | 26B-A4B（MoE） | 31B |
+|---|---|---|---|---|---|
+| 入口类 architectures | Gemma4ForConditionalGeneration（E2B/E4B 合并格） | ↳ 与左格合并同值 | Gemma4UnifiedForConditionalGeneration | Gemma4ForConditionalGeneration | Gemma4ForConditionalGeneration |
+| 架构类型 | Dense（稠密）（E2B/E4B 合并格） | ↳ 与左格合并同值 | Dense · encoder-free | **Dense MLP + MoE 专家并行** | Dense（稠密） |
+| hidden_size | 1536 | 2560 | 3840 | 2816 | 5376 |
+| num_hidden_layers | 35 | 42 | 48 | 30 | 60 |
+| full_attention 层（1-based）layer_types 原文 | 5,10,…,35 每 5 层一 full | 6,12,…,42 每 6 层一 full | 6,12,…,48 每 6 层一 full | 6,12,18,24,30 每 6 层一 full | 6,12,…,60 每 6 层一 full |
+| sliding_window | 512 | 512 | 1024 | 1024 | 1024 |
+| num_attention_heads (Q) | 8 | 8 | 16 | 16 | 32 |
+| num_key_value_heads sliding 层 | 1 | 2 | 8 | 8 | 16 |
+| num_global_key_value_heads full 层（若启用） | —（继承 1） | —（继承 2） | 1 | 2 | 4 |
+| head_dim / global_head_dim | 256 / 512 | 256 / 512 | 256 / 512 | 256 / 512 | 256 / 512 |
+| intermediate_size dense MLP 单投影 | 6144 | 10240 | 15360 | 2112 | 21504 |
+| num_experts / top_k_experts | — | — | — | **128 / 8** | — |
+| moe_intermediate_size 每个专家 FFN 中间维 | — | — | — | **704** | — |
+| enable_moe_block | false | false | false | **true** | false |
+| num_kv_shared_layers 共享 KV 的后段层数 | 20 | 18 | 0 | 0 | 0 |
+| use_double_wide_mlp 共享层 FFN 中间维 ×2 | true | false | false | false | false |
+| attention_k_eq_v full 层 K=V 绑定 | false | false | true | true | true |
+| max_position_embeddings | 131072 | 131072 | 262144 | 262144 | 262144 |
+| final_logit_softcapping | 30.0 | 30.0 | 30.0 | 30.0 | 30.0 |
+| use_bidirectional_attention 视觉 token 双向 | null | null | "vision" | "vision" | "vision" |
+| vocab_size | 262144（tie_word_embeddings=true，输入/输出共享）（全行合并格） | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 |
+| hidden_activation | gelu_pytorch_tanh（GeGLU）（全行合并格） | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 |
+| rms_norm_eps | 1e-06（全行合并格） | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 |
+
+> 要点：MoE 是 26B-A4B 独有；12B 使用 **Gemma4UnifiedForConditionalGeneration**（encoder-free，无独立视觉/音频编码器）；E2B / E4B 保留 KV 共享（20 / 18 层）且 E2B 在共享层启用 double-wide MLP；12B / 26B / 31B 的 full 层启用 K=V 绑定（attention_k_eq_v=true）。
+
+### 1.2 多模态与部署规格
+
+| 字段 | E2B | E4B | 12B | 26B-A4B（MoE） | 31B |
+|---|---|---|---|---|---|
+| 视觉塔 Gemma4VisionModel | 768 / 16 层 / 12 头 head_dim 64 · patch 16 pooling 3 · clipped linear | 同 E2B | **无独立视觉塔**（patch 直接投影） | 1152 / 27 层 / 16 头 head_dim 72 · patch 16 standardize | 同 26B |
+| 音频塔 Gemma4AudioModel | 1024 / 12 层 / 8 头 conv 5 · out 1536 | 同 E2B | 640（输出 640） | 无 | 无 |
+| vision_soft_tokens_per_image | 280 | 280 | — | 280 | 280 |
+| 特殊 token（图像/视频/音频） | boi=255999 · boa=256000 · image=258880 · audio=258881 · eoi=258882 · eoa=258883 · video=258884（全行合并格） | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 | ↳ 全行合并同值 |
+| 总参数量（官方） | ≈2.3B | ≈4.5B | 12B | 26.1B（激活 ≈3.8B） | 31B |
+| 上下文长度 | 128K | 128K | 256K | 256K | 256K |
+
+## 2 端到端数据流总览
+
+> 四路输入（文本 id / 图像像素 / 视频帧 / 音频特征）→ 各自编码 → 视觉/音频特征经 `masked_scatter` 填入占位 token 位（image/audio/video token）→ 统一嵌入序列（$\times\sqrt{d_{\text{model}}}$ 缩放，可选叠加 PLE 逐层残差）→ **N 个解码层**（sliding 与 full 交错；26B 每层 dense MLP 与 128 专家并行）→ 最终 RMSNorm → 共享权重 LM Head → logit soft-capping 30.0。
+
+### 2.1 端到端数据流架构图
+
+![架构图：端到端数据流总览（masked_scatter 融合 / MoE 并行分支 / softcap 30）](./_arch/01_2端到端数据流总览.png)
+
+> 全家族统一主干：嵌入 $(\times\sqrt{d})$ → 解码层 × N → 最终 RMSNorm → 共享 LM Head → softcap 30；差异集中在层数、维度、sliding 模式、KV 共享与 FFN 形态（dense / MoE）。
+
+## 3 解码层解剖：dense 层（E2B 为例）与 MoE 层（26B-A4B）
+
+> Gemma 4 的每个解码层包含两组残差子层：注意力子层与 FFN 子层。家族全部变体共享注意力子层结构；差异在 FFN：**稠密变体（E2B/E4B/12B/31B）为单个 dense MLP**，**26B-A4B 为 dense MLP 与 128 专家并行融合**。
+
+### 3.1 dense 解码层（E2B/E4B/12B/31B 通用）
+
+![架构图：dense 解码层展开（QKV Norm / GeGLU）](./_arch/02_3.1_dense_解码层（E2B_E4B_12.png)
+
+### 3.2 MoE 解码层（26B-A4B 的每一层）
+
+![架构图：MoE 解码层展开（dense MLP ‖ 128 专家并行 / Router 输入取残差）](./_arch/03_3.2_MoE_解码层（26B-A4B_的每一层.png)
+
+> 26B-A4B 的**全部 30 层**都带 MoE block（`enable_moe_block=true`）。与常见"路由到专家或走 dense 二选一"不同，Gemma 4 的 MoE 层是 **dense MLP 与专家并行、输出相加融合**（源码 `modeling_gemma4.py:1399-1418`）。
+
+> MoE 层的关键区别：router 的输入是**残差（MLP 输入前的 hidden）**而非 MLP 输出（`modeling_gemma4.py:1407-1408`）；dense MLP 始终对每个 token 全量计算（不被路由跳过），专家输出与 dense 输出**相加**后经 post_ffn_layernorm 进入第二残差。
+
+## 4 MoE 机制详解（26B-A4B：128 专家 · Top-8）
+
+### 4.1 Router：每 token 的专家选择
+
+```
+router 前向（modeling_gemma4.py:1320-1341）:
+  h = Gemma4RMSNorm(x, with_scale=False)          # 1) 无 scale 的 RMSNorm
+  h = h * scale * scalar_root_size                # 2) scale 可学习(初始1) × h_dim^-0.5
+  s = Linear(h → 128, bias=False)(h)              # 3) 128 个专家打分
+  p = softmax(s, dim=-1, dtype=fp32)              # 4) fp32 softmax（数值稳定）
+  w, idx = topk(p, k=8, dim=-1)                   # 5) 取 Top-8 专家
+  w = w / w.sum(-1, keepdim=True)                 # 6) Top-8 权重归一化（和为 1）
+  w = w * per_expert_scale[idx]                   # 7) 可学习 per-expert 缩放(初始1)
+  return p, w, idx
+```
+
+### 4.2 Experts：3D 张量专家 + 稀疏前向
+
+```
+Gemma4TextExperts（modeling_gemma4.py:1268-1304）:
+  权重（3D 张量，全部专家打包）:
+    gate_up_proj: [E=128, 2×704, 2816]   # 每专家 3,964,928 参数
+    down_proj:    [E=128, 2816, 704]     # 每专家 1,982,464 参数
+  前向（按命中的专家循环）:
+    expert_mask = one_hot(top_k_index, num_classes=E+1)   # 掩码
+    for expert_idx in hit_experts:
+      gate, up = Linear(gate_up_proj[expert_idx], x).chunk(2)
+      out = GELU_tanh(gate) * up                          # GeGLU
+      out = Linear(down_proj[expert_idx], out)
+      out = out * top_k_weights[token, k]                 # 乘以路由权重
+      final[token] += out                                 # index_add 累加
+```
+
+### 4.3 参数量核算（26B-A4B，可复算）
+
+| 组成 | 每层 / 每单元 | 层数 / 数量 | 小计 | 说明 |
+|---|---|---|---|---|
+| MoE 专家权重 | 128 × (2×704×2816 + 2816×704) = 761,266,176 | 30 | **≈22.84B** | 占 26B 总参约 86%，模型的绝大部分 |
+| dense MLP（每层并行） | 3 × 2816 × 2112 = 17,842,176 | 30 | ≈0.54B | 每 token 全量计算 |
+| 注意力（Q/K/V/O） | sliding≈34.6M / full≈48.9M | 24 + 6 | ≈1.12B | full 层 16Q×512 + 2KV×512（K=V 一份） |
+| 嵌入 + LM Head（tied） | 262144 × 2816 | 1 | ≈0.74B | 共享一份 |
+| Router 等杂项 | ≈0.36M / 层 | 30 | ≈0.01B | Linear 2816→128 + scale 参数 |
+| **合计** | — | — | **≈25.2B** | 与官方 26.1B 同量级（含视觉塔 1152/27 层 ≈1.3B 等） |
+| 每 token 激活参数 | 8/128 × 761M ≈ 47.6M（专家） | 30 | **≈3.0-3.4B** | + dense MLP 全量 + 注意力 ≈ 官方 3.8B 口径 |
+
+> 激活比：每 token 只经过 128 专家中的 **8 个（6.25%）**；加上每层并行的 dense MLP（不稀疏），26B-A4B 推理计算量接近 4B 稠密模型，但拥有 26B 的容量——这是 "A4B (Active 4 Billion)" 名称的来源（官方口径激活 ≈3.8B/参数/总 26.1B）。
+
+## 5 注意力机制：per-layer 维度 · QKV Norm · KV 共享
+
+> Gemma 4 的注意力与 Gemma 2/3 最大的不同：**每个解码层可以有不同的 head 维度与 KV 头数**（full 层用 global 配置），并引入 **Q/K/V head-wise RMSNorm**，取代了 Gemma 2/3 的 `query_pre_attn_scalar=256`（Gemma 4 config 中已无此字段，注意力 `scaling=1.0`）。
+
+### 5.1 per-layer 维度分配（configuration_gemma4.py:210-223）
+
+| 层类型 | head_dim | KV 头数 | K=V 绑定 | RoPE |
+|---|---|---|---|---|
+| sliding_attention | head_dim=256 | num_key_value_heads（E2B 1 / E4B 2 / 12B 8 / 26B 8 / 31B 16） | 否（有独立 v_proj） | default，θ=10000 |
+| full_attention | global_head_dim=512 | num_global_key_value_heads（12B 1 / 26B 2 / 31B 4；E2B/E4B 继承 sliding 值） | 是（attention_k_eq_v=true 时 v_proj=None，V=K） | proportional，θ=1000000，partial_rotary 0.25 |
+
+> 含义：26B-A4B 的 full 层 Q 投影 = 2816 → `16×512=8192`，K/V = 2816 → `2×512=1024`（且只算一份 K，V 直接复用）；sliding 层 Q = 2816→4096，K/V = 2816→2048。E2B 的 full 层 Q = 1536→4096，K/V = 1536→512。
+
+### 5.2 Q/K/V head-wise Norm（modeling_gemma4.py:1178-1201, 1217-1239）
+
+```
+q = q_norm(q_proj(x))     # Gemma4RMSNorm(head_dim, with_scale=True)
+k = k_norm(k_proj(x))     # Gemma4RMSNorm(head_dim, with_scale=True)
+v = v_norm(v_proj(x))     # 仅当 v_proj 存在（sliding 层）
+  # full 层且 attention_k_eq_v=true 时 v_proj=None → v = k（K=V 绑定）
+q = RoPE(q, layer_type)   # full: proportional(θ1e6, 旋转 0.25×512=128 维)
+k = RoPE(k, layer_type)   # sliding: default(θ1e4, 旋转全部 256 维)
+attn = softmax(q·kᵀ/1.0)  # scaling=1.0
+```
+
+> QKV Norm 使注意力在训练早期更稳定，从而可以移除显式 query 缩放（Gemma 2/3 的 query_pre_attn_scalar）；v_norm 使用 `with_scale=False`（无权重），q/k_norm 有权重（modeling_gemma4.py:1181-1186）。
+
+### 5.3 KV 共享（仅 E2B/E4B）
+
+#### 共享机制
+
+> 后 `num_kv_shared_layers` 层（E2B: 20 层，第 16-35 层；E4B: 18 层）不再拥有 K/V 权重矩阵，直接复用前段"每层类型最后一个非共享层"的 K/V 状态（`shared_kv_states[layer_type]`，modeling_gemma4.py:1170-1176, 1225-1244）。
+>
+> E2B: 共享起始层 = 35-20 = 15（0-based 索引 15..34）；每类型最后一层存 KV（store_full_length_kv）
+
+#### double-wide MLP（E2B 共享层）
+
+> E2B 的共享 KV 层同时启用 `use_double_wide_mlp=true`：FFN 中间维从 6144 翻倍到 `12288`（modeling_gemma4.py:1063-1068），以补偿共享层缺失的 KV 参数容量。
+>
+> 12B/26B/31B 的 num_kv_shared_layers=0，无 KV 共享；E4B 有共享但无 double-wide
+
+### 5.4 sliding / full 交错模式
+
+| 变体 | 层数 | sliding_window | full 层位置（1-based） | 模式 |
+|---|---|---|---|---|
+| E2B | 35 | 512 | 5,10,15,20,25,30,35 | 每 5 层 1 full（4 sliding + 1 full）×7 |
+| E4B | 42 | 512 | 6,12,18,24,30,36,42 | 每 6 层 1 full ×7 |
+| 12B | 48 | 1024 | 6,12,…,48 | 每 6 层 1 full ×8 |
+| 26B-A4B | 30 | 1024 | 6,12,18,24,30 | 每 6 层 1 full ×5 |
+| 31B | 60 | 1024 | 6,12,…,60 | 每 6 层 1 full ×10 |
+
+> sliding 层只允许每个位置关注前 `sliding_window` 个 token（线性复杂度）；full 层全局因果。12B/26B/31B 还支持视觉 token 双向注意力（`use_bidirectional_attention="vision"`）。
+
+## 6 多模态：视觉塔 · 音频塔 · encoder-free
+
+### 6.1 视觉塔 Gemma4VisionModel
+
+| 字段（vision_config） | E2B / E4B | 12B | 26B-A4B / 31B |
+|---|---|---|---|
+| 架构 | Gemma4VisionModel | **无独立视觉塔**（encoder-free） | Gemma4VisionModel |
+| hidden_size | 768 | —（patch 直接投影进 3840） | 1152 |
+| 层数 / 头数 / head_dim | 16 / 12 / 64 | — | 27 / 16 / 72 |
+| intermediate_size | 3072 | — | 4304 |
+| patch_size / pos_embedding | 16 / 10240（2D 可学习表） | 16 | 16 / 10240 |
+| standardize / clipped_linears | false / true | — | true / false |
+| soft tokens / 图 | 280 | — | 280 |
+
+> 视觉塔内部：PatchEmbedder（Linear $3\times16^2=768 \to \text{hidden}$）→ 2D 可学习位置表（x/y 两表相加）→ 双向编码器（pre+post RMSNorm、QK-Norm、2D axial RoPE $\theta=100$，H-H-W-W 交错）→ Pooler（按 patch 坐标 $k\times k$ 网格均值池化，`pooling_kernel_size=3` → 每 9 patch 合 1 soft token）→ $\times\sqrt{\text{hidden}}$。12B 的 encoder-free 设计：图像 patch 与原始音频特征直接投影进文本塔（无独立编码器，config 的 vision_config 为空对象）。
+
+### 6.2 音频塔 Gemma4AudioModel
+
+| 字段（audio_config） | E2B / E4B | 12B | 26B-A4B / 31B |
+|---|---|---|---|
+| hidden_size | 1024 | 640 | **无音频塔**（null） |
+| 层数 / 头数 | 12 / 8 | — | — |
+| 下采样 | sscp 卷积 [128,32] 通道 ×2，3×3 stride 2；conv_kernel 5（全行合并格） | ↳ 全行合并同值 | ↳ 全行合并同值 |
+| 输出投影 | →1536（text hidden） | →640 | — |
+
+> 音频塔细节：2 层下采样卷积 → 正弦相对位置编码 → 12 层 Transformer；chunked attention（`attention_chunk_size=12`、左上下文 13）；attention softcap 50.0、残差权重 0.5（modeling_gemma4.py:240-511）。视频：逐帧复用视觉塔编码，占位 token `video_token_id=258884`。
+
+## 7 特殊 Token 与词表布局
+
+| token | ID | 含义 |
+|---|---|---|
+| boi_token_id | 255999 | 图像开始（begin of image） |
+| boa_token_id | 256000 | 音频开始（begin of audio） |
+| image_token_id | 258880 | 图像特征占位 |
+| audio_token_id | 258881 | 音频特征占位 |
+| eoi_token_id | 258882 | 图像结束 |
+| eoa_token_id | 258883 | 音频结束 |
+| video_token_id | 258884 | 视频特征占位 |
+| bos / eos / pad | 2 / [1,106] / 0 | 标准文本控制 token |
+
+> 词表 `vocab_size=262144`；图像特征占位 token 位于词表尾部（258880+），由视觉塔输出经 `masked_scatter` 直接填入 hidden 序列，不经过 embedding 查表。
+
+## 8 演进视角：Gemma 3n → Gemma 4 家族
+
+| 维度 | Gemma 3n（E2B 为例） | Gemma 4（家族） |
+|---|---|---|
+| 入口类 | Gemma3nForConditionalGeneration | Gemma4ForConditionalGeneration / Gemma4UnifiedForConditionalGeneration |
+| FFN 形态 | dense（PLE 注入）+ 稀疏激活模式 | dense（E2B/E4B/12B/31B）或 **dense MLP ‖ 128 专家并行（26B）** |
+| 注意力归一化 | 无 QKV Norm（用 query_pre_attn_scalar） | **Q/K/V head-wise RMSNorm** + scaling=1.0（移除 query_scalar） |
+| per-layer 维度 | 统一 head_dim | **full 层 global_head_dim=512 / sliding 层 256**，KV 头也可按层类型不同 |
+| K=V 绑定 | 无 | 12B/26B/31B 的 full 层 **attention_k_eq_v=true** |
+| KV 共享 | 后 10 层共享 | E2B 后 20 层 / E4B 后 18 层；12B/26B/31B 无 |
+| 上下文 | 32768 | 131072（E2B/E4B）/ 262144（12B/26B/31B） |
+| sliding 模式 | 每 5 层 1 full | E2B 每 5 层；其余每 6 层 1 full；窗口 512/1024 |
+| 视觉塔 | MobileNetV5（300M） | ViT 风格（16/27 层，280 soft tokens/图）或 encoder-free（12B） |
+| 稀疏/专家 | activation sparsity（95% cutoff） | **MoE 128 专家 Top-8（26B）** + per_expert_scale |
+| PLE 逐层嵌入 | 有 | 仅 E2B/E4B 保留（hidden_size_per_layer_input=256） |
+
+> Gemma 4 家族把 Gemma 3n 的 MatFormer/稀疏激活思路收敛为**真正的 MoE 路由（26B-A4B）**，并用 QKV Norm + per-layer 维度替代显式 query 缩放；上下文翻倍、视觉塔更重、音频塔在 26B/31B 上移除。
+
+## 9 来源
+
+1. 各变体 ModelScope config.json（本机下载核验）
+   `E2B: E:\models\model\gemma-4-E2B-it\config.json；E4B/12B/26B-A4B/31B: ModelScope google/gemma-4-*（2026-10-22 下载核验）`
+2. transformers 源码 modeling_gemma4.py（v5.5.0.dev0，本地 E:\transformers 可编辑安装）
+   `MoE：Gemma4TextExperts/Forward 1268-1304、Gemma4TextRouter 1307-1341、MoE 层前向 1399-1418；注意力 1151-1264；MLP 1060-1076；RMSNorm 205-223；嵌入 1564-1566`
+3. transformers 源码 configuration_gemma4.py
+   `per_layer_config 构造 210-223；MoE 字段 181-182`
+4. Gemma 4 Technical Report（arXiv 2607.02770）
+   `https://arxiv.org/html/2607.02770v1（dense 2.3B/4.5B/12B/31B + MoE 3.8B 激活/26B 总参）`
+5. Gemma 4 模型资讯卡（Google AI for Developers）
+   `https://ai.google.dev/gemma/docs/core/model_card_4（26B-A4B: 参数 252 亿/有效 38 亿/30 层/滑窗 1024）`
+6. Gemma 4 发布博客（Google Keyword）
+   `https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/（E2B/E4B/26B MoE/31B Dense）`
+
+> 数据口径：所有数字来自上述来源并在页内标注；参数量核算为按 config 与源码的可复算推导（专家 22.84B ≈ 官方 26.1B 中的主体）。访问与核验日期：2026-10-22。
+
+---
+
+*页脚：Gemma 4 家族架构详解 · 数据来源：ModelScope 各变体 config / transformers 源码 / arXiv 2607.02770 / Google 官方资料 · 仅供技术学习与论文研究*

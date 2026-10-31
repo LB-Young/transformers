@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen3.8 家族架构详解 — 6B-Flash / 27B / 2.4T-A95B（原生多模态 · Flexible Thinking Control）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E8%3C/text%3E%3C/svg%3E">
+<script src="_tools/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.mm{color:var(--mm-ink); background:var(--mm-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  nav.top a.link.mm-link{color:var(--mm-ink);}
+  nav.top a.link.mm-link:hover{background:var(--mm-soft);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h2.mm .secno{color:var(--mm-ink); background:var(--mm-soft); border-color:var(--mm-line);}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.mm rect{fill:var(--mm-soft); stroke:var(--mm); stroke-width:1.6;}
+  .dg .node.text rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .node.mm text.t{fill:var(--mm-ink);}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.mm{stroke:var(--mm); stroke-width:1.8; marker-end:url(#arrm);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+  .dg .lgb{font-size:11.5px; fill:var(--accent-ink); font-weight:600;}
+  .dg .lgm{font-size:11.5px; fill:var(--mm-ink); font-weight:600;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp thead th.mm-th{background:var(--mm-soft); color:var(--mm-ink);}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:24%;}
+  table.cmp col.cx{width:38%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  .formula.mm{background:#134e4a; color:#c7f0e8;}
+  .formula .cm{color:#8b93a7;}
+  #echart-compare{width:100%; height:440px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:8px; margin-top:10px;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#bfd3ff;}
+  #tip b.m{color:#99e9dc;}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">8</text></svg>Qwen3.8 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link mm-link" href="#mm">多模态</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs Qwen3.6</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Qwen3.8 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">入口类 Qwen3_5ForConditionalGeneration（27B）/ Qwen3_5MoeForCausalLM（2.4T-A95B · 纯文本）</span>
+    <span class="badge">3 个权重变体：27B Dense 多模态 · 2.4T-A95B 超大 MoE · 6B-Flash（待确认）</span>
+    <span class="badge mm">原生多模态：27B 挂同一视觉塔（ViT×27 · patch16 · merge2）；2.4T 纯文本无视觉塔</span>
+    <span class="badge">Gated DeltaNet + Gated Attention 3:1 混合（27B 16 组 · 2.4T 23 组）</span>
+    <span class="badge">词表 248,320 · 原生上下文 262,144 · YaRN 约 1,000,000 · MTP</span>
+    <span class="badge mm">代际主题：Flexible Thinking Control · 官方 FP8（block 128）· TokenSpeed · 发布 2026-08</span>
+  </div>
+  <p class="lead">本页以 <b>官方 model card 的 <span class="num">config.json / README</span> 实参</b>（Qwen/Qwen3.8-27B、Qwen/Qwen3.8-2.4T-A95B、Qwen/Qwen3.8-27B-FP8，经 hf-mirror 逐字段/逐格核对）与 <b>transformers 源码 <span class="num">modular_qwen3_5.py / modeling_qwen3_5.py</span></b>（本地 E:\transformers）为唯一依据。官方明示 <b>「Built on the architectural foundation of Qwen3.5」</b>——27B 的 config 字段与 3.5/3.6 逐字节相同，换代不在图纸，而在<b>推理行为（Flexible Thinking Control）、后训练能力（agentic / 编码 benchmark 大幅跃升）与部署生态（官方 FP8、TokenSpeed）</b>。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：6B-Flash / 27B / 2.4T-A95B 架构对照</h2>
+  <p class="note">27B 为组合 config（顶层 model_type + text_config + vision_config）的原生多模态 Dense；2.4T-A95B 为纯文本超大 MoE（config 中<b>无 vision_config</b>）。两者共用同一 qwen3_5 文本栈基因（3:1 混合、词表、RoPE），差异集中在 hidden 维度、层数、MoE 路由规模。6B-Flash 的 HF/ModelScope 仓库暂不可达，<b>全部规格待确认</b>，禁止编造。</p>
+
+  <h3>1.1 文本塔核心超参数</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段（text_config）</th><th>Qwen3.8-27B</th><th>Qwen3.8-2.4T-A95B</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures（入口类）</td><td>Qwen3_5ForConditionalGeneration</td><td>Qwen3_5MoeForCausalLM</td></tr>
+      <tr class="hl"><td class="k">形态</td><td><b>Dense + 视觉塔（原生多模态）</b></td><td><b>超大 MoE · 纯文本（无视觉塔）</b></td></tr>
+      <tr><td class="k">hidden_size</td><td>5120</td><td>8192</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>64</td><td>92（= 23 组 × 4）</td></tr>
+      <tr><td class="k">hidden layout（README 原文）</td><td>16×(3×(Gated DeltaNet→FFN)→1×(Gated Attention→FFN))</td><td>23×(3×(Gated DeltaNet→MoE)→1×(Gated Attention→MoE))</td></tr>
+      <tr><td class="k">GA：num_attention_heads (Q)</td><td>24</td><td>64</td></tr>
+      <tr><td class="k">GA：num_key_value_heads (KV)</td><td>4</td><td>4</td></tr>
+      <tr><td class="k">GA：head_dim</td><td>256</td><td>256</td></tr>
+      <tr><td class="k">partial_rotary_factor</td><td>0.25（RoPE dim = 64）</td><td>0.25（同左）</td></tr>
+      <tr><td class="k">GDN：linear_num_key_heads (QK)</td><td>16</td><td>16</td></tr>
+      <tr><td class="k">GDN：linear_num_value_heads (V)</td><td>48</td><td>128</td></tr>
+      <tr><td class="k">GDN：head_dim</td><td>QK/V 均 128 · conv1d kernel 4</td><td>QK/V 均 128 · conv1d kernel 4</td></tr>
+      <tr><td class="k">intermediate_size（Dense FFN）</td><td>17,408</td><td>—（全部为 MoE 路径）</td></tr>
+      <tr><td class="k">moe_intermediate_size（每专家）</td><td>—</td><td>2,048</td></tr>
+      <tr><td class="k">num_experts / per_tok</td><td>—</td><td>512 / 10（routed）+ 1 shared</td></tr>
+      <tr><td class="k">shared_expert_intermediate_size</td><td>—</td><td>2,048</td></tr>
+      <tr><td class="k">router_aux_loss_coef</td><td>—</td><td>0.001</td></tr>
+      <tr><td class="k">full_attention_interval</td><td>4</td><td>4（92 = 23×4）</td></tr>
+      <tr><td class="k">attn_output_gate / 类型</td><td>true / swish</td><td>true / swish</td></tr>
+      <tr><td class="k">vocab_size</td><td>248,320（padded）</td><td>248,320（padded）</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>262,144</td><td>262,144</td></tr>
+      <tr><td class="k">mtp_num_hidden_layers</td><td>1（MTP 投机头，multi-step 训练）</td><td>1</td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td>false</td><td>false</td></tr>
+      <tr><td class="k">总参数 / 激活参数</td><td>27B（Dense）</td><td><b>2.4T 总参 / 95B 激活</b>（10 routed + 1 shared）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：<b>27B 与 3.5/3.6-27B 逐字段相同</b>（64 层 / hidden 5120 / inter 17408 / GA 24Q·4KV / GDN QK16·V48）；<b>2.4T-A95B 是首次开放的 Max 级纯文本模型</b>——hidden 8192、92 层、GDN V 头数 48→128、GA Q 头数 24→64，FFN 全部换成 512 细粒度专家（每 token 激活 10 路由专家 + 1 共享专家，单专家 intermediate 仅 2048）。</p>
+
+  <h3>1.2 多模态与部署规格</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>字段</th><th>Qwen3.8-27B</th><th>Qwen3.8-2.4T-A95B</th></tr></thead>
+    <tbody>
+      <tr><td class="k">视觉塔</td><td>有（与 3.6-27B 同构，见 §6）</td><td><b>无（纯文本）</b></td></tr>
+      <tr><td class="k">输入模态</td><td>文本 + 图像 + 视频</td><td><b>仅文本</b></td></tr>
+      <tr class="hl"><td class="k">思考模式</td><td>默认开 · 可按请求关闭</td><td><b>所有交互强制思考，不可关闭</b></td></tr>
+      <tr><td class="k">reasoning_effort</td><td>xhigh（默认）/ medium / low</td><td>xhigh / medium / low</td></tr>
+      <tr><td class="k">preserve_thinking</td><td><b>默认开</b>（保留全部历史思考块）</td><td>默认开</td></tr>
+      <tr><td class="k">原生上下文 / 扩展</td><td>262,144 / 约 1,000,000（YaRN factor 4.0）</td><td>262,144 / 约 1,010,000</td></tr>
+      <tr><td class="k">兼容推理框架</td><td>transformers / vLLM / SGLang / <b>TokenSpeed</b></td><td>同左</td></tr>
+      <tr><td class="k">官方 FP8 版</td><td>有（Qwen3.8-27B-FP8，2026-08-13）</td><td>—</td></tr>
+      <tr><td class="k">FP8 量化方式 / 体积</td><td>fine-grained block 128，性能几乎一致 / 约 29 GB（NGC 标 28.77 GB）</td><td>—</td></tr>
+      <tr><td class="k">BF16 权重体积</td><td>约 55.6 GB</td><td>待确认（官方 card 未标注）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">与云版 Qwen3.8-Max 的区别（官方 README 明示）：<b>Max 版额外支持 vision 输入、non-thinking 模式、默认 1M 上下文、内置工具</b>；开放权重的 2.4T-A95B 是纯文本、强制思考版本，27B 则是开放权重中首个支持关闭思考的本代模型。</p>
+
+  <div id="echart-compare" role="img" aria-label="3.8-27B 与 3.6-27B benchmark 对比图"></div>
+  <p class="note" style="margin-top:6px;">图：3.8-27B vs 3.6-27B 官方 benchmark（节选）——agentic / 编码类的涨幅最大（DeepSWE 1.1 从 13.3 到 42.2）。逐格数字见 §8.1。</p>
+</section>
+
+<!-- ==================== 2 数据流总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token 与图像/视频像素两路输入（仅 27B；2.4T-A95B 为纯文本单路）→ 图像经视觉塔（ViT×27，patch 16）编码、空间合并 2×2、线性投影到文本 hidden → 与文本 embedding 经 <span class="num">masked_scatter</span> 填入图像占位 token 位（early fusion）→ 统一序列进入 <b>64 个解码层</b>（2.4T-A95B 为 92 层）：每 4 层 3 个 Gated DeltaNet 线性层 + 1 个 Gated Attention 全注意力层 → 最终 RMSNorm → LM Head（248,320）。悬停节点看细节。</p>
+  <div class="diagram-shell" aria-label="Qwen3.8 端到端数据流图">
+  <svg viewBox="0 0 1280 700" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker>
+      <marker id="arrm" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0e7490"/></marker>
+    </defs>
+
+    <g class="node mm" data-tip="图像/视频输入 pixel_values&#10;patch16 · temporal_patch_size=2&#10;动态分辨率；仅 27B 启用&#10;2.4T-A95B 纯文本：此路不存在&#10;来源：config vision_config">
+      <rect x="16" y="90" width="140" height="70" rx="12"/>
+      <text class="t" x="86" y="118" text-anchor="middle">图像 / 视频</text>
+      <text class="s" x="86" y="138" text-anchor="middle">pixel_values · patch16</text>
+    </g>
+    <g class="node mm" data-tip="Qwen3_5VisionModel（modular_qwen3_5.py:436）&#10;ViT ×27 层 · hidden 1152 · inter 4304 · 16 头&#10;patch 16 · temporal_patch=2 · merge 2&#10;线性投影 2304 → 文本 hidden（27B=5120）&#10;来源：config vision_config">
+      <rect x="200" y="70" width="260" height="120" rx="12"/>
+      <text class="t" x="330" y="96" text-anchor="middle">Qwen3.5 视觉塔</text>
+      <text class="m" x="330" y="120" text-anchor="middle">ViT ×27 · hidden 1152</text>
+      <text class="m" x="330" y="140" text-anchor="middle">patch16 · temp2 · merge2</text>
+      <text class="s" x="330" y="166" text-anchor="middle">仅 27B 挂载</text>
+    </g>
+    <path class="edge mm" d="M156,125 L200,125"/>
+
+    <g class="node text" data-tip="文本输入 input_ids&#10;与图像占位 token（image_token=248056）交错&#10;词表 248320&#10;来源：config">
+      <rect x="16" y="320" width="140" height="70" rx="12"/>
+      <text class="t" x="86" y="348" text-anchor="middle">文本 token</text>
+      <text class="s" x="86" y="368" text-anchor="middle">input_ids (248320)</text>
+    </g>
+    <g class="node dim" data-tip="Embedding 查表&#10;Embedding(248320, text hidden)&#10;text/vocab 嵌入&#10;tie_word_embeddings=false&#10;来源：config tie=false">
+      <rect x="200" y="310" width="260" height="90" rx="12"/>
+      <text class="t" x="330" y="338" text-anchor="middle">Embedding</text>
+      <text class="m" x="330" y="360" text-anchor="middle">248320 × 5120（27B）</text>
+      <text class="s" x="330" y="380" text-anchor="middle">text/vocab</text>
+    </g>
+    <path class="edge" d="M156,355 L200,355"/>
+
+    <g class="node dim" data-tip="masked_scatter early fusion&#10;视觉投影特征填入 input_ids 中&#10;image_token_id=248056 的占位位置&#10;与文本 embedding 拼成统一 hidden 序列&#10;来源：modular_qwen3_5.py:644">
+      <rect x="500" y="230" width="130" height="110" rx="12"/>
+      <text class="t" x="565" y="272" text-anchor="middle">masked_</text>
+      <text class="t" x="565" y="292" text-anchor="middle">scatter</text>
+      <text class="s" x="565" y="316" text-anchor="middle">early fusion</text>
+    </g>
+    <path class="edge mm" d="M460,130 C485,130 485,250 500,265"/>
+    <path class="edge" d="M460,355 C485,355 485,300 500,300"/>
+
+    <g class="node core" data-tip="DecoderLayer × N&#10;27B=64（16 组）；2.4T-A95B=92（23 组）&#10;每组 = 3×(Gated DeltaNet→FFN/MoE)&#10;        + 1×(Gated Attention→FFN/MoE)&#10;GDN 层：27B=Q16K/48V；2.4T=Q16K/128V · head128&#10;GA 层：27B=GQA 24Q/4KV；2.4T=64Q/4KV · head256 · RoPE64&#10;层类型由 config.layer_types 决定&#10;来源：modular_qwen3_5.py:357-410">
+      <rect x="680" y="90" width="330" height="420" rx="14"/>
+      <text class="t" x="845" y="118" text-anchor="middle">DecoderLayer × 64（16 组）</text>
+      <text class="s" x="845" y="140" text-anchor="middle">每组 = 3×(Gated DeltaNet→FFN) + 1×(Gated Attention→FFN)</text>
+      <g class="node" data-tip="GDN ×3（每 4 层中前 3 层）&#10;线性注意力，递归状态 O(n) 复杂度&#10;27B：V48 / QK16 · head_dim128&#10;2.4T：V128 / QK16 · head_dim128&#10;causal conv1d(k=4) + 门控 delta rule&#10;来源：modeling_qwen3_5.py:490">
+        <rect x="705" y="160" width="140" height="90" rx="10"/>
+        <text class="t" x="775" y="186" text-anchor="middle">GDN ×3</text>
+        <text class="s" x="775" y="208" text-anchor="middle">线性注意力</text>
+        <text class="m" x="775" y="228" text-anchor="middle">V48/QK16 · d128</text>
+      </g>
+      <g class="node" data-tip="GA ×1（每 4 层第 4 层）&#10;GQA 全注意力，精确召回&#10;27B：Q24 / KV4 · head_dim256&#10;2.4T：Q64 / KV4 · head_dim256&#10;RoPE dim64（partial_rotary 0.25）&#10;来源：modeling_qwen3_5.py:736">
+        <rect x="865" y="160" width="125" height="90" rx="10"/>
+        <text class="t" x="927" y="186" text-anchor="middle">GA ×1</text>
+        <text class="s" x="927" y="208" text-anchor="middle">全注意力</text>
+        <text class="m" x="927" y="228" text-anchor="middle">Q24/KV4 · d256</text>
+      </g>
+      <text class="s" x="705" y="278">Gated DeltaNet：递归状态 O(n) 复杂度（27B 48 层 / 2.4T 69 层）</text>
+      <text class="s" x="705" y="298">Gated Attention：GQA + RoPE dim64，精确召回（27B 16 层 / 2.4T 23 层）</text>
+      <g class="node" data-tip="FFN / MoE 子层&#10;27B：SwiGLU dense，intermediate 17408&#10;2.4T：512 专家 MoE，10 routed + 1 shared&#10;单专家 intermediate 2048&#10;RMSNorm pre-norm · 残差 ×2 / 层&#10;来源：modeling_qwen3_5.py:811">
+        <rect x="705" y="316" width="285" height="86" rx="10"/>
+        <text class="t" x="847" y="342" text-anchor="middle">FFN（SwiGLU）</text>
+        <text class="m" x="847" y="364" text-anchor="middle">intermediate 17408</text>
+        <text class="s" x="847" y="384" text-anchor="middle">RMSNorm x2 / block</text>
+      </g>
+      <g class="node" data-tip="残差连接&#10;每个子层 pre-norm 后残差相加&#10;residual add ×2（attn / ffn）&#10;">
+        <rect x="705" y="420" width="285" height="66" rx="10"/>
+        <text class="t" x="847" y="448" text-anchor="middle">残差连接</text>
+        <text class="s" x="847" y="470" text-anchor="middle">residual pre-norm</text>
+      </g>
+    </g>
+    <path class="edge" d="M630,285 L680,285"/>
+
+    <g class="node dim" data-tip="最终 RMSNorm&#10;全部解码层后归一&#10;来源：modular_qwen3_5.py:644">
+      <rect x="1040" y="230" width="90" height="110" rx="12"/>
+      <text class="t" x="1085" y="270" text-anchor="middle">最终</text>
+      <text class="t" x="1085" y="290" text-anchor="middle">RMSNorm</text>
+    </g>
+    <path class="edge" d="M1010,300 L1040,300"/>
+
+    <g class="node dim" data-tip="LM Head（无 tie）&#10;text hidden → 248320&#10;tie_word_embeddings=false&#10;MTP：训练时多步预测（mtp=1）&#10;推理由 vLLM/SGLang/TokenSpeed 投机解码加速&#10;来源：config tie=false / mtp_num_hidden_layers=1">
+      <rect x="1160" y="220" width="100" height="130" rx="12"/>
+      <text class="t" x="1210" y="256" text-anchor="middle">LM</text>
+      <text class="t" x="1210" y="276" text-anchor="middle">Head</text>
+      <text class="m" x="1210" y="300" text-anchor="middle">248320</text>
+    </g>
+    <path class="edge" d="M1130,285 L1160,285"/>
+    <text class="s" x="1210" y="370" text-anchor="middle">下一 token</text>
+
+    <text class="lgb" x="680" y="560">主干：文本 token 流（27B 与 2.4T-A95B 共用同一 qwen3_5 文本栈）</text>
+    <text class="lgm" x="680" y="580">视觉路径仅 27B（原生 VLM）；2.4T-A95B 为纯文本超大 MoE（512 专家 / 10 活跃）</text>
+    <text class="lg" x="680" y="600">MTP：训练时多步预测（mtp_num_hidden_layers=1），推理由 vLLM/SGLang/TokenSpeed 投机解码加速</text>
+  </svg>
+  </div>
+  <p class="note">全家族统一主干：<span class="num">Embedding → DecoderLayer 堆叠 → 最终 RMSNorm → LM Head（无 tie）</span>；多模态路径 early fusion，视觉特征不经过文本 embedding 查表，直接写入占位 token。</p>
+</section>
+
+<!-- ==================== 3 解码层解剖 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：每 4 层一组的 3:1 混合块</h2>
+  <p class="note">层类型由 <code>config.layer_types[layer_idx]</code> 决定：值为 <code>linear_attention</code> 的层实例化 <code>Qwen3_5GatedDeltaNet</code>，值为 <code>full_attention</code> 的层实例化 <code>Qwen3_5Attention</code>；两类层都各接一个 FFN 子层（27B Dense SwiGLU / 2.4T MoE 路由）。源码 <span class="num">modular_qwen3_5.py:357-410</span>。27B 共 16 组（64 层）；2.4T 共 23 组（92 层，layer_types 列表 92 项 = 23 组×4）。</p>
+  <div class="diagram-shell" aria-label="Qwen3.8 解码层解剖图（GDN×3 + GA×1）">
+  <svg viewBox="0 0 1240 560" class="dg" role="img">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+    <text class="lg" x="180" y="40">层类型由 config.layer_types 决定：每 4 层第 4 层为 full_attention，其余 linear_attention</text>
+    <text class="lgb" x="180" y="66">64 层 = 16 组 × 4 层 → 48 个 GDN 层 + 16 个 GA 层（3:1；2.4T 为 23 组 / 92 层）</text>
+
+    <g class="node core" data-tip="输入 hidden_states&#10;[B, T, 5120]（27B）">
+      <rect x="30" y="240" width="110" height="70" rx="12"/>
+      <text class="t" x="85" y="270" text-anchor="middle">输入 x</text>
+      <text class="m" x="85" y="290" text-anchor="middle">[B,T,5120]</text>
+    </g>
+
+    <g class="node dim" data-tip="① GDN 层：Qwen3_5GatedDeltaNet&#10;causal_conv1d(k=4) · gate A_log/dt&#10;chunk 规则 + 递归回退&#10;来源：modeling_qwen3_5.py:490-650">
+      <rect x="190" y="140" width="200" height="130" rx="12"/>
+      <text class="t" x="290" y="170" text-anchor="middle">① GDN 层</text>
+      <text class="s" x="290" y="194" text-anchor="middle">Qwen3_5GatedDeltaNet</text>
+      <text class="s" x="290" y="218" text-anchor="middle">causal_conv1d(k=4) · gate: A_log/dt</text>
+      <text class="s" x="290" y="240" text-anchor="middle">chunk 规则 + 递归回退</text>
+    </g>
+    <g class="node dim" data-tip="② GDN 层：同上&#10;递归状态 state_size=128&#10;">
+      <rect x="420" y="140" width="200" height="130" rx="12"/>
+      <text class="t" x="520" y="170" text-anchor="middle">② GDN 层</text>
+      <text class="s" x="520" y="194" text-anchor="middle">同上</text>
+      <text class="s" x="520" y="218" text-anchor="middle">递归状态 state_size=128</text>
+      <text class="s" x="520" y="240" text-anchor="middle">2.4T V 头数 128（27B 为 48）</text>
+    </g>
+    <g class="node dim" data-tip="③ GDN 层：同上&#10;输出门控 swish(attn_output_gate)&#10;来源：modular_qwen3_5.py:208-340">
+      <rect x="650" y="140" width="200" height="130" rx="12"/>
+      <text class="t" x="750" y="170" text-anchor="middle">③ GDN 层</text>
+      <text class="s" x="750" y="194" text-anchor="middle">同上</text>
+      <text class="s" x="750" y="218" text-anchor="middle">输出门控 swish</text>
+      <text class="s" x="750" y="240" text-anchor="middle">(attn_output_gate)</text>
+    </g>
+    <g class="node core" data-tip="④ GA 层：Qwen3_5Attention&#10;27B：GQA 24Q/4KV · head_dim256&#10;2.4T：GQA 64Q/4KV · head_dim256&#10;RoPE dim64 · repeat_kv&#10;来源：modeling_qwen3_5.py:736">
+      <rect x="880" y="140" width="200" height="130" rx="12"/>
+      <text class="t" x="980" y="170" text-anchor="middle">④ GA 层</text>
+      <text class="s" x="980" y="194" text-anchor="middle">Qwen3_5Attention</text>
+      <text class="s" x="980" y="218" text-anchor="middle">GQA 24Q/4KV · head_dim256</text>
+      <text class="s" x="980" y="240" text-anchor="middle">RoPE dim64 · repeat_kv</text>
+    </g>
+
+    <g class="node" data-tip="RMSNorm → FFN&#10;27B：SwiGLU inter 17408&#10;2.4T：MoE 路由（512 专家）&#10;residual add&#10;">
+      <rect x="190" y="320" width="200" height="80" rx="12"/>
+      <text class="t" x="290" y="348" text-anchor="middle">RMSNorm → FFN</text>
+      <text class="m" x="290" y="370" text-anchor="middle">inter 17408</text>
+      <text class="s" x="290" y="388" text-anchor="middle">residual add</text>
+    </g>
+    <g class="node">
+      <rect x="420" y="320" width="200" height="80" rx="12"/>
+      <text class="t" x="520" y="348" text-anchor="middle">RMSNorm → FFN</text>
+      <text class="m" x="520" y="370" text-anchor="middle">inter 17408</text>
+      <text class="s" x="520" y="388" text-anchor="middle">residual add</text>
+    </g>
+    <g class="node">
+      <rect x="650" y="320" width="200" height="80" rx="12"/>
+      <text class="t" x="750" y="348" text-anchor="middle">RMSNorm → FFN</text>
+      <text class="m" x="750" y="370" text-anchor="middle">inter 17408</text>
+      <text class="s" x="750" y="388" text-anchor="middle">residual add</text>
+    </g>
+    <g class="node">
+      <rect x="880" y="320" width="200" height="80" rx="12"/>
+      <text class="t" x="980" y="348" text-anchor="middle">RMSNorm → FFN</text>
+      <text class="m" x="980" y="370" text-anchor="middle">inter 17408</text>
+      <text class="s" x="980" y="388" text-anchor="middle">residual add</text>
+    </g>
+
+    <g class="node core" data-tip="输出 y → 下一组（16 组重复；2.4T 为 23 组）&#10;最终 RMSNorm → LM Head(248320)&#10;">
+      <rect x="190" y="440" width="890" height="60" rx="12"/>
+      <text class="t" x="635" y="476" text-anchor="middle">输出 y → 下一组（16 组重复）；最终 RMSNorm → LM Head(248320)</text>
+    </g>
+
+    <path class="edge" d="M140,275 L190,205"/>
+    <path class="edge" d="M390,205 L420,205"/>
+    <path class="edge" d="M620,205 L650,205"/>
+    <path class="edge" d="M850,205 L880,205"/>
+    <path class="edge" d="M290,270 L290,320"/>
+    <path class="edge" d="M520,270 L520,320"/>
+    <path class="edge" d="M750,270 L750,320"/>
+    <path class="edge" d="M980,270 L980,320"/>
+    <path class="edge" d="M390,360 L420,360"/>
+    <path class="edge" d="M620,360 L650,360"/>
+    <path class="edge" d="M850,360 L880,360"/>
+    <path class="edge" d="M290,400 L290,440"/>
+    <path class="edge" d="M520,400 L520,440"/>
+    <path class="edge" d="M750,400 L750,440"/>
+    <path class="edge" d="M980,400 L980,440"/>
+  </svg>
+  </div>
+  <div class="formula">Qwen3_5DecoderLayer.forward（modular_qwen3_5.py:370-410）:
+  residual = hidden_states
+  hidden_states = input_layernorm(hidden_states)
+  if block_type == "linear_attention":        # 每 4 层中前 3 层
+      hidden_states = linear_attn(...)         # Qwen3_5GatedDeltaNet
+  elif block_type == "full_attention":        # 每 4 层第 4 层
+      hidden_states, _ = self_attn(...)         # Qwen3_5Attention（GQA + RoPE64）
+  hidden_states = residual + hidden_states    # ⊕1
+  residual = hidden_states
+  hidden_states = post_attention_layernorm(hidden_states)
+  hidden_states = mlp(hidden_states)          # 27B: Dense SwiGLU；2.4T: MoE 路由
+  hidden_states = residual + hidden_states    # ⊕2
+  return hidden_states</div>
+  <p class="tip">注意：源码层循环<b>不</b>自己判 <code>(i+1)%4==0</code>——层类型是 config 里预生成好的 <code>layer_types</code> 列表，由 <code>configuration_qwen3_5.py</code> 的 <code>__post_init__</code> 按 <code>full_attention_interval=4</code> 展开（<span class="num">modular_qwen3_5.py:138</span>）。</p>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：Gated DeltaNet · Flexible Thinking Control · TokenSpeed / FP8</h2>
+  <div class="cards">
+
+    <div class="card">
+      <h3>① Gated DeltaNet（线性注意力，递归状态）</h3>
+      <p><code>Qwen3_5GatedDeltaNet</code>（<span class="num">modeling_qwen3_5.py:490</span>）是 Qwen3.5/3.6/3.8 共享的线性注意力单元：query/key/value 投影到 16（QK）/ 48（V，27B）或 16 / 128（V，2.4T）个头、head_dim 128；先过 causal conv1d（kernel 4）做局部归纳，再走 chunk 化门控 delta rule（<span class="num">torch_chunk_gated_delta_rule:287</span>），跨块时递归回退（<span class="num">torch_recurrent_gated_delta_rule:424</span>）。</p>
+      <div class="formula">x → in_proj → (q, k, v, a_log, dt_bias, g, ...)
+q,k,v = rotary_embed(q,k,v)              # 位置注入
+v = causal_conv1d(v)                     # 局部归纳，kernel=4
+h_t = A·h_{t-1} + (v_t·sigmoid(g_t))·(σ(q_t)k_tᵀ)   # 递归更新
+y_t = h_t · σ(q_t)                       # 线性注意力输出
+y = out_norm(y) → out_proj</div>
+      <div class="meta">设计意图：3/4 的层用递归状态把注意力复杂度从 O(n²) 降到接近 O(n)——262K 原生上下文与长程 agent 任务吞吐的关键。</div>
+    </div>
+
+    <div class="card">
+      <h3>② 输出门控（attn_output_gate = swish）</h3>
+      <p>config 中 <code>attn_output_gate=true</code>、<code>output_gate_type="swish"</code>：注意力子层输出再经可学习门控与 swish 激活调制（<span class="num">modular_qwen3_5.py:208-340</span>）。Qwen3.5 起引入的稳定化手段，3.8 沿用同一配置。</p>
+      <div class="formula">attn_out = gate_proj(x)          # 可学习门控
+y = swish(attn_gate) ⊙ attn_out
+# swish 门控线性层稳定深层 GDN 训练
+# 27B 与 2.4T 配置一致</div>
+      <div class="meta">稳定化：避免 GDN 递归状态在深堆叠中层间分布漂移。</div>
+    </div>
+
+    <div class="card mm">
+      <h3>③ Flexible Thinking Control（本代主题）</h3>
+      <p>3.8 把 3.6 的「思考块保留」开关升级为完整推理行为控制面：思考默认开、可按请求关；<code>reasoning_effort</code> 三档调推理深度；<code>preserve_thinking</code> 默认保留全部历史思考块（可显式关）。</p>
+      <div class="formula mm"># enable_thinking：默认 True（先 think 再答）
+#   chat_template_kwargs={"enable_thinking": False} → Instruct 直答
+# reasoning_effort：xhigh(默认) / medium / low
+# preserve_thinking：默认 True（保留全部历史思考块）
+#   False → 只保留最新用户消息的思考块（退回 3.6 默认口径）
+# 例外：2.4T-A95B 强制思考，不可关闭</div>
+      <div class="meta">官方原文（3.8-27B README）：「Thinking mode is on by default and can be disabled per request…preserve_thinking is enabled by default for all workloads.」官方还提示：多轮 agent 任务里调低 reasoning effort 不一定省总时。</div>
+    </div>
+
+    <div class="card">
+      <h3>④ TokenSpeed 与官方 FP8（部署生态）</h3>
+      <p>官方 README 首次将 <b>TokenSpeed</b> 与 SGLang、vLLM 并列推荐为生产级 serving 引擎；<b>Qwen3.8-27B-FP8</b>（2026-08-13）是 Qwen 开放主系列首个官方量化发布：fine-grained fp8、block size 128、性能与原版「nearly identical」、权重约 29 GB，面向 RTX50 / Hopper。</p>
+      <div class="formula"># FP8：base_model = Qwen/Qwen3.8-27B
+#   quantization = fine-grained fp8, block 128
+#   体积 ≈ 29 GB（NGC 校验页 28.77 GB）
+# TokenSpeed Recipe：lightseek.org/tokenspeed
+#   /recipes/models#qwen3-8</div>
+      <div class="meta">3.5 / 3.6 均无官方量化发布——部署生态是本代新增量。</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================== 5 注意力机制 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：GDN 与 GA 双路配置</h2>
+  <h3>5.1 两种 token mixer 对照</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>单元</th><th>Gated DeltaNet（线性层，3/4）</th><th>Gated Attention（全注意力，1/4）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">源码类</td><td>Qwen3_5GatedDeltaNet<span style="display:block;color:var(--sub)">modeling_qwen3_5.py:490</span></td><td>Qwen3_5Attention<span style="display:block;color:var(--sub)">modeling_qwen3_5.py:736</span></td></tr>
+      <tr><td class="k">27B 头配置</td><td>V 48 / QK 16，head_dim 128</td><td>Q 24 / KV 4（GQA），head_dim 256</td></tr>
+      <tr><td class="k">2.4T-A95B 头配置</td><td>V 128 / QK 16，head_dim 128</td><td>Q 64 / KV 4（GQA），head_dim 256</td></tr>
+      <tr><td class="k">位置编码</td><td>内置门控 delta 状态 + 部分 RoPE</td><td>RoPE dim = head_dim × 0.25 = 64</td></tr>
+      <tr><td class="k">KV cache</td><td>递归状态（按层持有）</td><td>标准 KV cache（GQA 4 KV 头）</td></tr>
+      <tr class="hl"><td class="k">作用</td><td>长上下文 O(n) 吞吐</td><td>精确召回 / 精确定位</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="formula">GA 层（每 4 层第 4 层）:
+  q = q_proj(x)          # 27B: 5120 → 24×256 = 6144；2.4T: 8192 → 64×256 = 16384
+  k = k_proj(x)          # 27B: 5120 → 4×256  = 1024；2.4T: 8192 → 4×256 = 1024
+  v = v_proj(x)          # 同上
+  q,k = apply_rotary_pos_emb(q,k, partial=64)   # 只转前 64 维（partial 0.25）
+  k,v = repeat_kv(k,v)                            # 4 KV 头 → 27B: 24 Q 头；2.4T: 64 Q 头
+  y = softmax(q·kᵀ / √d_k + mask) · v
+# RoPE 维度 64 而非 256：partial_rotary_factor=0.25
+# 27B 其余维度走 M-RoPE 交错多路位置（mrope_section [11,11,10]）</div>
+</section>
+
+<!-- ==================== 6 多模态 ==================== -->
+<section id="mm">
+  <h2 class="mm"><span class="secno">6</span>多模态：视觉塔与 early fusion</h2>
+  <h3>6.1 视觉塔 config（27B，与 3.6-27B 同构）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="c1"><col class="cx"></colgroup>
+    <thead><tr><th>字段（vision_config）</th><th>取值</th><th>字段</th><th>取值</th></tr></thead>
+    <tbody>
+      <tr><td class="k">depth（ViT 层数）</td><td>27</td><td class="k">hidden_size</td><td>1152</td></tr>
+      <tr><td class="k">intermediate_size</td><td>4304</td><td class="k">num_heads</td><td>16</td></tr>
+      <tr><td class="k">patch_size</td><td>16</td><td class="k">temporal_patch_size</td><td>2</td></tr>
+      <tr><td class="k">spatial_merge_size</td><td>2</td><td class="k">out_hidden_size</td><td>5120（= 文本 hidden）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip mm"><b>2.4T-A95B 无视觉塔</b>（config 无 vision_config），官方 README 明示「Multimodal inputs are not supported」；多模态能力在开放权重侧只由 27B 承担，云版 Qwen3.8-Max 才同时开放 vision + non-thinking。</p>
+
+  <h3>6.2 token 流</h3>
+  <div class="formula mm">图像/视频 → Patch Embed（16×16×3 → 1152）→ ViT×27（hidden 1152）
+→ 空间合并 merge_size=2（1152 → 2304）→ 线性投影（2304 → 文本 hidden 5120）
+→ 按 image_token_id=248056 占位切分 soft tokens
+→ masked_scatter 填入文本序列 → 同一组 64 个 DecoderLayer</div>
+  <p class="note">长视频提示（官方 Best Practices）：默认 <span class="num mm">video_preprocessor_config</span> 偏保守，小时级视频建议把 <span class="num mm">longest_edge</span> 调到 469,762,048（约 224K video tokens）以提高帧率采样。</p>
+</section>
+
+<!-- ==================== 7 特殊 Token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">7</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="c1"><col class="cx"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">image_token_id</td><td>248056</td><td>图像特征占位（仅 27B）</td><td>config.vision_config / 顶层</td></tr>
+      <tr><td class="k">video_token_id</td><td>248057</td><td>视频特征占位（仅 27B）</td><td>同上</td></tr>
+      <tr><td class="k">vision_start_token_id</td><td>248053</td><td>视觉块开始（仅 27B）</td><td>顶层</td></tr>
+      <tr><td class="k">vision_end_token_id</td><td>248054</td><td>视觉块结束（仅 27B）</td><td>顶层</td></tr>
+      <tr><td class="k">eos / bos</td><td>248044</td><td>文本结束（兼 bos）</td><td>顶层</td></tr>
+      <tr class="hl"><td class="k">vocab_size</td><td>248320</td><td>词表（padded）</td><td>text_config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">词表 248,320 与 3.5/3.6 完全一致；248044–248057 这一段保留给 thinking 块标记与多模态占位。本代思考块格式固定为 <span class="num">&lt;think&gt;\n…\n&lt;/think&gt;\n\n</span>，先出思考再出正文。</p>
+</section>
+
+<!-- ==================== 8 演进 ==================== -->
+<section id="evo">
+  <h2><span class="secno">8</span>演进视角：Qwen3.6 → Qwen3.8</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"></colgroup>
+    <thead><tr><th>维度</th><th>Qwen3.6（基线）</th><th>Qwen3.8（本代）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">架构图纸</td><td>qwen3_5 / qwen3_5_moe，GDN+GA 3:1</td><td><b>完全一致</b>（27B config 逐字段相同；官方原文「Built on the architectural foundation of Qwen3.5」）</td></tr>
+      <tr><td class="k">发布</td><td>2026-04-22</td><td>2026-08（论文 month=August 2026；FP8 2026-08-13）</td></tr>
+      <tr><td class="k">思考模式</td><td>默认开；interleaved thinking 默认只留最新思考块</td><td><b>Flexible Thinking Control</b>：默认开可关、reasoning_effort 三档、preserve_thinking 默认全开</td></tr>
+      <tr><td class="k">历史思考块</td><td>preserve_thinking 可选开</td><td>默认开（反转默认值），可显式关</td></tr>
+      <tr><td class="k">旗舰开放模型</td><td>35B-A3B（多模态 MoE）</td><td><b>2.4T-A95B（纯文本超大 MoE，95B 激活）——首次开放 Max 级模型</b></td></tr>
+      <tr><td class="k">官方量化</td><td>无</td><td><b>首个官方 FP8</b>（fine-grained block 128，约 29 GB）</td></tr>
+      <tr><td class="k">推理引擎</td><td>transformers / vLLM / SGLang / KTransformers</td><td>新增并列推荐 <b>TokenSpeed</b></td></tr>
+      <tr class="hl"><td class="k">Agentic / 编码能力</td><td>基线</td><td>大幅跃升（见下表）</td></tr>
+      <tr><td class="k">上下文</td><td>262,144 → YaRN 约 1,010,000</td><td>262,144 → YaRN 约 1,000,000（factor 4.0）</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>8.1 3.8-27B vs 3.6-27B 官方 benchmark（逐格摘自 3.8-27B README）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col class="cx"><col class="c1"></colgroup>
+    <thead><tr><th>Benchmark</th><th>Qwen3.8-27B</th><th>Qwen3.6-27B</th><th>维度</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Terminal Bench 2.1</td><td><b>73.0</b></td><td>63.4</td><td>agentic terminal coding</td></tr>
+      <tr><td class="k">SWE-bench Pro</td><td><b>61.7</b></td><td>53.5</td><td>agentic coding</td></tr>
+      <tr><td class="k">NL2Repo-Bench</td><td><b>42.3</b></td><td>36.2</td><td>仓库级代码生成</td></tr>
+      <tr class="hl"><td class="k">DeepSWE 1.1</td><td><b>42.2</b></td><td>13.3</td><td>agentic coding（最大涨幅）</td></tr>
+      <tr><td class="k">QwenSWEBench</td><td><b>79.0</b></td><td>49.3</td><td>软件工程</td></tr>
+      <tr><td class="k">CoWorkBench</td><td><b>70.7</b></td><td>61.0</td><td>长程办公任务</td></tr>
+      <tr><td class="k">JobBench</td><td><b>33.4</b></td><td>21.8</td><td>职业任务</td></tr>
+      <tr><td class="k">IFBench</td><td><b>79.5</b></td><td>69.1</td><td>指令遵循</td></tr>
+      <tr><td class="k">GPQA Diamond</td><td>89.2</td><td>87.8</td><td>科学推理</td></tr>
+      <tr><td class="k">HLE</td><td>30.8</td><td>24.0</td><td>多学科推理</td></tr>
+      <tr><td class="k">LiveCodeBench v6</td><td><b>90.3</b></td><td>83.9</td><td>竞赛编码</td></tr>
+      <tr><td class="k">OSWorld-Verified</td><td><b>84.3</b></td><td>63.9</td><td>computer use（VL）</td></tr>
+      <tr><td class="k">WebArena-Verified</td><td><b>64.8</b></td><td>48.8</td><td>browser use（VL）</td></tr>
+      <tr><td class="k">AndroidWorld</td><td><b>81.9</b></td><td>70.3</td><td>mobile use（VL）</td></tr>
+      <tr><td class="k">RecreationBench</td><td><b>47.1</b></td><td>29.8</td><td>应用复刻（VL）</td></tr>
+      <tr><td class="k">SWE-MM</td><td><b>38.6</b></td><td>25.7</td><td>多模态软件工程</td></tr>
+      <tr><td class="k">Vision2Web</td><td><b>62.9</b></td><td>45.0</td><td>视觉网页开发</td></tr>
+      <tr><td class="k">MathVision（With CI）</td><td><b>94.6</b></td><td>85.1（仅 Without CI 口径）</td><td>视觉数学</td></tr>
+      <tr><td class="k">OmniDocBench 1.5</td><td>91.1</td><td>89.4</td><td>文档智能</td></tr>
+      <tr><td class="k">RealWorldQA</td><td>85.9</td><td>84.1</td><td>真实世界感知</td></tr>
+      <tr><td class="k">ERQA</td><td>65.5</td><td>62.5</td><td>具身智能</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">2.4T-A95B（开放权重纯文本版）的官方 benchmark：Terminal Bench 2.1 <b>86.6</b>、SWE-bench Pro <b>67.7</b>、DeepSWE 1.1 <b>56.6</b>、QwenSWEBench <b>80.7</b>（2.4T README，对比列含 Opus4.8 / Fable5 / GPT5.6Sol / Qwen3.7-Max）。</p>
+  <p class="note">Qwen3.8 的主线：<b>架构图纸零变化，换代在行为与能力</b>——Flexible Thinking Control 把「要不要思考、想多深、留不留思考」全部交给调用方按请求控制；后训练让 agentic 与编码能力跨代跃升（DeepSWE 1.1 从 13.3 到 42.2 是最大涨幅）；部署侧补上官方 FP8 与 TokenSpeed；2.4T-A95B 首次把 Max 级纯文本模型开放权重。</p>
+</section>
+
+<!-- ==================== 9 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">9</span>来源</h2>
+  <ol class="src">
+    <li>Qwen/Qwen3.8-27B model card（Hugging Face，config.json + README 逐字段/逐格核对）<span class="u">https://huggingface.co/Qwen/Qwen3.8-27B</span></li>
+    <li>Qwen/Qwen3.8-2.4T-A95B model card（Hugging Face，config.json + README）<span class="u">https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B</span></li>
+    <li>Qwen/Qwen3.8-27B-FP8 model card（Hugging Face，fine-grained fp8 block 128 口径）<span class="u">https://huggingface.co/Qwen/Qwen3.8-27B-FP8</span></li>
+    <li>Qwen 官方组织页<span class="u">https://huggingface.co/Qwen</span></li>
+    <li>Qwen3.8 官方博客（论文 cite：Qwen3.8-Max: A New Bar for Coding and Cowork，month=August 2026）<span class="u">https://qwen.ai/blog?id=qwen3.8</span></li>
+    <li>SGLang Qwen3.8 Cookbook<span class="u">https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8</span></li>
+    <li>vLLM Qwen3.8 Recipe<span class="u">https://recipes.vllm.ai/Qwen/Qwen3.8-27B</span></li>
+    <li>TokenSpeed Qwen3.8 Recipe<span class="u">https://lightseek.org/tokenspeed/recipes/models#qwen3-8</span></li>
+    <li>NVIDIA NGC FP8 校验页（权重 28.77 GB）<span class="u">https://catalog.ngc.nvidia.com/orgs/nim/qwen/models/qwen3.8-27b/hf-017b9c7-fp8-nim-checksum/version-history</span></li>
+    <li>已核实对比文件（27B 三代一致，组织者整理）<span class="u">E:\transformers\bayon-note\Qwen\Qwen-27B架构对比-3.5-3.6-3.8.md</span></li>
+    <li>transformers 源码 configuration_qwen3_5.py / modular_qwen3_5.py / modeling_qwen3_5.py（本地 E:\transformers，行号同 3.6 篇）<span class="u">Qwen3_5TextConfig 默认值；DecoderLayer 与层类型分支 modular_qwen3_5.py:357-410；GatedDeltaNet modeling_qwen3_5.py:490；Attention modeling_qwen3_5.py:736</span></li>
+  </ol>
+  <p class="note">标注约定：[config]=官方 model card 的 config.json 字段；[README]=官方 README 原文口径。<b>待确认清单</b>：Qwen3.8-6B-Flash 的仓库位置与全部规格（hf-mirror 与 ModelScope 暂返回 401/404，禁止编造）；2.4T-A95B 的 BF16 权重体积（官方 card 未标注）。核验日期：2026-10-26。</p>
+</section>
+
+<footer>Qwen3.8 家族架构详解 · 数据来源：官方 model card（hf-mirror 拉取）+ transformers 源码（E:\transformers）+ 已核实 27B 对比文件 · 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el, x, y){
+    TIP.innerHTML = "";
+    var txt = el.getAttribute("data-tip") || "";
+    txt.split("\n").forEach(function(line, i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      var parts = line.split(/((?:modeling|configuration|cache)_?[a-z0-9_.]*\.py:[0-9\-]+)/);
+      parts.forEach(function(p){
+        if(/\.py:[0-9]/.test(p)){
+          var b = document.createElement("b"); b.textContent = p; TIP.appendChild(b);
+        } else if(p){
+          TIP.appendChild(document.createTextNode(p));
+        }
+      });
+    });
+    TIP.style.display = "block";
+    var w = TIP.offsetWidth, h = TIP.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    TIP.style.left = Math.min(Math.max(x + 14, 8), vw - w - 8) + "px";
+    TIP.style.top = (y + 16 + h > vh ? y - h - 10 : y + 16) + "px";
+  }
+  function hideTip(){ if(!pinned){ TIP.style.display = "none"; } }
+  var els = document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){
+    (function(el){
+      el.addEventListener("pointerenter", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+      el.addEventListener("pointermove", function(e){ if(pinned===el) return; showTip(el, e.clientX, e.clientY); });
+      el.addEventListener("pointerleave", function(){ if(pinned===el) return; hideTip(); });
+      el.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(pinned===el){ pinned=null; hideTip(); }
+        else { pinned=el; showTip(el, e.clientX, e.clientY); }
+      });
+    })(els[i]);
+  }
+  document.addEventListener("click", function(){ if(pinned){ pinned=null; hideTip(); } });
+})();
+
+// ECharts：3.8-27B vs 3.6-27B benchmark 对比（节选，官方 README 逐格）
+(function(){
+  var el = document.getElementById("echart-compare");
+  if(!el || typeof echarts === "undefined") return;
+  var chart = echarts.init(el);
+  var metrics = ["DeepSWE 1.1", "QwenSWEBench", "OSWorld", "Vision2Web", "AndroidWorld", "LiveCodeBench v6", "Terminal Bench 2.1", "SWE-bench Pro", "JobBench", "CoWorkBench"];
+  var data38 = [42.2, 79.0, 84.3, 62.9, 81.9, 90.3, 73.0, 61.7, 33.4, 70.7];
+  var data36 = [13.3, 49.3, 63.9, 45.0, 70.3, 83.9, 63.4, 53.5, 21.8, 61.0];
+  chart.setOption({
+    title: {text: "Qwen3.8-27B vs Qwen3.6-27B benchmark（节选，越高越好）", left: "center", textStyle:{fontSize:14}},
+    tooltip: {trigger: "axis", axisPointer: {type: "shadow"}},
+    legend: {bottom: 0, data: ["Qwen3.8-27B", "Qwen3.6-27B"]},
+    grid: {left: 50, right: 20, top: 50, bottom: 70},
+    xAxis: {type: "category", data: metrics, axisLabel: {rotate: 32, fontSize: 10}},
+    yAxis: {type: "value", name: "分数", max: 100},
+    series: [
+      {name: "Qwen3.8-27B", type: "bar", data: data38, itemStyle: {color: "#1d4ed8"}},
+      {name: "Qwen3.6-27B", type: "bar", data: data36, itemStyle: {color: "#c9c4ba"}}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+
+</body>
+</html>
