@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moonshot-32B-A32B 架构详解 — 官方 repo 已下架（404）· MoE A32B 规格待确认</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23b45309'/%3E%3Ctext x='16' y='21' font-size='11' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EA32B%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>if(!window.echarts){document.write('<script src="../_tools/echarts.min.js"><\/script>');}</script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --warn:#b45309; --warn-soft:#fdf0e0; --warn-line:#e6c79a;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--warn);}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--warn-soft); color:var(--warn);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.warn{background:var(--warn-soft); border-color:var(--warn-line); color:var(--warn);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--warn); background:var(--warn-soft); border:1px solid var(--warn-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .alert{background:var(--warn-soft); border:1px solid var(--warn-line); color:var(--warn); padding:12px 16px; border-radius:10px; font-size:.9rem; margin:12px 0;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:860px; width:100%; height:auto;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.warn rect{fill:var(--warn-soft); stroke:var(--warn-line);}
+  .dg .node.text rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  table.cmp{width:100%; min-width:680px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.82rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--warn-soft); color:var(--warn); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#fdf8f1;}
+  table.cmp td.k{font-weight:600;}
+  .tbd{color:var(--warn); font-weight:600;}
+  #chart1{width:100%; height:340px; margin-top:8px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#b45309"/><text x="12" y="15" font-size="8" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">A32B</text></svg>Moonshot-32B-A32B</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">演进视角</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Moonshot-32B-A32B 架构详解</h1>
+  <div class="badges">
+    <span class="badge warn">官方 repo MoonshotAI/Moonshot-32B-A32B 已 404（2026-10-31 核验）</span>
+    <span class="badge warn">hf-mirror 19 个仓库无此模型 · ModelScope 404 · Wayback 不可达</span>
+    <span class="badge">「A32B」= 每 token 激活约 32B · 总参数 / 专家配置待确认</span>
+  </div>
+  <div class="alert"><b>重要说明：</b>本页对应任务书指定的 <span class="num">MoonshotAI/Moonshot-32B-A32B</span>（称 2025-03 开放权重、与 Kimi K1.5 同代技术）。经 hf-mirror 与 ModelScope 多通道核验，该仓库返回 404，moonshotai 组织当前公开的 19 个仓库中没有该模型。<b>无法取得官方 config.json</b>，本页只记录核验过程、可旁证背景与「待确认」清单。</div>
+</header>
+
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：核验记录与「待确认」config 表</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:30%"><col style="width:35%"><col style="width:35%"></colgroup>
+    <thead><tr><th>字段</th><th>任务书提示</th><th>本页结论</th></tr></thead>
+    <tbody>
+      <tr><td class="k">形态</td><td>MoE（A32B）</td><td class="tbd">待确认</td></tr>
+      <tr><td class="k">总参数 / 激活参数</td><td>激活约 32B（A32B）</td><td class="tbd">待确认（总参数量未知）</td></tr>
+      <tr><td class="k">num_experts（路由专家）</td><td>—</td><td class="tbd">待确认</td></tr>
+      <tr><td class="k">每 token 激活专家数（top-k）</td><td>—</td><td class="tbd">待确认</td></tr>
+      <tr><td class="k">共享专家数</td><td>—</td><td class="tbd">待确认</td></tr>
+      <tr><td class="k">MoE 层间隔</td><td>—</td><td class="tbd">待确认</td></tr>
+      <tr><td class="k">注意力类型</td><td>—</td><td class="tbd">待确认（GQA / MLA?）</td></tr>
+      <tr><td class="k">hidden / 层数 / vocab / max / rope_theta</td><td>—</td><td class="tbd">待确认</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>1.1 已执行的核验通道与结果</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:24%"><col style="width:40%"><col style="width:36%"></colgroup>
+    <thead><tr><th>通道</th><th>查询</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td class="k">hf-mirror 仓库直连</td><td>moonshotai/Moonshot-32B-A32B/.../config.json</td><td>404</td></tr>
+      <tr><td class="k">hf-mirror 变体</td><td>-Instruct / -Base 后缀</td><td>均 404</td></tr>
+      <tr><td class="k">ModelScope</td><td>moonshotai/Moonshot-32B-A32B repo API</td><td>404</td></tr>
+      <tr><td class="k">hf-mirror 组织列表</td><td>api/models?author=moonshotai</td><td>19 个仓库，无此模型</td></tr>
+      <tr><td class="k">hf-mirror 全文搜索</td><td>search=Moonshot-32B / Moonshot-32B-A32B</td><td>0 命中</td></tr>
+      <tr><td class="k">Wayback Machine</td><td>web.archive.org 快照</td><td>本网络不可达（超时）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div id="chart1"></div>
+  <p class="note">图：MoE 模型的「总参数 vs 每 token 激活」定位（单位 B；数据来自各官方 config / 论文）。Moonshot-32B-A32B 因 repo 404 无数据点；图中为组织内真实存在的 MoE 模型。</p>
+</section>
+
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览（MoE 通用骨架，非该模型实测）</h2>
+  <div class="diagram-shell" aria-label="Moonshot-32B-A32B 通用 MoE 骨架示意">
+  <svg viewBox="0 0 1200 420" class="dg" role="img">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+    <g class="node text"><rect x="20" y="180" width="110" height="60" rx="12"/><text class="t" x="75" y="206" text-anchor="middle">文本 token</text><text class="s" x="75" y="224" text-anchor="middle">input_ids</text></g>
+    <g class="node warn"><rect x="170" y="180" width="120" height="60" rx="12"/><text class="t" x="230" y="206" text-anchor="middle">词嵌入</text><text class="s" x="230" y="224" text-anchor="middle">参数待确认</text></g>
+    <g class="node warn"><rect x="330" y="150" width="330" height="120" rx="12"/><text class="t" x="495" y="182" text-anchor="middle">N × DecoderLayer（MoE）</text><text class="s" x="495" y="206" text-anchor="middle">注意力子层：类型待确认（GQA / MLA?）</text><text class="s" x="495" y="228" text-anchor="middle">FFN 子层：路由 MoE</text><text class="s" x="495" y="250" text-anchor="middle">专家数 / top-k / 共享专家待确认</text></g>
+    <g class="node warn"><rect x="700" y="180" width="110" height="60" rx="12"/><text class="t" x="755" y="206" text-anchor="middle">最终</text><text class="t" x="755" y="224" text-anchor="middle">RMSNorm</text></g>
+    <g class="node warn"><rect x="850" y="180" width="110" height="60" rx="12"/><text class="t" x="905" y="206" text-anchor="middle">LM Head</text><text class="s" x="905" y="224" text-anchor="middle">→ 词表</text></g>
+    <g class="node"><rect x="990" y="185" width="110" height="50" rx="12" fill="#e2eafb" stroke="#c0d0f4"/><text class="t" x="1045" y="215" text-anchor="middle" fill="#1e40af">下一 token</text></g>
+    <path class="edge" d="M130,210 L170,210"/><path class="edge" d="M290,210 L330,210"/><path class="edge" d="M660,210 L700,210"/><path class="edge" d="M810,210 L850,210"/><path class="edge" d="M960,210 L990,210"/>
+  </svg>
+  </div>
+  <p class="note">在无 config 的前提下，上图只画 MoE Transformer 通用骨架用于占位；所有超参均为待确认。</p>
+</section>
+
+<section id="layer">
+  <h2><span class="secno">3</span>解码层（待确认）</h2>
+  <p class="note">因无官方实现代码或 config，无法给出该模型真实的 MoE 路由、共享专家、MoE 层间隔细节。同系列真实开源模型（Moonlight-16B-A3B、Kimi-K2）为 DeepSeek-V3 式 MLA-MoE 结构，不能直接套用到 Moonshot-32B-A32B。</p>
+</section>
+
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制（待确认）</h2>
+  <p class="note">路由打分方式、top-k、共享专家、MoE 层间隔、归一化与激活函数，均无官方字段佐证。统一标待确认。</p>
+</section>
+
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制（待确认）</h2>
+  <p class="note">注意力类型（GQA / MLA）、Q/KV 头数、head_dim 均无官方字段佐证。统一标待确认。</p>
+</section>
+
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表（待确认）</h2>
+  <p class="note">vocab_size、bos/eos/pad id 均无官方字段。统一标待确认。</p>
+</section>
+
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：与真实早期开源模型对照</h2>
+  <p class="note">任务书称该模型「2025-03 开放权重、与 Kimi K1.5 同代技术」。核验显示：Kimi k1.5（arXiv:2501.12599）本身<b>未开放权重</b>；2025 年初 Moonshot 真实开源的稀疏模型是 <b>Moonlight-16B-A3B</b>（2025-02/03，Muon 配套）。其官方 config 实测值（留档 <span class="num">_tools\_cfgpull\Moonlight-16B-A3B.config.json</span>）：hidden 2048 / 27 层 / 64 路由+2 共享 top-6 / moe_inter 1408 / kv_lora 512 / vocab 163840 / max 8192 / ropeθ 50000。</p>
+  <p class="note">若任务书的「Moonshot-32B-A32B」实为对早期开源模型的误记，最接近的真实对象是 Moonlight-16B-A3B（16B 总 / 3B 激活 MoE）；而「A32B」语义上与后续 Kimi-K2（1T 总 / 32B 激活）一致。本页不做替换，仅作对照。系列内其他官方模型见 Kimi-K2-0905 笔记演进章。</p>
+</section>
+
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>hf-mirror 组织仓库列表（2026-10-31 核验，19 个仓库无 Moonshot-32B-A32B）<span class="u">https://hf-mirror.com/api/models?author=moonshotai</span></li>
+    <li>hf-mirror / ModelScope 仓库直连（均 404）<span class="u">https://hf-mirror.com/moonshotai/Moonshot-32B-A32B/resolve/main/config.json ；https://modelscope.cn/api/v1/models/moonshotai/Moonshot-32B-A32B</span></li>
+    <li>Moonlight-16B-A3B 官方 config（真实早期开源模型对照）<span class="u">E:\transformers\bayon-note\Kimi\moonshot_32b_a32b\_tools\_cfgpull\Moonlight-16B-A3B.config.json</span></li>
+    <li>Moonshot 官方博客：Muon 优化器首次大规模训练实践（Moonlight 模型）<span class="u">https://platform.moonshot.cn/blog/posts/moonlight</span></li>
+    <li>Kimi k1.5 技术报告（arXiv:2501.12599，未开放权重）<span class="u">https://arxiv.org/abs/2501.12599</span></li>
+  </ol>
+  <p class="note">勘误：任务书最初给出的候选论文号 arXiv:2508.05149 经核实为《Speech LLMs in Low-Resource Scenarios》（语音 LLM），与 Moonshot 无关，不予引用。访问与核验日期：2026-10-31。</p>
+</section>
+
+<footer>Moonshot-32B-A32B 架构详解（官方 repo 已 404）· 数据来源：hf-mirror/ModelScope 核验记录 + Moonlight 官方 config 对照 · 未复核数字一律标待确认 · 仅供技术学习与论文研究</footer>
+</div>
+
+<script>
+(function(){
+  if(!window.echarts){return;}
+  var c1=echarts.init(document.getElementById("chart1"));
+  c1.setOption({
+    animation:false,
+    title:{text:"MoE 模型：总参数 vs 每 token 激活（B）",left:"center",textStyle:{fontSize:14}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:50,right:20,top:50,bottom:50},
+    xAxis:{type:"category",data:["Moonlight-16B-A3B","Kimi-K2-Base","Kimi-K2-0905"],axisLabel:{interval:0,fontSize:11}},
+    yAxis:{type:"value",name:"十亿参数"},
+    series:[
+      {name:"总参数",type:"bar",data:[16,1040,1040],itemStyle:{color:"#b45309"}},
+      {name:"每 token 激活",type:"bar",data:[3,32,32],itemStyle:{color:"#e6c79a"}}
+    ]
+  });
+  window.addEventListener("resize",function(){c1.resize();});
+})();
+</script>
+</body>
+</html>

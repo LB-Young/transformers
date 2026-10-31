@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-V4-Flash-Base 家族架构详解 — MQA+DSA · mHC 超连接 · Hash MoE</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%230e7490'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV4%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#0e7490; --accent-ink:#155e75; --accent-soft:#e0f2f7; --accent-line:#a5d8e6;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#0e7490;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem);}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700;}
+  table.cmp tbody tr:nth-child(even){background:#f2fafc;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp col.c1{width:34%;} table.cmp col.c2{width:38%;} table.cmp col.c3{width:28%;}
+  table.cmp tr.hl td{background:#e6f6fa;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  #chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px;}
+  #chartBox{width:100%; height:380px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media (min-width:768px){#chartBox{height:420px;}}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#0e7490"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">V4</text></svg>DeepSeek-V4-Flash-Base</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">Token</a>
+  <a class="link" href="#evo">演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>DeepSeek-V4-Flash-Base 家族架构详解</h1>
+  <p class="note">对应官方仓库 deepseek-ai/DeepSeek-V4-Flash-Base（model_type deepseek_v4）。完整尺寸 DeepSeek-V4 主仓官方未公开发布（404，待确认）；以下数字以本官方 config 为准。</p>
+  <div class="badges">
+    <span class="badge">DeepseekV4ForCausalLM · hidden 4096 · 43 层</span>
+    <span class="badge">MQA（kv_head=1，head_dim=512）+ DSA（topk=512）</span>
+    <span class="badge">mHC 超连接（hc_mult=4，Sinkhorn 20）</span>
+    <span class="badge">256 专家选 6 + 1 共享；前 3 层 Hash MoE</span>
+    <span class="badge">1M 上下文（1048576）· FP8 e4m3</span>
+  </div>
+  <p class="lead">本页以 <b>V4-Flash-Base 官方 config</b>（hf-mirror 逐字段核对）与 transformers 源码 <span class="num">models\deepseek_v4\</span> 为依据。它相对 V3 是一次架构重写：MQA 替代 MLA、mHC 超连接替代标准残差、Hash+Sparse 混合 MoE、注意力进一步稀疏到 top-512。</p>
+</header>
+
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：V4-Flash-Base config</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>字段</th><th>取值</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>DeepseekV4ForCausalLM / deepseek_v4</td><td>config 顶层</td></tr>
+      <tr><td class="k">hidden / layers</td><td>4096 / 43</td><td>config</td></tr>
+      <tr><td class="k">attn heads / kv heads / head_dim</td><td>64 / 1（MQA）/ 512</td><td>config</td></tr>
+      <tr><td class="k">q_lora / o_lora / qk_rope</td><td>1024 / 1024 / 64</td><td>config</td></tr>
+      <tr class="hl"><td class="k">index_n_heads / index_head_dim / index_topk</td><td>64 / 128 / 512</td><td>DSA 索引器</td></tr>
+      <tr><td class="k">sliding_window</td><td>128</td><td>config</td></tr>
+      <tr class="hl"><td class="k">experts / per_tok / shared / hash_layers</td><td>256 / 6 / 1 / 3</td><td>config</td></tr>
+      <tr class="hl"><td class="k">hc_mult / hc_sinkhorn_iters</td><td>4 / 20</td><td>mHC</td></tr>
+      <tr><td class="k">scoring / topk_method / routed_scaling</td><td>sqrtsoftplus / noaux_tc / 1.5</td><td>config</td></tr>
+      <tr><td class="k">max_position / rope</td><td>1048576（1M）/ yarn f=16</td><td>config</td></tr>
+      <tr><td class="k">vocab / tie / nextn</td><td>129280 / false / 1</td><td>config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div id="chart">
+    <h3 style="margin-top:0">图：三代稀疏注意力每查询保留 token 数对比</h3>
+    <div id="chartBox"></div>
+    <p class="note">V3 全注意力 attend 全部历史；V3.2 DSA 选 2048；V4 进一步压到 512 叠 128 滑动窗。</p>
+  </div>
+</section>
+
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">词嵌入 → 43×DecoderLayer（mHC 包裹 MQA+DSA 注意力 与 MoE；前 3 层 Hash MoE，后 40 层 Sparse MoE 256选6+共享1）→ RMSNorm → LM Head；MTP ×1。</p>
+</section>
+
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖</h2>
+  <p class="note"><span class="num">DeepseekV4DecoderLayer</span>（<span class="num">modeling_deepseek_v4.py:1137-1180</span>）：与 V3 前置 RMSNorm 残差不同，V4 用 <b>mHC 超连接（873-960）</b>门控融合两个子层。FFN 前 3 层走 HashRouter（1086），其余走 SparseMoeBlock（1117）。</p>
+</section>
+
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制</h2>
+  <h3>4.1 MQA 单 KV 头 + DSA + 滑动窗</h3>
+  <div class="formula">64 Q 头共享 1 个 KV 头（MQA, head_dim=512）
+→ Indexer 为每查询选 top-512 token + sliding_window=128
+→ Q/O 各做 1024 维低秩投影</div>
+  <h3>4.2 mHC 超连接</h3>
+  <p>可学习逐通道门（hc_mult=4 倍扩展 + Sinkhorn 20 次迭代归一化）替代标准残差相加，层间信息流按通道自适应加权。</p>
+  <h3>4.3 Hash MoE + Sparse MoE 混合</h3>
+  <p>前 3 层 HashRouter 按哈希定专家（免可学习路由），后 40 层可学习路由（sqrtsoftplus 打分、noaux_tc、top-6、scaling=1.5、o_groups=8）。</p>
+  <h3>4.4 1M 上下文压缩</h3>
+  <p>compress_ratios 逐层 HCA/CSA 压缩比（交替 4/128）+ YaRN factor=16 + compress_rope_theta=160000，外推到 1,048,576。</p>
+</section>
+
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制</h2>
+  <p class="note">MQA（kv_head=1，head_dim=512）+ DSA index_topk=512 + 滑窗 128；qk_rope 64 维；上下文 1,048,576。</p>
+</section>
+
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表</h2>
+  <p class="note">bos/eos=0/1，vocab_size=129280（同 V3/R1）。</p>
+</section>
+
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：V3 → V3.2 → V4</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>维度</th><th>V3 / V3.2</th><th>V4-Flash-Base</th></tr></thead>
+    <tbody>
+      <tr><td class="k">hidden / 层数</td><td>7168 / 61</td><td>4096 / 43（小尺寸预览）</td></tr>
+      <tr><td class="k">注意力</td><td>MLA / MLA+DSA(2048)</td><td>MQA + DSA(512) + 滑窗128</td></tr>
+      <tr><td class="k">残差</td><td>标准 RMSNorm 残差</td><td>mHC 超连接</td></tr>
+      <tr><td class="k">MoE</td><td>256选8+共享1</td><td>256选6 + 前3层 Hash MoE</td></tr>
+      <tr><td class="k">上下文</td><td>163840</td><td>1,048,576（1M）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">待确认：完整尺寸 DeepSeek-V4 主仓官方未发布（404），本目录仅代表 V4-Flash-Base 预览版。</p>
+</section>
+
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config（hf-mirror，2026-10-31 核对）
+      <span class="u">deepseek-ai/DeepSeek-V4-Flash-Base.config.json（4096/43层/64头/kv1/head_dim512/q_lora1024/index_topk512/sw128/256选6/hash3/hc_mult4/1M/fp8 e4m3）</span></li>
+    <li>transformers 源码 models\deepseek_v4\
+      <span class="u">modeling_deepseek_v4.py：RMSNorm45 / GroupedLinear300 / HCA359 / CSA586 / Indexer459 / Attention752 / HyperConnection873 / SparseMoeBlock1117 / HashRouter1086 / DecoderLayer1137 / ForCausalLM1441</span></li>
+    <li>官方模型仓库
+      <span class="u">https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-Base</span></li>
+  </ol>
+</section>
+
+<footer>DeepSeek-V4-Flash-Base 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码 · 2026-10-31 核验</footer>
+</div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chartBox'));
+  chart.setOption({
+    tooltip:{trigger:'axis'},
+    grid:{left:60,right:20,top:30,bottom:40},
+    xAxis:{type:'category',data:['V3 全注意力','V3.2 DSA','V4 DSA+滑窗']},
+    yAxis:{type:'value',name:'每查询 token 数'},
+    series:[{type:'bar',data:[163840,2048,512],itemStyle:{color:'#0e7490'},label:{show:true,position:'top',fontSize:11}}]
+  });
+  window.addEventListener('resize',()=>chart.resize());
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-130B 家族架构详解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:12px 0;}
+  @media (min-width:820px){.badges{grid-template-columns:repeat(4,minmax(0,1fr));}}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.85rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:22%;}
+  table.cmp col.cx{width:19.5%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  #chart{width:100%; height:340px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); margin-top:10px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media print{nav.top{display:none;} body{background:#fff;} .diagram-shell{overflow:visible; border:none; padding:0;}}
+</style>
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+
+<nav class="top"><div class="wrap">
+  <div class="brand">GLM-130B</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">演进视角</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>GLM-130B 家族架构详解</h1>
+  <div class="badges"><span class="badge">骨干：双向 GLM（blank infilling），非 GPT 单向</span><span class="badge">70 层 · hidden 12288 · 96 头 · head_dim 128</span><span class="badge">DeepNorm Post-LN · GeGLU FFN 32768 · RoPE</span><span class="badge">上下文 2048 · icetk 词表 150000 · 无公开 HF 权重</span></div>
+  <p class="lead">本页以官方论文 arXiv:2210.02414 与官方 GitHub 为唯一依据。GLM-130B 无公开 HF 权重、transformers 无原生模块，数字逐字段来自论文 §2 与附录 Table 11。</p>
+</header>
+<section id="family"><h2><span class="secno">1</span>家族全景：GLM-130B 核心配置</h2><p class="note">单一稠密 130B 尺寸。数字来源：官方论文 arXiv:2210.02414 §2 与附录 Table 11。</p><div class="table-scroll"><table class="cmp"><colgroup><col style="width:34%"><col style="width:42%"><col style="width:24%"></colgroup><thead><tr><th>字段</th><th>取值</th><th>来源</th></tr></thead><tbody><tr><td class="k" >参数量 / 形态</td><td>≈130B 稠密双语（中英）</td><td>论文 §1/§2.1</td></tr><tr><td class="k" >层数</td><td>70（9×8−2 流水线均衡）</td><td>论文 §2.3</td></tr><tr><td class="k" >hidden_size</td><td>12288</td><td>论文 §2.3 / T11</td></tr><tr><td class="k" >注意力头数</td><td>96（head_dim=128）</td><td>公开口径（待确认）</td></tr><tr><td class="k" >FFN hidden</td><td>32768（=8/3·12288）</td><td>论文 T11/§B.3</td></tr><tr><td class="k" >归一化</td><td>DeepNorm Post-LN，α=(2N)^(1/4)</td><td>论文 §2.1</td></tr><tr><td class="k" >FFN 激活</td><td>GeGLU（GLU+GeLU）</td><td>论文 §B.3</td></tr><tr><td class="k" >位置编码</td><td>RoPE</td><td>论文 §B.3</td></tr><tr><td class="k" >最大序列</td><td>2048</td><td>论文 §2.3</td></tr><tr><td class="k" >分词器 / 词表</td><td>icetk（sentencepiece）/ 150000</td><td>论文 §B.1</td></tr></tbody></table></div></section><section id="overview"><h2><span class="secno">2</span>端到端数据流总览</h2><p class="note">破坏 span→[MASK]/[gMASK] → icetk 嵌入 → 70×GLM 层（双向/自回归混合注意力+GeGLU）→ 最终 LN → softmax。</p><div class="diagram-shell"><img src="_arch/01_end_to_end.png" style="width:100%;min-width:820px" alt="GLM-130B 端到端主干"></div></section><section id="layer"><h2><span class="secno">3</span>解码层解剖：DeepNorm 残差块</h2><div class="formula">DeepNorm(x) = LayerNorm( α·x + SubLayer(x) ),  α = (2N)^(1/4)
+# N=70 → α≈3.44；FFN/v_proj/out_proj 初始化缩放 (2N)^(-1/4)</div><p class="note">相比 Pre-LN，DeepNorm Post-LN 把深层主分支 value 尺度约束在有界范围，是 70 层稳定训练的关键。</p></section><section id="mech"><h2><span class="secno">4</span>核心机制</h2><div class="diagram-shell"><img src="_arch/02_core_mech.png" style="width:100%;min-width:820px" alt="GLM-130B 核心机制"></div><div class="cards"><div class="card"><h3>① GLM blank infilling</h3><p>采样 span 替换为单个 mask 标记，自回归重建；span 间可见性由随机排列决定。</p><p>[MASK] 单 span（窗512拼4）；[gMASK] 多 span（窗2048）。</p></div><div class="card"><h3>② DeepNorm + EGS</h3><p>反直觉地选 Post-LN 稳定训练；Embedding Gradient Shrink 把嵌入梯度缩到 0.1，抑制 loss spike。</p></div><div class="card"><h3>③ GeGLU</h3><p>FFN=(GeLU(xW1)⊙xV)W2；引入 V 后 d_ffn 由 4·d_h 降到 8/3·d_h 保持参数量。</p></div><div class="card"><h3>④ INT4 缩放律</h3><p>权重分布形状良好，无需量化训练即可 INT4 推理，4×3090 可跑。</p></div></div></section><section id="attn"><h2><span class="secno">5</span>注意力机制：双向 prefix 注意力</h2><div class="formula">Attn(Q,K,V) = softmax( QKᵀ/√d_k + mask_GLM ) V
+# prefix 上下文双向；被掩码 span 内自回归；96 头 × 128 维</div><p class="tip">与 GPT 式因果注意力的根本差别：未掩码上下文双向可见。头数 96、head_dim 128 由官方口径与 hidden 复算，附录 config 未逐字段列出，标「待确认」。</p></section><section id="tokens"><h2><span class="secno">6</span>特殊 Token 与词表</h2><div class="table-scroll"><table class="cmp"><colgroup><col style="width:28%"><col style="width:72%"></colgroup><thead><tr><th>项</th><th>取值</th></tr></thead><tbody><tr><td class="k" >分词器</td><td>icetk 图像-文本统一（前 20000 为图像 token）</td></tr><tr><td class="k" >词表</td><td>150000</td></tr><tr><td class="k" >破坏标记</td><td>[MASK] / [gMASK] 两类目标</td></tr><tr><td class="k" >上下文窗</td><td>gMASK=2048；MASK/MIP=512（4 样本拼接）</td></tr></tbody></table></div></section><section id="evo"><h2><span class="secno">7</span>演进视角：GLM-130B → ChatGLM-6B</h2><div class="table-scroll"><table class="cmp"><colgroup><col style="width:22%"><col style="width:39%"><col style="width:39%"></colgroup><thead><tr><th>维度</th><th>GLM-130B</th><th>ChatGLM-6B</th></tr></thead><tbody><tr><td class="k" >规模</td><td>130B 双向基座</td><td>6.2B 对话</td></tr><tr><td class="k" >层/hidden</td><td>70 / 12288</td><td>28 / 4096</td></tr><tr><td class="k" >位置编码</td><td>RoPE 1D</td><td>2D-RoPE</td></tr><tr><td class="k" >归一化</td><td>DeepNorm Post-LN</td><td>LayerNorm</td></tr><tr><td class="k" >上下文</td><td>2048</td><td>2048</td></tr><tr><td class="k" >词表</td><td>icetk 150000</td><td>130528</td></tr></tbody></table></div></section><section id="sources"><h2><span class="secno">8</span>参考文献</h2><ol class='src'><li>GLM-130B 官方论文 arXiv:2210.02414<span class='u'>https://arxiv.org/abs/2210.02414</span></li><li>论文 HTML 全文（§2 / 附录 Table 11）<span class='u'>https://arxiv.org/html/2210.02414v2</span></li><li>官方 GitHub THUDM/GLM-130B<span class='u'>https://github.com/THUDM/GLM-130B</span></li><li>清华 KEG 官方博客<span class='u'>https://keg.cs.tsinghua.edu.cn/glm-130b/zh/posts/glm-130b/</span></li><li>ChatGLM 家族综述 arXiv:2406.12793<span class='u'>https://arxiv.org/abs/2406.12793</span></li></ol></section>
+<section id="chartsec"><h2><span class="secno">9</span>早期代关键尺寸对比（真实 config 复算）</h2>
+<div id="chart"></div>
+<p class="note">数据来自各模型官方 config / 论文：层数、hidden、FFN、词表（千）等字段逐值复算。</p></section>
+<footer>GLM-130B 家族架构详解 · 官方论文 arXiv:2210.02414 + 官方 GitHub/KEG · 仅供技术学习</footer>
+</div>
+<script>
+const chart = echarts.init(document.getElementById('chart'));
+chart.setOption({
+      backgroundColor:'transparent',
+      tooltip:{},
+      legend:{bottom:0},
+      grid:{left:60,right:30,top:40,bottom:60},
+      xAxis:{type:'category',data:['层数','hidden','FFN','词表(千)']},
+      yAxis:{type:'value',name:'数值'},
+      series:[
+        {name:'GLM-130B',type:'bar',data:[70,12288,32768,150]},
+        {name:'ChatGLM-6B',type:'bar',data:[28,4096,16384,130.5]},
+        {name:'ChatGLM2/3',type:'bar',data:[28,4096,13696,65]}
+      ]
+    });
+window.addEventListener('resize', ()=>chart.resize());
+</script>
+</body>
+</html>

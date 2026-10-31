@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kimi-K2-0905 架构详解 — 1T-A32B MoE（DeepSeek-V3 式 MLA + 384 路由专家）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EK2%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>if(!window.echarts){document.write('<script src="../_tools/echarts.min.js"><\/script>');}</script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --warn:#b45309; --warn-soft:#fdf0e0; --warn-line:#e6c79a;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.warn{background:var(--warn-soft); border-color:var(--warn-line); color:var(--warn);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.warn{background:var(--warn-soft); border-color:var(--warn-line); color:var(--warn);}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.text rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+  .dg .lgb{font-size:11.5px; fill:var(--accent-ink); font-weight:600;}
+  table.cmp{width:100%; min-width:760px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:26%;}
+  table.cmp col.cx{width:37%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  #chart1{width:100%; height:380px; margin-top:8px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  #tip b{color:#bfd3ff;}
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">K2</text></svg>Kimi-K2-0905</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">演进视角</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Kimi-K2-0905 架构详解</h1>
+  <div class="badges">
+    <span class="badge">DeepseekV3ForCausalLM · model_type=kimi_k2</span>
+    <span class="badge">1T 总参 / 32B 激活 · 384 路由专家 + 1 共享 · top-8</span>
+    <span class="badge">MLA：kv_lora 512 · q_lora 1536 · nope128 · rope64 · v128</span>
+    <span class="badge">hidden 7168 · 61 层 · 词表 163840 · 上下文 262144（YaRN）</span>
+  </div>
+  <p class="lead">本页以 <b>Kimi-K2-Instruct-0905 官方 <span class="num">config.json</span></b>（2026-10-31 经 hf-mirror 拉取，留档 <span class="num">_tools\_cfgpull\</span>）与 <b>transformers 源码 <span class="num">models\deepseek_v3\</span></b>（本地 E:\transformers 同架构等价实现）为唯一依据。K2 系列技术事实以官方论文 <b>arXiv:2507.20534</b> 为准。关键特点：<b>0905 复用 DeepSeek-V3 实现代码</b>（architectures=DeepseekV3ForCausalLM，auto_map 指向官方仓库 modeling_deepseek.py），本地 transformers 无原生 kimi_k2 模块。所有数字均标注来源。</p>
+</header>
+
+<!-- 1 家族全景 -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：K2-0905 config 实参对照</h2>
+  <p class="note">下表字段全部来自官方 config（逐字段核对，2026-10-31）。0905 与 Kimi-K2-Base / Kimi-K2-Instruct 共享同一文本塔架构，主要差异在上下文长度与权重量化格式。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col style="width:37%"></colgroup>
+    <thead><tr><th>字段（config）</th><th>Kimi-K2-0905 取值</th><th>说明 / 来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures</td><td>DeepseekV3ForCausalLM</td><td>复用 DeepSeek-V3 实现</td></tr>
+      <tr><td class="k">model_type</td><td>kimi_k2</td><td>config.model_type</td></tr>
+      <tr class="hl"><td class="k">形态</td><td>MoE（第 0 层 dense，后 60 层 MoE）</td><td>first_k_dense_replace=1</td></tr>
+      <tr><td class="k">hidden_size</td><td>7168</td><td>config</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>61</td><td>config</td></tr>
+      <tr><td class="k">num_attention_heads / KV</td><td>64 / 64</td><td>MLA 下为低秩压缩后多头</td></tr>
+      <tr><td class="k">intermediate_size（dense FFN，第 0 层）</td><td>18432</td><td>config</td></tr>
+      <tr><td class="k">moe_intermediate_size</td><td>2048</td><td>config</td></tr>
+      <tr><td class="k">n_routed_experts / n_shared_experts</td><td>384 / 1</td><td>config</td></tr>
+      <tr><td class="k">num_experts_per_tok</td><td>8</td><td>config</td></tr>
+      <tr><td class="k">kv_lora_rank / q_lora_rank</td><td>512 / 1536</td><td>MLA 低秩维</td></tr>
+      <tr><td class="k">qk_nope / qk_rope / v_head dim</td><td>128 / 64 / 128</td><td>config</td></tr>
+      <tr><td class="k">vocab_size</td><td>163840</td><td>config</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>262144</td><td>config</td></tr>
+      <tr><td class="k">rope_theta / rope_scaling</td><td>50000 / yarn factor 64（original 4096）</td><td>config</td></tr>
+      <tr><td class="k">attention_bias / hidden_act / rms_norm_eps</td><td>false / silu / 1e-5</td><td>config</td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td>false</td><td>untied</td></tr>
+      <tr><td class="k">scoring_func / topk_method / routed_scaling_factor</td><td>sigmoid / noaux_tc / 2.827</td><td>config</td></tr>
+      <tr><td class="k">bos / eos / pad token id</td><td>163584 / 163585 / 163839</td><td>config</td></tr>
+      <tr><td class="k">quantization_config</td><td>fp8，fmt e4m3，block [128,128]，dynamic</td><td>config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：① <b>入口类是 DeepseekV3ForCausalLM</b>——0905 直接复用 DeepSeek-V3 结构与远端实现代码，model_type 虽为 kimi_k2；② 注意力是 <b>MLA（非 GQA）</b>：Q/KV 各自低秩压缩（q 1536、kv 512），再拆「无位置」与「RoPE」两段；③ <b>384 路由专家 + 1 共享专家，每 token 选 8</b>，第 0 层 dense；④ 官方论文：总参数约 1.04T、每 token 激活约 32B（即 1T-A32B）。</p>
+
+  <h3>1.1 与 Kimi-K2-Base 的差异</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col style="width:37%"><col style="width:37%"></colgroup>
+    <thead><tr><th>字段</th><th>Kimi-K2-Base</th><th>Kimi-K2-0905</th></tr></thead>
+    <tbody>
+      <tr><td class="k">hidden / 层数 / 专家</td><td>7168 / 61 / 384+1·top8</td><td>同左</td></tr>
+      <tr><td class="k">MLA 维度</td><td>kv512·q1536·nope128·rope64·v128</td><td>同左</td></tr>
+      <tr class="hl"><td class="k">max_position_embeddings</td><td>131072</td><td><b>262144（YaRN）</b></td></tr>
+      <tr><td class="k">rope_scaling</td><td>无显式</td><td>yarn factor 64（original 4096）</td></tr>
+      <tr><td class="k">quantization_config</td><td>无（bf16 裸权重）</td><td>fp8 e4m3（block 128）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div id="chart1"></div>
+  <p class="note">图：Moonshot 文本/稀疏模型代际对比（总参数 vs 每 token 激活参数，单位 B；数据来自各官方 config / 论文）。Moonlight-16B-A3B 为早期开源 MoE（16B 总 / 3B 激活），K2-Base 与 K2-0905 为 1T 总 / 32B 激活。</p>
+</section>
+
+<!-- 2 数据流总览 -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token → 词嵌入（untied）→ <b>第 0 层 dense 解码层</b>（MLA 注意力 + 18432 维 SwiGLU FFN）→ <b>层 1–60 MoE 解码层</b>（MLA 注意力 + 384 路由专家选 8 / 1 共享专家）→ 最终 RMSNorm → LM Head（7168→163840，untied）。</p>
+  <div class="diagram-shell" aria-label="K2-0905 端到端数据流图">
+  <svg viewBox="0 0 1280 620" class="dg" role="img">
+    <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
+    <g class="node text"><rect x="20" y="270" width="120" height="60" rx="12"/><text class="t" x="80" y="296" text-anchor="middle">文本 token</text><text class="s" x="80" y="314" text-anchor="middle">vocab 163840</text></g>
+    <g class="node dim"><rect x="180" y="270" width="130" height="60" rx="12"/><text class="t" x="245" y="296" text-anchor="middle">Embedding</text><text class="s" x="245" y="314" text-anchor="middle">untied</text></g>
+    <g class="node dim"><rect x="340" y="270" width="120" height="60" rx="12"/><text class="t" x="400" y="294" text-anchor="middle">第 0 层</text><text class="s" x="400" y="312" text-anchor="middle">Dense FFN 18432</text></g>
+    <g class="node core"><rect x="490" y="150" width="380" height="300" rx="14"/>
+      <text class="t" x="680" y="182" text-anchor="middle">层 1–60（60 个 MoE 层）</text>
+      <text class="s" x="680" y="206" text-anchor="middle">moe_layer_freq=1，每层都走专家</text>
+      <text class="m" x="680" y="240" text-anchor="middle">① RMSNorm → MLA 注意力</text>
+      <text class="m" x="680" y="262" text-anchor="middle">kv_lora 512 · q_lora 1536</text>
+      <text class="m" x="680" y="284" text-anchor="middle">nope128 / rope64 / v128</text>
+      <text class="m" x="680" y="316" text-anchor="middle">② RMSNorm → MoE FFN</text>
+      <text class="m" x="680" y="338" text-anchor="middle">384 路由选 8 + 1 共享</text>
+      <text class="s" x="680" y="368" text-anchor="middle">moe_intermediate 2048</text>
+    </g>
+    <g class="node dim"><rect x="900" y="200" width="120" height="56" rx="12"/><text class="t" x="960" y="224" text-anchor="middle">最终</text><text class="t" x="960" y="242" text-anchor="middle">RMSNorm</text></g>
+    <g class="node dim"><rect x="900" y="300" width="120" height="56" rx="12"/><text class="t" x="960" y="322" text-anchor="middle">LM Head</text><text class="s" x="960" y="340" text-anchor="middle">7168→163840</text></g>
+    <g class="node core"><rect x="1060" y="250" width="110" height="60" rx="12"/><text class="t" x="1115" y="276" text-anchor="middle">下一 token</text><text class="s" x="1115" y="294" text-anchor="middle">logits</text></g>
+    <path class="edge" d="M140,300 L180,300"/><path class="edge" d="M310,300 L340,300"/><path class="edge" d="M460,300 L490,300"/>
+    <path class="edge" d="M870,230 L900,228"/><path class="edge" d="M960,256 L960,300"/><path class="edge" d="M1020,328 L1060,290"/>
+    <text class="lgb" x="40" y="560">主干：Embedding → 61 层解码块（第 0 层 dense，后 60 层 MoE）→ RMSNorm → LM Head</text>
+  </svg>
+  </div>
+  <p class="note">全模型统一主干如上；差异集中在 FFN 子层：第 0 层是 dense SwiGLU（18432），其余 60 层是 top-8 细粒度 MoE。</p>
+</section>
+
+<!-- 3 解码层解剖 -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：DeepSeek-V3 式前置 RMSNorm 残差块</h2>
+  <p class="note">解码层与 DeepSeek-V3 同构（本地等价实现 <span class="num">DeepseekV3DecoderLayer</span>，<span class="num">models\deepseek_v3\modeling_deepseek_v3.py:485</span>）：每组含注意力与 FFN 两个残差子层，均为单 RMSNorm 前置。第 0 层 FFN 是 dense SwiGLU（18432），其余层 FFN 是 MoE。</p>
+  <div class="formula">DecoderLayer.forward（DeepSeek-V3 式，等价实现 modeling_deepseek_v3.py:485 起）:
+  residual = hidden_states
+  hidden_states = input_layernorm(hidden_states)        # RMSNorm(7168, eps 1e-5)
+  hidden_states, _ = self_attn(hidden_states)          # MLA：低秩压缩 + RoPE
+  hidden_states = residual + hidden_states              # ⊕1
+  residual = hidden_states
+  hidden_states = post_attention_layernorm(hidden_states)
+  # 第 0 层：dense MLP(18432)；其余层：MoE(384 路由选8 + 1 共享, moe_inter 2048)
+  hidden_states = self.mlp(hidden_states)
+  hidden_states = residual + hidden_states            # ⊕2
+  return hidden_states</div>
+</section>
+
+<!-- 4 核心机制 -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：MLA 低秩压缩 · 384 专家路由 · YaRN 扩长</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>① MLA：Q/KV 低秩联合压缩</h3>
+      <p>注意力先把 hidden 压到低秩隐向量再解多头（等价实现 <span class="num">DeepseekV3Attention</span>，<span class="num">:349-394</span>）。</p>
+      <div class="formula">q = W_qB · x        ∈ R^1536      # q_lora_rank
+cKV = W_KV · x      ∈ R^512        # kv_lora_rank
+cKV → RMSNorm → split(512, 64)     # 64 = qk_rope_head_dim
+q' = RMSNorm(q) · W_qA
+# KV cache 只缓存 512 维低秩隐向量</div>
+      <div class="meta">RoPE 只作用在拆分出的 64 维 qk_rope_head_dim 段；其余 128 维 qk_nope 不带位置编码（:389,445）。</div>
+    </div>
+    <div class="card">
+      <h3>② MoE 路由：384 路由选 8 + 1 共享</h3>
+      <p>MoE 块（等价实现 <span class="num">DeepseekV3MoE</span>，<span class="num">:201</span>；专家 MLP <span class="num">:104-157</span>）。</p>
+      <div class="formula">logits = x @ W_gate^T               # (seq, 384)
+scores = sigmoid(logits)             # scoring_func=sigmoid
+w, idx = noaux_tc_topk(scores, k=8)  # topk_method=noaux_tc
+w = w * routed_scaling_factor(2.827) # :157
+w = w / w.sum(-1)                    # norm_topk_prob=true
+# 384 路由专家分桶计算；另有 1 共享专家对所有 token</div>
+      <div class="meta">论文（arXiv:2507.20534）：固定激活参数下扩大路由专家总数（稀疏度 384/8=48）可降低 loss，故采用 384 路由专家。</div>
+    </div>
+    <div class="card">
+      <h3>③ YaRN 扩长到 262144</h3>
+      <div class="formula">rope_theta = 50000
+rope_scaling = { type:"yarn", factor:64.0,
+  original_max_position_embeddings:4096,
+  beta_fast:1.0, beta_slow:1.0, mscale:1.0 }
+max_position_embeddings = 262144</div>
+      <div class="meta">K2-Base 原生 max 为 131072；0905 通过 YaRN（factor 64，基准 4096）把有效上下文扩到 262144。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 注意力 -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：MLA（非 GQA）· 64 头 · 无注意力偏置</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col style="width:37%"></colgroup>
+    <thead><tr><th>维度</th><th>取值</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">num_attention_heads (Q)</td><td>64</td><td>Q 头数</td></tr>
+      <tr><td class="k">num_key_value_heads</td><td>64</td><td>名义 KV 头（MLA 下共享低秩 KV 隐向量）</td></tr>
+      <tr><td class="k">q_lora_rank</td><td>1536</td><td>Q 低秩压缩维</td></tr>
+      <tr><td class="k">kv_lora_rank</td><td>512</td><td>KV cache 实际缓存量</td></tr>
+      <tr><td class="k">qk_nope / qk_rope / v_head dim</td><td>128 / 64 / 128</td><td>每头分段维度</td></tr>
+      <tr><td class="k">attention_bias</td><td>false</td><td>Q/K/V/O 投影均无偏置</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="formula">Attn(Q,K,V) = softmax( QK^T / sqrt(d_hk) + mask ) V
+# MLA 下 Q 经 q_a_layernorm 后上投影为 64 头；
+# KV 隐向量 512 维与 rope 段 64 维拼接后再扩为多头；因果掩码，无滑窗（全注意力）。</div>
+  <p class="note">与普通 GQA 的区别：GQA 是 Q 多头、KV 分组共享；MLA 是 Q/KV 都先压到低秩瓶颈再解多头，KV cache 体积由 kv_lora_rank=512 决定，而非头数×head_dim。</p>
+</section>
+
+<!-- 6 特殊 token -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="cx"><col style="width:37%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义 / 来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">bos_token_id</td><td>163584</td><td>序列开始（config）</td></tr>
+      <tr><td class="k">eos_token_id</td><td>163585</td><td>序列结束（config）</td></tr>
+      <tr><td class="k">pad_token_id</td><td>163839</td><td>填充（config）</td></tr>
+      <tr><td class="k">vocab_size</td><td>163840</td><td>词表大小（2^17 对齐）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">tokenizer_class 字段为 null（随官方 repo 代码提供）。无多模态特殊 token——K2-0905 为纯文本模型（视觉能力由 Kimi-VL 系列承担，本页不展开）。</p>
+</section>
+
+<!-- 7 演进 -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：Moonlight → Kimi-K2-Base → Kimi-K2-0905</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:20%"><col style="width:26%"><col style="width:26%"><col style="width:26%"></colgroup>
+    <thead><tr><th>维度</th><th>Moonlight-16B-A3B（2025-02）</th><th>Kimi-K2-Base（2025-07）</th><th>Kimi-K2-0905（2025-09）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">形态</td><td>MoE 16B 总 / 3B 激活</td><td>MoE 1T 总 / 32B 激活</td><td>同 K2-Base</td></tr>
+      <tr><td class="k">hidden / 层数</td><td>2048 / 27</td><td>7168 / 61</td><td>7168 / 61</td></tr>
+      <tr><td class="k">注意力</td><td>MLA（kv512，无 q_lora）</td><td>MLA（kv512·q1536）</td><td>MLA（同 Base）</td></tr>
+      <tr><td class="k">路由专家</td><td>64 路由 + 2 共享，top-6</td><td>384 路由 + 1 共享，top-8</td><td>384 路由 + 1 共享，top-8</td></tr>
+      <tr><td class="k">max_position</td><td>8192</td><td>131072</td><td><b>262144（YaRN）</b></td></tr>
+      <tr><td class="k">rope_theta</td><td>50000</td><td>50000</td><td>50000 + yarn64</td></tr>
+      <tr><td class="k">权重格式</td><td>bf16</td><td>bf16</td><td><b>fp8 e4m3</b></td></tr>
+      <tr><td class="k">vocab</td><td>163840</td><td>163840</td><td>163840</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">演进主线：① 文本塔从 Moonlight 2048/27 层扩到 K2 7168/61 层；② MLA 引入 q 侧低秩压缩（q_lora 1536），KV 低秩维保持 512；③ 路由专家从 64（top-6，2 共享）扩到 384（top-8，1 共享）；④ 上下文 8192 → 131072 → 262144（YaRN）；⑤ 0905 附带 fp8 e4m3 官方权重。系列内其他官方模型（本次未单独立目录）：Kimi-K2-Instruct / K2-Thinking、K2.5 / K2.6 / K2.7-Code、Kimi-K3（2.8T，KDA 线性注意力）、Kimi-Linear-48B-A3B、Kimi-VL-A3B 系列、Kimi-Audio-7B、MoonViT-SO-400M。</p>
+</section>
+
+<!-- 8 来源 -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>Kimi-K2-Instruct-0905 官方 config（2026-10-31 经 hf-mirror 拉取，逐字段核对）<span class="u">E:\transformers\bayon-note\Kimi\kimi_k2_0905\_tools\_cfgpull\config.json（DeepseekV3ForCausalLM / kimi_k2 / 7168 / 61层 / 64Q·64KV / inter18432 / moe_inter2048 / 384路由+1共享 / top8 / kv512·q1536·nope128·rope64·v128 / vocab163840 / max262144 / ropeθ50000+yarn64 / tie=false / fp8 e4m3）</span></li>
+    <li>Kimi-K2-Base 官方 config（对照差异）<span class="u">E:\transformers\bayon-note\Kimi\kimi_k2_0905\_tools\_cfgpull\Kimi-K2-Base.config.json（同架构，max 131072，无 rope_scaling，无 fp8 quant_config）</span></li>
+    <li>transformers 源码（本地 E:\transformers，同架构等价实现）<span class="u">models\deepseek_v3\modeling_deepseek_v3.py：MLP 104-157（routed_scaling 127,157）；MoE 201；Attention 349-392；compressed_kv split 445；DecoderLayer 485</span></li>
+    <li>Kimi K2 技术报告（arXiv:2507.20534）<span class="u">https://arxiv.org/abs/2507.20534（1.04T 总参 / 32B 激活；384 专家稀疏度 48；MuonClip；15.5T tokens）</span></li>
+    <li>Kimi K2 官方 HF 仓库<span class="u">https://huggingface.co/moonshotai/Kimi-K2-Instruct-0905（镜像 https://hf-mirror.com/moonshotai/Kimi-K2-Instruct-0905）</span></li>
+    <li>moonshotai HF 组织仓库列表（2026-10-31 核验）<span class="u">https://hf-mirror.com/api/models?author=moonshotai（共 19 个仓库；K2-0905 复用 deepseek 实现代码）</span></li>
+  </ol>
+  <p class="note">标注约定：config 字段名即来源；[S:n]=本地等价实现 modeling_deepseek_v3.py 行号。访问与核验日期：2026-10-31。</p>
+</section>
+
+<footer>Kimi-K2-0905 架构详解 · 数据来源：官方 config（hf-mirror）+ transformers 源码（E:\transformers）+ arXiv:2507.20534 · 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  "use strict";
+  var TIP=document.getElementById("tip");
+  function showTip(el,x,y){
+    TIP.innerHTML="";
+    var txt=el.getAttribute("data-tip")||"";
+    txt.split("\n").forEach(function(line,i){ if(i>0)TIP.appendChild(document.createElement("br")); TIP.appendChild(document.createTextNode(line)); });
+    TIP.style.display="block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left=Math.min(Math.max(x+14,8),vw-w-8)+"px";
+    TIP.style.top=(y+16+h>vh?y-h-10:y+16)+"px";
+  }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){TIP.style.display="none";});
+  })(els[i]);}
+  window.addEventListener("click",function(){TIP.style.display="none";});
+})();
+(function(){
+  if(!window.echarts){return;}
+  var c1=echarts.init(document.getElementById("chart1"));
+  c1.setOption({
+    animation:false,
+    title:{text:"Moonshot 文本/稀疏模型：总参数 vs 每 token 激活（B）",left:"center",textStyle:{fontSize:14}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:50,right:20,top:50,bottom:50},
+    xAxis:{type:"category",data:["Moonlight-16B-A3B","Kimi-K2-Base","Kimi-K2-0905"],axisLabel:{interval:0,fontSize:11}},
+    yAxis:{type:"value",name:"十亿参数"},
+    series:[
+      {name:"总参数",type:"bar",data:[16,1040,1040],itemStyle:{color:"#1d4ed8"}},
+      {name:"每 token 激活",type:"bar",data:[3,32,32],itemStyle:{color:"#c0d0f4"}}
+    ]
+  });
+  window.addEventListener("resize",function(){c1.resize();});
+})();
+</script>
+</body>
+</html>

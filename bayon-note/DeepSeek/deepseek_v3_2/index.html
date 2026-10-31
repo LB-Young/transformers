@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-V3.2-Exp 家族架构详解 — DSA 稀疏注意力 · 同 V3 MoE 底座</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV3.2%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem);}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp col.c1{width:34%;} table.cmp col.c2{width:38%;} table.cmp col.c3{width:28%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  #chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px;}
+  #chartBox{width:100%; height:380px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media (min-width:768px){#chartBox{height:420px;}}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">V3.2</text></svg>DeepSeek-V3.2-Exp</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">DSA</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">Token</a>
+  <a class="link" href="#evo">vs V3</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>DeepSeek-V3.2-Exp 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">DeepseekV32ForCausalLM · model_type deepseek_v32</span>
+    <span class="badge">注意力换 DSA 稀疏（index_topk=2048）</span>
+    <span class="badge">主干同 V3：MLA · 256 选 8 + 1 共享</span>
+    <span class="badge">671B-T37B · FP8 e4m3 · YaRN 163840</span>
+  </div>
+  <p class="lead">本页以 <b>DeepSeek-V3.2-Exp 官方 config</b>（hf-mirror 逐字段核对）与 transformers 源码 <span class="num">models\deepseek_v32\</span> 为依据。它在 V3 主干上只改注意力：用 <b>Lightning Indexer 选出每查询 top-2048 token</b>，主 MLA 只在稀疏子集上算注意力。</p>
+</header>
+
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：V3.2-Exp config 对照</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>字段</th><th>V3.2-Exp 取值</th><th>与 V3</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>DeepseekV32ForCausalLM / deepseek_v32</td><td>新模块</td></tr>
+      <tr><td class="k">hidden / num_hidden_layers</td><td>7168 / 61</td><td>一致</td></tr>
+      <tr><td class="k">MLA（kv_lora/q_lora/rope/nope/v）</td><td>512 / 1536 / 64 / 128 / 128</td><td>一致</td></tr>
+      <tr class="hl"><td class="k">index_n_heads / index_head_dim</td><td>64 / 128</td><td><b>新增</b></td></tr>
+      <tr class="hl"><td class="k">index_topk（每查询保留 token）</td><td>2048</td><td><b>新增</b></td></tr>
+      <tr><td class="k">路由专家 / 每 tok / 共享</td><td>256 / 8 / 1</td><td>一致</td></tr>
+      <tr><td class="k">vocab / max_position</td><td>129280 / 163840</td><td>一致</td></tr>
+      <tr><td class="k">quantization</td><td>fp8 e4m3 + ue8m0</td><td>同 V3.1</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：FFN 侧 256 专家 MoE 与 V3 完全一致；架构改动集中在注意力。</p>
+  <div id="chart">
+    <h3 style="margin-top:0">图：每查询 attend 的 token 数——V3 全注意力 vs V3.2 DSA（log 纵轴）</h3>
+    <div id="chartBox"></div>
+    <p class="note">序列越长，DSA 的常数级 2048 相对全序列注意力的节省越大。</p>
+  </div>
+</section>
+
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">主干同 V3：词嵌入 → 61 层（前 3 Dense / 后 58 MoE）→ RMSNorm → LM Head；每层注意力换成「MLA + DSA 稀疏掩码」。</p>
+</section>
+
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖</h2>
+  <p class="note"><span class="num">DeepseekV32DecoderLayer</span>（<span class="num">modeling_deepseek_v32.py:601-643</span>）与 V3 同构：前置 RMSNorm → 注意力 → 残差 → RMSNorm → FFN/MoE → 残差。</p>
+</section>
+
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：DSA 稀疏注意力（Lightning Indexer）</h2>
+  <div class="formula">indexer(q_idx, k_idx)  →  每查询 top-2048 个 token
+→ 折成稀疏 attention mask
+→ 主 MLA 在稀疏掩码上算注意力</div>
+  <p class="note">Indexer（<span class="num">modeling:147-200</span>）是与主 MLA 分离的轻量投影（64 头×128 维）；主注意力（<span class="num">335-478</span>）把 top-k 掩码折进去。FFN 侧 MoE 同 V3。</p>
+</section>
+
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：MLA + DSA 稀疏掩码</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>项</th><th>V3.2-Exp</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td class="k">主注意力</td><td>MLA（kv_lora=512）</td><td>同 V3</td></tr>
+      <tr><td class="k">稀疏化</td><td>indexer 选 top-2048 token</td><td>掩码折进 attention</td></tr>
+      <tr><td class="k">上下文</td><td>163840（YaRN 40）</td><td>同 V3</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表</h2>
+  <p class="note">bos/eos=0/1，vocab_size=129280（同 V3）。</p>
+</section>
+
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：V3 → V3.2-Exp</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>维度</th><th>DeepSeek-V3</th><th>V3.2-Exp</th></tr></thead>
+    <tbody>
+      <tr><td class="k">主干</td><td>7168·61层·MLA·256选8</td><td>完全一致</td></tr>
+      <tr><td class="k">注意力</td><td>全注意力</td><td>DSA（indexer top-2048）</td></tr>
+      <tr><td class="k">model_type</td><td>deepseek_v3</td><td>deepseek_v32</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">另：DeepSeek-V3.1（2025-08，model_type 仍 deepseek_v3）config 与 V3 逐字段一致，仅 quantization 加 scale_fmt=ue8m0——属同架构改版，不单独建目录。</p>
+</section>
+
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config（hf-mirror，2026-10-31 核对）
+      <span class="u">deepseek-ai/DeepSeek-V3.2-Exp.config.json（hidden7168/61层/MLA512-1536/256选8+共享1/index_n_heads64/index_head_dim128/index_topk2048）</span></li>
+    <li>transformers 源码 models\deepseek_v32\
+      <span class="u">configuration_deepseek_v32.py:87-143；modeling_deepseek_v32.py：Indexer 147-200 / Attention 335-478 / DecoderLayer 601-643</span></li>
+    <li>官方模型仓库
+      <span class="u">https://huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp</span></li>
+  </ol>
+</section>
+
+<footer>DeepSeek-V3.2-Exp 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码 · 2026-10-31 核验</footer>
+</div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chartBox'));
+  chart.setOption({
+    tooltip:{trigger:'axis'},
+    legend:{data:['V3 全注意力','V3.2 DSA'],bottom:0},
+    grid:{left:60,right:20,top:30,bottom:50},
+    xAxis:{type:'category',data:['4k','16k','64k','163k']},
+    yAxis:{type:'log',name:'每查询 token 数',logBase:10},
+    series:[
+      {name:'V3 全注意力',type:'bar',data:[4096,16384,65536,163840],itemStyle:{color:'#c0c0c0'}},
+      {name:'V3.2 DSA',type:'bar',data:[2048,2048,2048,2048],itemStyle:{color:'#1d4ed8'}}
+    ]
+  });
+  window.addEventListener('resize',()=>chart.resize());
+</script>
+</body>
+</html>

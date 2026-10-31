@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kimi K2 Thinking 家族架构详解 — 1.04T-A32B MoE 推理变体</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3Et%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>if(typeof echarts==='undefined')document.write('<script src="../../Qwen/qwen3/_tools/echarts.min.js"><\/script>');</script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell img{display:block; margin:0 auto; max-width:100%; height:auto;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  .chart{width:100%; height:340px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); margin-top:12px;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">t</text></svg>Kimi K2 Thinking</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">总体设计</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">Token/词表</a>
+  <a class="link" href="#evo">演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Kimi K2 Thinking 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">1.04T 总参 / 32B 激活</span>
+    <span class="badge">MLA 低秩注意力</span>
+    <span class="badge">384 routed + 1 shared · top-8</span>
+    <span class="badge">纯文本推理变体</span>
+    <span class="badge">256K · INT4 开源</span>
+  </div>
+  <p class="lead">Kimi K2 Thinking 是 Kimi K2（K2-0905 底座）的<b>推理（reasoning）变体</b>：架构与 K2-0905 文本底座逐字段一致（<code>DeepseekV3ForCausalLM</code>，model_type <code>kimi_k2</code>），差异在长思维链 SFT + RL 后训练。纯文本模型，<b>无视觉塔</b>。</p>
+</header>
+
+<section id="family">
+  <h2><span class="secno">1</span>家族全景</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:26%"><col style="width:44%"><col style="width:30%"></colgroup>
+    <thead><tr><th>字段</th><th>取值</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures</td><td>DeepseekV3ForCausalLM</td><td>官方 config</td></tr>
+      <tr><td class="k">层数 / hidden / Q·KV 头</td><td>61（第0层dense）· 7168 · 64 / 64</td><td>官方 config</td></tr>
+      <tr><td class="k">MLA</td><td>kv_lora 512 · q_lora 1536 · nope 128 · rope 64 · v 128</td><td>官方 config</td></tr>
+      <tr><td class="k">MoE</td><td>384 routed + 1 shared · top-8 · moe_inter 2048 · first_k_dense_replace 1</td><td>官方 config</td></tr>
+      <tr><td class="k">dense FFN</td><td>intermediate 18432（第 0 层）</td><td>官方 config</td></tr>
+      <tr><td class="k">路由</td><td>sigmoid · noaux_tc · routed_scaling 2.827 · aux_loss_alpha=0</td><td>官方 config</td></tr>
+      <tr><td class="k">RoPE / 上下文</td><td>θ=50000 · YaRN factor 64（beta_fast=1.0）· max_position 262144</td><td>官方 config</td></tr>
+      <tr><td class="k">词表 / tie</td><td>163840 · tie=false</td><td>官方 config</td></tr>
+      <tr><td class="k">bos / eos / pad</td><td>163584 / 163586 / 163839</td><td>官方 config</td></tr>
+      <tr><td class="k">量化</td><td>compressed-tensors int4 group32 dynamic act-order</td><td>官方 config quantization_config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="diagram-shell"><img src="./_arch/01_k2thinking端到端总览.png" alt="K2 Thinking 端到端总览"></div>
+  <div id="chart-moe" class="chart"></div>
+</section>
+
+<section id="overview">
+  <h2><span class="secno">2</span>总体设计</h2>
+  <p>架构本体即 K2-0905 文本底座（规格已核验：model_type=kimi_k2、DeepseekV3ForCausalLM、7168/61层、MLA 同维、384+1 专家 top-8、YaRN64、262144、vocab163840、tie=false、fp8 e4m3；K2 论文 arXiv:2507.20534）。<b>与 K2.5 的关系</b>：Thinking 是 K2 底座的纯文本推理版，K2.5 是同一底座的多模态智能体版——共享文本塔，差异只在视觉塔有无与后训练目标。</p>
+</section>
+
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖</h2>
+  <p>DeepseekV3DecoderLayer（modeling_deepseek_v3.py:485-529）pre-norm 双残差。FFN 按层号二选一：第 0 层 dense SwiGLU（18432）；1–60 层 MoE——sigmoid 路由选 8 个 routed 专家加权，叠加常驻共享专家（:201-222, 492-495）。</p>
+  <div class="diagram-shell"><img src="./_arch/02_k2thinking解码层与MoE.png" alt="K2 Thinking 解码层与 MoE"></div>
+</section>
+
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制</h2>
+  <div class="cards">
+    <div class="card"><h3>sigmoid 无辅助损失路由</h3><p>sigmoid 打分带 e_score_correction_bias；n_group=1 时直接 top-8，归一化后乘 routed_scaling 2.827；aux_loss_alpha=0。</p></div>
+    <div class="card"><h3>共享专家常驻</h3><p>n_shared_experts=1，对每 token 都前向一次，与 routed 加权和相加，承载通用知识。</p></div>
+    <div class="card"><h3>推理训练差异（架构外）</h3><p>差异不在 config 字段而在后训练：长 CoT SFT + RL 激发出先思考后回答；config 无 reasoning 专用开关（无 nextn 层）。</p></div>
+    <div class="card"><h3>与 K2.5 的 config 差异</h3><p>① 无 vision_config；② eos=163586（K2.5 为 163585）；③ YaRN beta_fast=1.0（K2.5 为 32）。</p></div>
+  </div>
+</section>
+
+<section id="attn">
+  <h2><span class="secno">5</span>注意力</h2>
+  <p>MLA 全因果、无滑窗、Q/KV 均 64 头：q_a(7168→1536)→RMSNorm→q_b；kv_a(7168→512+64) 压缩缓存，解码时 kv_b 展开；RoPE 仅加在 64 维 rope 部分。以 config 字段核验：标准 MLA 因果全注意力，<b>非</b>线性注意力。</p>
+  <div class="formula">q:  7168 --q_a--> 1536 --RMSNorm--> q_b --> 64 × (128 nope + 64 rope)
+kv: 7168 --kv_a--> 512(潜向量,缓存) + 64(RoPE)   [kv_b 展开为 64 × (128 + 128 v)]</div>
+</section>
+
+<section id="tokens">
+  <h2><span class="secno">6</span>Token 与词表</h2>
+  <p>词表 163840。bos=163584、eos=163586、pad=163839。上下文 262144（YaRN factor 64，original_max_position 4096，beta_fast/beta_slow=1.0）。无视觉 token。</p>
+</section>
+
+<section id="evo">
+  <h2><span class="secno">7</span>演进</h2>
+  <div class="cards">
+    <div class="card"><h3>K2 / K2-0905（2025-07/09）</h3><p>1.04T-A32B 纯文本 MoE，DeepSeek-V3 系 MLA + 384 专家 top-8（arXiv:2507.20534）。</p></div>
+    <div class="card"><h3>K2 Thinking（本目录）</h3><p>同架构底座的推理后训练变体，开源 INT4；eos=163586，YaRN beta_fast=1.0。</p></div>
+    <div class="card"><h3>K2.5（2026）</h3><p>同一文本塔加 MoonViT-3D 视觉塔，变原生多模态智能体模型（见 kimi_k2_5 目录）。</p></div>
+    <div class="card"><h3>其他（未单独立目录）</h3><p>K2.6、K2.7-Code、Kimi-K3、Kimi-Linear-48B-A3B、Kimi-VL-A3B、Moonlight-16B-A3B。</p></div>
+  </div>
+</section>
+
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config：moonshotai/Kimi-K2-Thinking/config.json（hf-mirror，2026-10-31）<span class="u">https://hf-mirror.com/moonshotai/Kimi-K2-Thinking/raw/main/config.json</span></li>
+    <li>官方模型卡：<span class="u">https://huggingface.co/moonshotai/Kimi-K2-Thinking</span></li>
+    <li>Kimi K2 技术报告 arXiv:2507.20534<span class="u">https://arxiv.org/abs/2507.20534</span></li>
+    <li>transformers 源码（E:\transformers）：models\deepseek_v3\<span class="u">本机可编辑安装</span></li>
+  </ol>
+</section>
+
+<footer>Kimi K2 Thinking 家族架构详解 · 数值以远端官方 config（2026-10-31）+ transformers 源码 + arXiv:2507.20534 为准</footer>
+</div>
+
+<script>
+(function(){
+  var el = document.getElementById('chart-moe');
+  if(!el || typeof echarts === 'undefined') { if(el) el.style.display='none'; return; }
+  var c = echarts.init(el);
+  c.setOption({
+    title:{text:'MoE 稀疏激活（官方 config 实参）', left:'center', textStyle:{fontSize:13}},
+    tooltip:{trigger:'axis'},
+    grid:{left:60,right:30,top:50,bottom:40},
+    xAxis:{type:'category', data:['路由专家总数','每 token 激活','共享专家(常驻)']},
+    yAxis:{type:'value', name:'专家数'},
+    series:[{name:'专家数', type:'bar', data:[384, 8, 1], itemStyle:{color:'#1d4ed8'}, label:{show:true,position:'top'}}]
+  });
+  window.addEventListener('resize', function(){ c.resize(); });
+})();
+</script>
+</body>
+</html>

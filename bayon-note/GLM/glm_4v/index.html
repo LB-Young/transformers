@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-4V 家族架构详解 — GLM-4V-9B（2024 视觉-语言）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%230e7490'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#0e7490; --accent-ink:#155e75; --accent-soft:#e0f2f7; --accent-line:#a5d8e6;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#1d6e85;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell img{max-width:100%; height:auto; border-radius:8px;}
+  .chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-top:10px;}
+  .chart-box{width:100%; height:360px;}
+  table.cmp{width:100%; min-width:720px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f2fafd;}
+  table.cmp td.k{font-weight:600;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#cdeef7; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#0e7490"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">V</text></svg>GLM-4V 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#mm">视觉塔 mm</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">代际演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>GLM-4V 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">ChatGLMForConditionalGeneration（远程 chatglm 代码）</span>
+    <span class="badge">文本塔 = GLM-4-9B（40 层 · GQA 32Q/2KV · 4×RMSNorm）</span>
+    <span class="badge">视觉塔 ViT 63 层 · hidden 1792 · patch 14 · image 1120</span>
+    <span class="badge">动态分辨率多 tile · scaling_factor 8 → 100 token/tile</span>
+    <span class="badge">&lt;boi&gt;=151339 / &lt;eoi&gt;=151340</span>
+  </div>
+  <p class="lead">本页以 <b>官方 config</b>（2026-10-31 经 hf-mirror 拉取留档 <span class="num">_tools/_cfgpull/</span>）为唯一依据。<b>注意</b>：transformers 本地 <span class="num">models\glm4v\</span> 原生模块对应 GLM-4.1V/4.5V 的新视觉塔（24 层 / 1536 / 336），与本页 GLM-4V-9B（63 层 / 1792 / 1120）不是同一塔。</p>
+</header>
+
+<!-- 1 家族全景 -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：文本塔 + 视觉塔双 config</h2>
+  <h3>1.1 文本塔（= GLM-4-9B）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+    <thead><tr><th>字段</th><th>取值</th></tr></thead>
+    <tbody>
+      <tr><td class="k">入口类</td><td>ChatGLMForConditionalGeneration（远程代码）</td></tr>
+      <tr><td class="k">hidden_size / num_layers</td><td>4096 / 40</td></tr>
+      <tr><td class="k">Q / KV 头</td><td>32 / multi_query_group_num=2（GQA 2 KV）</td></tr>
+      <tr><td class="k">kv_channels（head_dim）</td><td>128</td></tr>
+      <tr><td class="k">ffn_hidden_size（SiGLU）</td><td>13696</td></tr>
+      <tr><td class="k">vocab / partial rotary / qkv bias</td><td>151552 / original_rope(0.5) / true</td></tr>
+      <tr><td class="k">post_layer_norm / rmsnorm / eps</td><td>true / true（4×RMSNorm 双残差）/ 1.5625e-6</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>1.2 视觉塔（vision_config，GLM-4V-9B 专属）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:32%"><col style="width:26%"><col style="width:42%"></colgroup>
+    <thead><tr><th>字段</th><th>取值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td class="k">num_hidden_layers</td><td>63</td><td>ViT 层数</td></tr>
+      <tr><td class="k">hidden_size</td><td>1792</td><td>视觉特征维</td></tr>
+      <tr><td class="k">patch_size / image_size</td><td>14 / 1120</td><td>patch 边长 / 单 tile 分辨率</td></tr>
+      <tr><td class="k">num_heads / intermediate_size</td><td>16 / 15360</td><td>视觉自注意力 / ViT FFN</td></tr>
+      <tr><td class="k">hidden_act / layer_norm_eps</td><td>gelu / 1e-6</td><td>文本塔为 silu</td></tr>
+      <tr><td class="k">num_positions</td><td>6401</td><td>= 80×80 patch + 1</td></tr>
+      <tr><td class="k">scaling_factor</td><td>8</td><td>8×8 patch 空间合并为 1 token</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="chart"><div id="chartVision" class="chart-box"></div></div>
+  <p class="tip">视觉 token 数 100/tile 为据 config 推导；投影层中间宽度 config 未单列，标注「以官方远程 modeling 实现为准」。文本塔机制详见 <span class="num">glm_4/index.md</span>。</p>
+</section>
+
+<!-- 2 数据流 -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">图像 → 动态分辨率切 tile（每块 ≤1120）→ patchify（14×14）→ 63 层 ViT → 8×8 合并 → 投影到 4096 → 包入 &lt;boi&gt;…&lt;eoi&gt; → 与文本拼接 → 40 层 GLM-4 文本解码器（自注意力融合）→ LM Head。</p>
+  <div class="diagram-shell"><img src="_arch/01_glm4v端到端总览.png" alt="GLM-4V-9B 端到端数据流"></div>
+</section>
+
+<!-- 3 解码层 -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖（文本塔 = GLM-4-9B）</h2>
+  <p class="note">4×RMSNorm「pre+post」双残差块、GQA 32Q/2KV、partial rotary 0.5、融合 gate_up 的 SiGLU。区别仅在于自注意力序列里混入经投影的图像 token。</p>
+  <div class="diagram-shell"><img src="_arch/03_glm4v文本解码层.png" alt="GLM-4V-9B 文本解码层"></div>
+  <p class="note">视觉 token 与文本 token 在同一解码器自注意力中全连接融合，不另设独立 cross-attention 或融合 MLP。</p>
+</section>
+
+<!-- 4 核心机制 -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：63 层 ViT · 动态分辨率 · 投影注入</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>① 63 层 ViT（独立视觉塔）</h3>
+      <p>视觉塔深度 63、hidden 1792、16 头、intermediate 15360、GELU。位置编码槽 <span class="num">num_positions=6401</span> = (1120/14)²+1 = 6400+1。</p>
+      <div class="formula">单 tile patch 数 = (1120/14)^2 = 80^2 = 6400
+num_positions = 6401  ← 自洽</div>
+    </div>
+    <div class="card">
+      <h3>② 动态分辨率 tile 切分</h3>
+      <p>原图等比缩放后按 1120×1120 tile 网格切分；每 tile 独立编码为固定 100 token，多 tile 序列首尾相接后统一包入 &lt;boi&gt;…&lt;eoi&gt;。</p>
+      <div class="formula">合并后 token = (80/8)^2 = 10×10 = 100 / tile
+# 8 = scaling_factor（8×8 邻域合并）</div>
+    </div>
+    <div class="card">
+      <h3>③ 投影与注入</h3>
+      <p>视觉 token（1792 维）投影到文本 hidden 4096 维，按占位文本标记位置写入输入 embedding，再送文本解码器。</p>
+      <div class="formula">vision: 6400×1792 --ViT63--> merge8 --> 100×1792
+       --proj--> 100×4096  拼入 text embedding</div>
+    </div>
+    <div class="card">
+      <h3>④ 跨模态融合位置</h3>
+      <p>融合发生在共享文本解码器的自注意力中：视觉 token 与文本 token 一起做全连接注意力，无独立 cross-attn。</p>
+      <div class="formula">Attn = softmax( Q_text·[K_text; K_vis]^T /√128 )·[V_text; V_vis]</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 注意力 -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制（文本塔）</h2>
+  <p class="note">与 GLM-4-9B 一致：GQA 32Q/2KV、head_dim 128、partial rotary 0.5、add_qkv_bias=true、缩放 head_dim^-0.5（详见 glm_4 页 §5）。视觉塔内部为标准 ViT 全自注意力（16 头），不做 GQA。</p>
+</section>
+
+<!-- 6 mm -->
+<section id="mm">
+  <h2><span class="secno">6</span>多模态视觉塔（mm）：编码与 token 流</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:22%"><col style="width:46%"><col style="width:32%"></colgroup>
+    <thead><tr><th>阶段</th><th>操作</th><th>输出形状（单 tile）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">原图</td><td>等比缩放 → tile 网格切分</td><td>若干 1120×1120 tile</td></tr>
+      <tr><td class="k">Patchify</td><td>14×14 patch 切分</td><td>80×80=6400 patch，1792 维</td></tr>
+      <tr><td class="k">位置编码</td><td>加 ViT 位置编码（num_positions=6401）</td><td>6400×1792</td></tr>
+      <tr><td class="k">ViT</td><td>63 层自注意力 + GELU FFN</td><td>6400×1792</td></tr>
+      <tr><td class="k">空间合并</td><td>scaling_factor=8（8×8 邻域合并）</td><td>10×10=100 token，1792 维</td></tr>
+      <tr><td class="k">投影</td><td>linear → 文本 hidden</td><td>100×4096</td></tr>
+      <tr><td class="k">注入</td><td>包 &lt;boi&gt;…&lt;eoi&gt; 拼到文本序列</td><td>与文本 token 进 40 层解码器</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="diagram-shell"><img src="_arch/02_glm4v视觉塔token流.png" alt="GLM-4V-9B 视觉塔 token 流"></div>
+</section>
+
+<!-- 7 token -->
+<section id="tokens">
+  <h2><span class="secno">7</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:30%"><col style="width:24%"><col style="width:46%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">pad_token_id</td><td>151329</td><td>填充</td></tr>
+      <tr><td class="k">eos_token_id</td><td>[151329,151336,151338]</td><td>序列结束</td></tr>
+      <tr><td class="k">boi_token_id</td><td>151339</td><td>图像 token 序列起始 &lt;boi&gt;</td></tr>
+      <tr><td class="k">eoi_token_id</td><td>151340</td><td>图像 token 序列结束 &lt;eoi&gt;</td></tr>
+      <tr><td class="k">vocab_size</td><td>151552</td><td>词表（GLM 系沿用）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">boi/eoi 是 GLM-4V-9B 相对 GLM-4-9B 唯一新增的特殊 token。</p>
+</section>
+
+<!-- 8 演进 -->
+<section id="evo">
+  <h2><span class="secno">8</span>演进视角：GLM-4 → GLM-4V → GLM-4.1V/4.5V</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:22%"><col style="width:26%"><col style="width:26%"><col style="width:26%"></colgroup>
+    <thead><tr><th>维度</th><th>GLM-4-9B（纯文本）</th><th>GLM-4V-9B（本页 2024）</th><th>GLM-4.1V/4.5V（后续）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">视觉塔层数</td><td>—</td><td>63</td><td>24（更浅高效）</td></tr>
+      <tr><td class="k">视觉 hidden</td><td>—</td><td>1792</td><td>1536</td></tr>
+      <tr><td class="k">单 tile image_size</td><td>—</td><td>1120</td><td>336</td></tr>
+      <tr><td class="k">patch / merge</td><td>—</td><td>14 / scaling 8</td><td>14 / spatial_merge 2</td></tr>
+      <tr><td class="k">投影到文本 hidden</td><td>—</td><td>1792→4096</td><td>1536→4096</td></tr>
+      <tr><td class="k">特殊 token</td><td>无 boi/eoi</td><td>boi=151339 / eoi=151340</td><td>+ video_start/end、image/video_token</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">GLM-4V-9B 在 GLM-4-9B 文本塔上挂深且高分辨率的视觉塔，开创 GLM 视觉-语言线；后续代把视觉塔改为更浅、更低单 tile 分辨率、更高合并比的高效设计（对应原生 models\glm4v\ 模块）。</p>
+</section>
+
+<!-- 9 来源 -->
+<section id="sources">
+  <h2><span class="secno">9</span>来源</h2>
+  <ol class="src">
+    <li>官方 config（GLM-4V-9B，远程 chatglm，2026-10-31 hf-mirror 留档）<span class="u">THUDM/glm-4v-9b / zai-org/glm-4v-9b（ChatGLMForConditionalGeneration；文本塔 4096/40层/32头·2KV/kv128/ffn13696/vocab151552/add_qkv_bias/post_layer_norm/rmsnorm；vision_config layers63/hidden1792/patch14/image1120/heads16/inter15360/act gelu/eps1e-6/num_positions6401/scaling8；boi=151339/eoi=151340）</span></li>
+    <li>transformers 原生模块 models\glm4v\（对应后续代 GLM-4.1V/4.5V，非本页）<span class="u">configuration_glm4v.py（Glm4vVisionConfig：depth24/hidden1536/image336/patch14/heads12/inter13696/out4096/merge2；image_start151339/image_end151340/video_start151341/video_end151342）</span></li>
+    <li>GLM-4V 模型卡片<span class="u">https://huggingface.co/zai-org/glm-4v-9b（视觉-语言规格、动态分辨率与 1120 tile 口径）</span></li>
+  </ol>
+  <p class="note">视觉 token 数 100/tile 为据 config 推导值；核验日期：2026-10-31。</p>
+</section>
+
+<footer>GLM-4V 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码（E:\transformers）+ 官方 model card · 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el,x,y){
+    TIP.innerHTML="";
+    var txt=el.getAttribute("data-tip")||"";
+    txt.split("\n").forEach(function(line,i){ if(i>0) TIP.appendChild(document.createElement("br")); TIP.appendChild(document.createTextNode(line)); });
+    TIP.style.display="block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left=Math.min(Math.max(x+14,8),vw-w-8)+"px";
+    TIP.style.top=(y+16+h>vh?y-h-10:y+16)+"px";
+  }
+  function hideTip(){ if(!pinned) TIP.style.display="none"; }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){ if(pinned===el) return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ if(pinned===el) return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ if(pinned===el) return; hideTip();});
+    el.addEventListener("click",function(e){ e.stopPropagation(); if(pinned===el){pinned=null;hideTip();} else {pinned=el;showTip(el,e.clientX,e.clientY);} });
+  })(els[i]);}
+  document.addEventListener("click",function(){ if(pinned){pinned=null;hideTip();} });
+
+  // ECharts: 两代视觉塔 config 实参对比（真实数据）
+  var chart = echarts.init(document.getElementById("chartVision"));
+  chart.setOption({
+    title:{text:"视觉塔代际对比：GLM-4V-9B（2024） vs GLM-4.1V/4.5V（后续代）", left:"center", textStyle:{fontSize:13}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:60,right:20,top:50,bottom:50},
+    xAxis:{type:"category", data:["视觉塔层数","视觉 hidden","单 tile 边长"]},
+    yAxis:{type:"value", name:"数值"},
+    series:[
+      {name:"GLM-4V-9B（2024）", type:"bar", data:[63,1792,1120], itemStyle:{color:"#0e7490"}, label:{show:true,position:"top"}},
+      {name:"GLM-4.1V/4.5V", type:"bar", data:[24,1536,336], itemStyle:{color:"#7fc6d9"}, label:{show:true,position:"top"}}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+</body>
+</html>

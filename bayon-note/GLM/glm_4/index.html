@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-4 家族架构详解 — GLM-4-9B + GLM-4-32B-0414（Dense 文本）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E4%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell img{max-width:100%; height:auto; border-radius:8px;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-top:10px;}
+  .chart-box{width:100%; height:360px;}
+
+  table.cmp{width:100%; min-width:720px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">4</text></svg>GLM-4 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs ChatGLM-3/4.5</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>GLM-4 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">入口类 ChatGLMModel（远程代码）→ 原生 Glm4ForCausalLM（model_type=glm4）</span>
+    <span class="badge">GQA 32Q / 2KV · head_dim 128 · partial rotary 0.5</span>
+    <span class="badge">4×RMSNorm「pre+post」双残差块 · 融合 gate_up SiGLU</span>
+    <span class="badge">词表 151552 · tie=False · Dense（非 MoE）</span>
+  </div>
+  <p class="lead">本页以 <b>官方 config</b>（2026-10-31 经 hf-mirror 拉取留档 <span class="num">_tools/_cfgpull/</span>）与 <b>transformers 源码 <span class="num">models\glm4\</span></b>（本地 E:\transformers）为唯一依据。GLM-4-9B 的 2024 原始发布以 <span class="num">model_type=chatglm</span> + 远程代码分发，transformers v5 原生 <span class="num">glm4</span> 模块是其官方现代移植。所有数字均标注来源。</p>
+</header>
+
+<!-- 1 家族全景 -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：GLM-4 两档 Dense 规格对照</h2>
+  <p class="note">GLM-4 文本代两档：GLM-4-9B（2024-01 首发，远程 chatglm config）与 GLM-4-32B-0414（2025-04 升级，原生 glm4 config）。主干一致，仅维度/层数/个别开关随尺寸变化。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+    <thead><tr><th>字段</th><th>GLM-4-9B（2024-01）</th><th>GLM-4-32B-0414（2025-04）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">入口类 / model_type</td><td>ChatGLMModel（远程，chatglm）</td><td>Glm4ForCausalLM（glm4）</td></tr>
+      <tr class="hl"><td class="k">形态</td><td>纯文本 Dense</td><td>纯文本 Dense</td></tr>
+      <tr><td class="k">hidden_size</td><td>4096</td><td>6144</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>40</td><td>61</td></tr>
+      <tr><td class="k">num_attention_heads (Q)</td><td>32</td><td>48</td></tr>
+      <tr><td class="k">num_key_value_heads (KV)</td><td>2（multi_query_group_num=2）</td><td>2</td></tr>
+      <tr><td class="k">head_dim</td><td>128（kv_channels=128）</td><td>128</td></tr>
+      <tr><td class="k">intermediate_size</td><td>13696（ffn_hidden_size）</td><td>23040</td></tr>
+      <tr><td class="k">vocab_size</td><td>151552</td><td>151552</td></tr>
+      <tr><td class="k">partial_rotary_factor</td><td>0.5（original_rope）</td><td>0.5</td></tr>
+      <tr><td class="k">rope_theta</td><td>10000</td><td>10000.0</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>131072（原生 port）；基座 seq 8192，推理扩 128K</td><td>32768</td></tr>
+      <tr><td class="k">attention_bias（QKV 偏置）</td><td>true（add_qkv_bias）</td><td>false</td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td>false</td><td>false</td></tr>
+      <tr><td class="k">rms_norm_eps</td><td>1.5625e-6</td><td>1e-5</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="chart"><div id="chartFamily" class="chart-box"></div></div>
+  <p class="tip">要点：① 两档均为 <b>Dense</b>（config 无专家字段）；GLM-4-32B-0414 的 <span class="num">architectures=Glm4ForCausalLM</span> 证实其非 MoE——MoE 是 GLM-4.5 才引入。② GQA 分组 9B=16:1、32B=24:1。③ QKV 偏置是唯一注意力开关差异（9B=true、32B-0414=false）。④ partial rotary 0.5 两档均显式给出。</p>
+</section>
+
+<!-- 2 数据流总览 -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token → 词嵌入（不绑定 LM Head）→ N 个 GLM-4DecoderLayer（4×RMSNorm 双残差：注意力子层 + SiGLU FFN 子层）→ 最终 RMSNorm → LM Head（解绑）。GLM-4 为纯文本代，无视觉塔。</p>
+  <div class="diagram-shell"><img src="_arch/01_glm4端到端总览.png" alt="GLM-4 家族端到端数据流总览"></div>
+  <p class="note">全家族统一主干：<span class="num">Embed → N×DecoderLayer → 最终 RMSNorm → LM Head</span>；差异集中在 hidden、层数、Q 头数与 QKV bias 开关。</p>
+</section>
+
+<!-- 3 解码层 -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：4×RMSNorm「pre+post」双残差块</h2>
+  <p class="note"><span class="num">Glm4DecoderLayer</span>（<span class="num">modeling_glm4.py:66-109</span>）含两组残差子层，每子层用前置+后置两个 RMSNorm（post_layer_norm 的 ChatGLM 传统，区别于 Qwen3 的单 RMSNorm 前置）。</p>
+  <div class="diagram-shell"><img src="_arch/02_glm4解码层与核心机制.png" alt="GLM-4 解码层解剖"></div>
+  <div class="formula">Glm4DecoderLayer.forward（modeling_glm4.py:88-109）:
+  residual = hidden_states
+  hidden_states = input_layernorm(hidden_states)          # ① RMSNorm
+  hidden_states, _ = self_attn(hidden_states, ...)        # GQA + partial rotary 0.5
+  hidden_states = post_self_attn_layernorm(hidden_states) # ② RMSNorm
+  hidden_states = residual + hidden_states                # ⊕1
+  residual = hidden_states
+  hidden_states = post_attention_layernorm(hidden_states) # ③ RMSNorm
+  hidden_states = self.mlp(hidden_states)                  # SiGLU（融合 gate_up）
+  hidden_states = post_mlp_layernorm(hidden_states)        # ④ RMSNorm
+  hidden_states = residual + hidden_states                # ⊕2</div>
+</section>
+
+<!-- 4 核心机制 -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：partial rotary · GQA · 4×RMSNorm · SiGLU</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>① 部分旋转位置编码（partial_rotary_factor=0.5）</h3>
+      <p>GLM-4 继承 ChatGLM 的 partial rotary：head_dim=128 中只有前一半（64 维）施加 RoPE，后一半原样透传。旋转维度 <span class="num">dim = head_dim × 0.5 = 64</span><sup class="src" data-tip="modeling_glm4.py:290-292 dim=head_dim*partial_rotary_factor">[S:290-292]</sup>。</p>
+      <div class="formula">inv_freq_i = base^(-2i/dim),  dim=64
+apply_rotary（178-192）:
+  cos/sin repeat_interleave(2)
+  q_rot = q[..., :64];  q_pass = q[..., 64:]
+  q_embed = (q_rot·cos) + rotate_half(q_rot)·sin
+  cat([q_embed, q_pass])   # 后64维不旋转</div>
+      <div class="meta">base（rope_theta）两档均为 10000；与 Qwen3 全维度 RoPE 不同。</div>
+    </div>
+    <div class="card">
+      <h3>② GQA 与 KV 压缩</h3>
+      <p><span class="num">num_key_value_groups = Q头 / KV头</span>（<sup class="src" data-tip="modeling_glm4.py:204">[S:204]</sup>），运行时 <span class="num">repeat_kv</span> 把 K/V 从 KV 头复制到 Q 头数<sup class="src" data-tip="modeling_glm4.py:112-121,134-135">[S:112-121]</sup>。9B=16:1、32B=24:1。</p>
+      <div class="formula">groups_9B  = 32/2 = 16
+groups_32B = 48/2 = 24
+repeat_kv(K, n_rep) → (B, Q_head, T, head_dim)</div>
+    </div>
+    <div class="card">
+      <h3>③ 4×RMSNorm（pre+post）</h3>
+      <p><span class="num">Glm4RMSNorm</span>（<sup class="src" data-tip="modeling_glm4.py:310-328">[S:310-328]</sup>）先 fp32 归一 <span class="num">hidden × rsqrt(mean(x²)+eps)</span> 再乘 γ。每子层前置+后置各一个 RMSNorm，共 4 个/层。</p>
+      <div class="formula">rms(x) = sqrt( mean(x²) + eps )
+y = ( x / rms(x) ) ⊙ γ
+eps: 9B=1.5625e-6 ; 32B-0414=1e-5</div>
+    </div>
+    <div class="card">
+      <h3>④ 融合 gate_up 的 SiGLU</h3>
+      <p><span class="num">Glm4MLP</span>（<sup class="src" data-tip="modeling_glm4.py:48-63">[S:48-63]</sup>）用单个 gate_up_proj 投影到 2×intermediate，再 chunk(2) 拆 gate/up。</p>
+      <div class="formula">[gate, up] = chunk2(gate_up_proj(x))
+FFN(x) = down( up ⊙ silu(gate) )
+# inter: 9B=13696 ; 32B=23040 ；三投影 bias=False</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 注意力 -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：GQA · partial rotary · QKV bias</h2>
+  <h3>5.1 GQA KV 头分配（repeat_kv）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:24%"><col style="width:19%"><col style="width:19%"><col style="width:19%"><col style="width:19%"></colgroup>
+    <thead><tr><th>尺寸</th><th>Q 头数</th><th>KV 头数</th><th>GQA 分组</th><th>head_dim</th></tr></thead>
+    <tbody>
+      <tr><td class="k">GLM-4-9B</td><td>32</td><td>2</td><td>16:1</td><td>128</td></tr>
+      <tr><td class="k">GLM-4-32B-0414</td><td>48</td><td>2</td><td>24:1</td><td>128</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="formula">Glm4Attention.forward（209-258）:
+q/k/v_proj  bias=config.attention_bias   # 9B=True，32B-0414=False
+o_proj      bias=False
+scaling = head_dim**-0.5 = 128**-0.5     # line 205
+q/k 经 apply_rotary_pos_emb（partial rotary 0.5）
+repeat_kv(K,V) → softmax(QK^T·scaling, fp32)V → o_proj</div>
+  <p class="note">注意力缩放固定 <span class="num">head_dim^-0.5</span>（<span class="num">modeling_glm4.py:205</span>）；9B 远程 config 的 apply_query_key_layer_scaling 是旧版 QK 缩放开关，原生 port 统一为 head_dim^-0.5。</p>
+</section>
+
+<!-- 6 特殊 token -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:30%"><col style="width:22%"><col style="width:32%"><col style="width:16%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">pad_token_id</td><td>151329</td><td>填充</td><td>config</td></tr>
+      <tr><td class="k">eos_token_id</td><td>[151329,151336,151338]</td><td>序列结束（多终止符）</td><td>configuration_glm4.py:79</td></tr>
+      <tr><td class="k">vocab_size</td><td>151552</td><td>词表大小（padded_vocab_size）</td><td>config</td></tr>
+      <tr><td class="k">boi / eoi</td><td>151339 / 151340</td><td>图像块起止（仅 GLM-4V-9B）</td><td>glm4v config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">词表 <span class="num">vocab_size=151552</span>（GLM 系沿用，与 Qwen 的 151936 不同）。GLM-4 文本代无思维标记——长思维链推理是 GLM-Z1 才引入的训练目标，架构不变。</p>
+</section>
+
+<!-- 7 演进 -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：ChatGLM-3 → GLM-4 → GLM-4.5</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:20%"><col style="width:27%"><col style="width:27%"><col style="width:26%"></colgroup>
+    <thead><tr><th>维度</th><th>ChatGLM-3（基线）</th><th>GLM-4（本代 Dense）</th><th>GLM-4.5（下一大代）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">形态</td><td>Dense</td><td>Dense（9B / 32B-0414）</td><td>MoE（355B-A32B，160 专家）</td></tr>
+      <tr><td class="k">GQA</td><td>MQA / 小 KV 组</td><td>GQA 32Q/2KV（16:1）</td><td>GQA 96Q/8KV</td></tr>
+      <tr><td class="k">归一化</td><td>RMSNorm + post_layer_norm</td><td>同（4×RMSNorm 双残差）</td><td>简化为 2×RMSNorm 前置 + QK-Norm</td></tr>
+      <tr><td class="k">partial rotary</td><td>有</td><td>有（0.5）</td><td>有（0.5）+ use_qk_norm</td></tr>
+      <tr><td class="k">FFN</td><td>GLU</td><td>融合 gate_up SiGLU</td><td>SiGLU + 路由专家 + 共享专家</td></tr>
+      <tr><td class="k">MTP</td><td>无</td><td>无</td><td>num_nextn_predict_layers=1</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">GLM-4 的主线：① 把 ChatGLM 系的 4×RMSNorm 双残差、partial rotary、GQA 定型为 Dense 两代；② 词表固定 151552；③ 为 GLM-4.5 的 MoE 化提供文本主干基础。早期代（ChatGLM-1/2/3、GLM-130B）由同项目另一执行者负责。</p>
+</section>
+
+<!-- 8 来源 -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>官方 config（GLM-4-9B，远程 chatglm 格式，2026-10-31 hf-mirror 留档）<span class="u">zai-org/glm-4-9b（model_type=chatglm/ChatGLMModel；hidden 4096/40层/32头/multi_query_group_num=2/kv_channels 128/ffn 13696/vocab 151552/add_qkv_bias/original_rope/post_layer_norm/seq_length 8192/tie=false）；zai-org/glm-4-9b-chat</span></li>
+    <li>官方 config（GLM-4-32B-0414，原生 glm4，留档 glm_4/_tools/_cfgpull/）<span class="u">zai-org/GLM-4-32B-0414（Glm4ForCausalLM；hidden 6144/61层/48Q·2KV/head_dim 128/inter 23040/partial rotary 0.5/rope_theta 1e4/max 32768/attention_bias=false/tie=false）</span></li>
+    <li>transformers 源码 configuration_glm4.py（本地 E:\transformers）<span class="u">vocab 151552(56)/hidden 4096(57)/inter 13696(58)/layers 40(59)/heads 32(60)/kv_heads 2(61)/head_dim 128(62)/max 131072(65)/rms_eps 1.5625e-6(67)/tie=false(69)/pad 151329(71)/attention_bias=true(74)/eos(79)/partial_rotary_factor=0.5(77)</span></li>
+    <li>transformers 源码 modeling_glm4.py<span class="u">Glm4MLP gate_up 53/chunk 60；DecoderLayer 66-109（4 RMSNorm 73-76）；repeat_kv 112-121；apply_rotary 156-193；Attention 196-258（groups 204，scaling 205，QKV bias 209-217）；RotaryEmbedding 261-307（dim 292）；RMSNorm 310-328；Model 351-421；lm_head 435</span></li>
+    <li>GLM-4 模型卡片与技术报告<span class="u">https://huggingface.co/zai-org/glm-4-9b ；智谱 BigModel 开放平台 GLM-4 发布公告（9B/32B/多模态规格与 128K 上下文口径）</span></li>
+  </ol>
+  <p class="note">标注约定：[S:n]=modeling_glm4.py 行号。GLM-4-9B 远程字段名（kv_channels/multi_query_group_num/ffn_hidden_size/num_layers/padded_vocab_size）与原生 glm4 字段名对应关系已在 §1 逐格标注。核验日期：2026-10-31。</p>
+</section>
+
+<footer>GLM-4 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码（E:\transformers）+ 官方 model card · 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el,x,y){
+    TIP.innerHTML="";
+    var txt=el.getAttribute("data-tip")||"";
+    txt.split("\n").forEach(function(line,i){
+      if(i>0) TIP.appendChild(document.createElement("br"));
+      TIP.appendChild(document.createTextNode(line));
+    });
+    TIP.style.display="block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left=Math.min(Math.max(x+14,8),vw-w-8)+"px";
+    TIP.style.top=(y+16+h>vh?y-h-10:y+16)+"px";
+  }
+  function hideTip(){ if(!pinned) TIP.style.display="none"; }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){ if(pinned===el) return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ if(pinned===el) return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ if(pinned===el) return; hideTip();});
+    el.addEventListener("click",function(e){ e.stopPropagation(); if(pinned===el){pinned=null;hideTip();} else {pinned=el;showTip(el,e.clientX,e.clientY);}});
+  })(els[i]);}
+  document.addEventListener("click",function(){ if(pinned){pinned=null;hideTip();} });
+
+  // ECharts: GLM-4 两档规格对比（真实 config 数据）
+  var chart = echarts.init(document.getElementById("chartFamily"));
+  chart.setOption({
+    title:{text:"GLM-4 两档 Dense 规格对比（官方 config 实参）", left:"center", textStyle:{fontSize:13}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:50,right:20,top:50,bottom:50},
+    xAxis:{type:"category", data:["hidden_size","层数","Q 头数","KV 头数","intermediate"]},
+    yAxis:{type:"value", name:"数值"},
+    series:[
+      {name:"GLM-4-9B", type:"bar", data:[4096,40,32,2,13696], itemStyle:{color:"#1d4ed8"}},
+      {name:"GLM-4-32B-0414", type:"bar", data:[6144,61,48,2,23040], itemStyle:{color:"#93b4f5"}}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+</body>
+</html>

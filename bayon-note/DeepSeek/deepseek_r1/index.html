@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-R1 家族架构详解 — 671B-T37B 推理模型 · 与 V3 同底座 · R1-Distill</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3ER1%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:34%;}
+  table.cmp col.c2{width:38%;}
+  table.cmp col.c3{width:28%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  #chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px;}
+  #chartBox{width:100%; height:380px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media (min-width:768px){#chartBox{height:420px;}}
+  @media print{nav.top{display:none;} body{background:#fff; font-size:12px;} .diagram-shell{overflow:visible; border:none; padding:0;} .diagram-shell svg{min-width:0;}}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">R1</text></svg>DeepSeek-R1 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs V3</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>DeepSeek-R1 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">DeepseekV3ForCausalLM · model_type deepseek_v3</span>
+    <span class="badge">671B-T37B · 与 V3 同底座（config 逐字段一致）</span>
+    <span class="badge">差异在训练：冷启动推理 SFT → 大规模 RL</span>
+    <span class="badge">输出 &lt;think&gt;...&lt;/think&gt; 思维链</span>
+    <span class="badge">R1-Distill：Qwen2.5 / Llama3 小模型蒸馏</span>
+  </div>
+  <p class="lead">本页以 <b>DeepSeek-R1 官方 <span class="num">config.json</span></b>（hf-mirror 拉取，逐字段核对）为唯一依据：R1 与 V3 的架构字段<b>完全一致</b>，唯一顶层差异是 <span class="num">transformers_version</span>。架构数字引用 V3 目录，R1 独有训练管线与推理行为。</p>
+</header>
+
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：R1 官方 config 逐字段核验</h2>
+  <p class="note">与 DeepSeek-V3 config 逐项 diff：架构字段无差异，唯一顶层差异 transformers_version（R1=4.46.3，V3=4.33.1）。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>字段</th><th>DeepSeek-R1 取值</th><th>与 V3</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>DeepseekV3ForCausalLM / deepseek_v3</td><td>一致</td></tr>
+      <tr><td class="k">hidden / num_hidden_layers</td><td>7168 / 61</td><td>一致</td></tr>
+      <tr><td class="k">kv_lora / q_lora（MLA）</td><td>512 / 1536</td><td>一致</td></tr>
+      <tr><td class="k">qk_rope / qk_nope / v_head</td><td>64 / 128 / 128</td><td>一致</td></tr>
+      <tr><td class="k">intermediate / moe_intermediate</td><td>18432 / 2048</td><td>一致</td></tr>
+      <tr class="hl"><td class="k">路由专家 / 每 token / 共享</td><td>256 / 8 / 1</td><td>一致</td></tr>
+      <tr><td class="k">vocab / max_position</td><td>129280 / 163840</td><td>一致</td></tr>
+      <tr><td class="k">nextn / scoring / topk_method</td><td>1 / sigmoid / noaux_tc</td><td>一致</td></tr>
+      <tr class="hl"><td class="k">transformers_version</td><td>4.46.3</td><td><b>唯一差异</b>（V3=4.33.1）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">结论：R1 不是新架构，而是 V3 同权重底座经推理定向训练得到的推理模型。MLA/DeepSeekMoE/aux-loss-free/MTP 全部机制与 V3 目录逐行一致。</p>
+
+  <div id="chart">
+    <h3 style="margin-top:0">图：R1-Distill 蒸馏家族尺寸（官方口径，底座为 Dense 而非 MoE）</h3>
+    <div id="chartBox"></div>
+    <p class="note">蒸馏系列用 R1 推理数据教小模型，架构随各自底座（Qwen2.5 / Llama3），不共享 V3 的 MLA/MoE。</p>
+  </div>
+</section>
+
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览（同 V3）</h2>
+  <p class="note">文本 token → 词嵌入 → 61×DecoderLayer（前 3 Dense / 后 58 MoE，MLA）→ RMSNorm → LM Head；MTP ×1。本节只给 R1 的训练/行为差异。</p>
+  <div class="diagram-shell">
+    <svg class="dg" viewBox="0 0 1000 260" role="img" aria-label="R1 pipeline">
+      <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#c9c4ba"/></marker></defs>
+      <g class="node core"><rect x="20" y="90" width="150" height="70" rx="8"/><text class="t" x="95" y="118" text-anchor="middle">V3 权重底座</text><text class="s" x="95" y="138" text-anchor="middle">671B-T37B MLA+MoE</text></g>
+      <g class="node dim"><rect x="220" y="150" width="160" height="60" rx="8"/><text class="t" x="300" y="175" text-anchor="middle">冷启动推理 SFT</text><text class="s" x="300" y="193" text-anchor="middle">少量推理样本</text></g>
+      <g class="node core"><rect x="430" y="90" width="170" height="70" rx="8"/><text class="t" x="515" y="118" text-anchor="middle">大规模 RL</text><text class="s" x="515" y="138" text-anchor="middle">规则奖励 · GRPO 类</text></g>
+      <g class="node"><rect x="650" y="90" width="150" height="70" rx="8" fill="#fef3c7" stroke="#b45309"/><text class="t" x="725" y="118" text-anchor="middle" fill="#92400e">DeepSeek-R1</text><text class="s" x="725" y="138" text-anchor="middle" fill="#92400e">&lt;think&gt; 长链推理</text></g>
+      <g class="node"><rect x="650" y="190" width="150" height="50" rx="8"/><text class="t" x="725" y="220" text-anchor="middle">R1-Distill 小模型</text></g>
+      <path class="edge" d="M170,125 L220,175"/><path class="edge" d="M380,180 L430,140"/><path class="edge" d="M600,125 L650,125"/><path class="edge" d="M725,160 L725,190"/>
+    </svg>
+  </div>
+</section>
+
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖（同 V3）</h2>
+  <p class="note">与 V3 逐行一致（<span class="num">DeepseekV3DecoderLayer</span>，前置 RMSNorm 残差块，FFN 子层前 3 层 Dense、后 58 层 MoE）。源码 <span class="num">models\deepseek_v3\modeling_deepseek_v3.py:485-529</span>。</p>
+</section>
+
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：架构同 V3，差异在训练</h2>
+  <h3>4.1 与 V3 的差异是训练而非架构</h3>
+  <div class="formula">V3  : 通用预训练 + 通用 SFT/RLHF  → 通用对话<br>R1  : 同一 V3 权重底座<br>      ├ 冷启动 reasoning SFT（避免 RL 初期乱输出）<br>      └ 大规模 RL（数学/代码准确率、格式、去重奖励）→ 激发长链推理</div>
+  <h3>4.2 输出思维链 &lt;think&gt;...&lt;/think&gt;</h3>
+  <p>R1 先输出一段隐式思维链再正式作答（由 tokenizer_config 定义，config 顶层未单列 id）。这是输出格式约定，不是新增架构模块。</p>
+  <h3>4.3 R1-Zero 对照</h3>
+  <p>从 V3-Base 直接上 RL、不经冷启动 SFT 的对照版本，验证 RL 能否单独激发推理——与 R1 共用同一架构，仅训练流程少一步。</p>
+</section>
+
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制（同 V3）</h2>
+  <p class="note">MLA 低秩 KV（kv_lora_rank=512）、RoPE 仅作用 64 维段、YaRN factor=40 外推到 163840。详见 V3 目录 §5。</p>
+</section>
+
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">bos / eos</td><td>0 / 1</td><td>序列开始 / 结束</td></tr>
+      <tr><td class="k">&lt;think&gt;...&lt;/think&gt;</td><td>特殊标记（tokenizer_config）</td><td>思维链包裹</td></tr>
+      <tr><td class="k">vocab_size</td><td>129280</td><td>与 V3 同词表</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：V3 → R1</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>维度</th><th>DeepSeek-V3</th><th>DeepSeek-R1</th></tr></thead>
+    <tbody>
+      <tr><td class="k">网络架构</td><td>671B-T37B MLA+MoE</td><td><b>完全相同</b>（config 逐字段一致）</td></tr>
+      <tr><td class="k">训练目标</td><td>通用预训练 + 对齐</td><td>冷启动推理 SFT + 大规模 RL</td></tr>
+      <tr><td class="k">输出行为</td><td>通用对话</td><td>先 &lt;think&gt; 思维链再作答</td></tr>
+      <tr><td class="k">蒸馏外溢</td><td>无</td><td>R1-Distill 到 Qwen2.5 / Llama3 小模型</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config（hf-mirror，2026-10-31 逐字段核对）
+      <span class="u">deepseek-ai/DeepSeek-R1.config.json（与 V3 逐字段一致；唯一差异 transformers_version=4.46.3）</span></li>
+    <li>DeepSeek-R1 论文
+      <span class="u">https://arxiv.org/abs/2501.12948（冷启动 RL、R1-Zero、R1-Distill 系列）</span></li>
+    <li>transformers 源码（与 V3 同源）
+      <span class="u">models\deepseek_v3\modeling_deepseek_v3.py（DecoderLayer 485-529 / MLA 349-482 / MoE 201-222）</span></li>
+    <li>官方模型仓库
+      <span class="u">https://huggingface.co/deepseek-ai/DeepSeek-R1 ；同组织 DeepSeek-R1-Distill-Qwen-* / -Llama-*</span></li>
+  </ol>
+</section>
+
+<footer>DeepSeek-R1 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码 + arXiv:2501.12948 · 2026-10-31 核验</footer>
+</div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chartBox'));
+  chart.setOption({
+    tooltip: {trigger: 'axis'},
+    grid: {left: 50, right: 20, top: 30, bottom: 50},
+    xAxis: {type: 'category', data: ['Distill-Qwen-1.5B','Distill-Qwen-7B','Distill-Llama-8B','Distill-Qwen-14B','Distill-Qwen-32B','Distill-Llama-70B'], axisLabel: {interval: 0, fontSize: 10, rotate: 20}},
+    yAxis: {type: 'value', name: '参数量 (B)'},
+    series: [{type: 'bar', data: [1.5, 7, 8, 14, 32, 70], itemStyle: {color: '#1d4ed8'}, label: {show: true, position: 'top', fontSize: 11}}]
+  });
+  window.addEventListener('resize', () => chart.resize());
+</script>
+</body>
+</html>

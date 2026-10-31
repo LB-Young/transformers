@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kimi K2.5 家族架构详解 — 1.04T-A32B MoE + MoonViT-3D 原生多模态</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EK%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>if(typeof echarts==='undefined')document.write('<script src="../qwen3/_tools/echarts.min.js"><\/script>');</script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  .num.mm{color:var(--mm-ink); background:var(--mm-soft);}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  nav.top a.link.mm-link{color:var(--mm-ink);}
+  nav.top a.link.mm-link:hover{background:var(--mm-soft);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h2.mm .secno{color:var(--mm-ink); background:var(--mm-soft); border-color:var(--mm-line);}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.mm{background:var(--mm-soft); border-color:var(--mm-line); color:var(--mm-ink);}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell img{display:block; margin:0 auto; max-width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.mm rect{fill:var(--mm-soft); stroke:var(--mm); stroke-width:1.6;}
+  .dg .node.text rect{fill:#f4f4f2; stroke:var(--edge); stroke-dasharray:4 3;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .node.mm text.t{fill:var(--mm-ink);}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.mm{stroke:var(--mm); stroke-width:1.8; marker-end:url(#arrm);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp thead th.mm-th{background:var(--mm-soft); color:var(--mm-ink);}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  .formula.mm{background:#134e4a; color:#c7f0e8;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  .chart{width:100%; height:340px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); margin-top:12px;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">K</text></svg>Kimi K2.5</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">总体设计</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link mm-link" href="#mm">多模态</a>
+  <a class="link" href="#tokens">Token/词表</a>
+  <a class="link" href="#evo">演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>Kimi K2.5 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">1.04T 总参 / 32B 激活（K2 底座）</span>
+    <span class="badge">MLA 低秩注意力</span>
+    <span class="badge">384 routed + 1 shared · top-8</span>
+    <span class="badge mm">MoonViT-3D 原生多模态</span>
+    <span class="badge">256K 上下文 · INT4 开源</span>
+  </div>
+  <p class="lead">Kimi K2.5 在 Kimi K2（DeepSeek-V3 系 MLA + 384 专家 MoE，hidden 7168 / 61 层）文本底座上，early-fusion 联合预训练自研视觉编码器 <b>MoonViT-3D</b>（patch14 / 27 层 / 1152），构形为「视觉塔 + PatchMerger 投影器 + K2 MoE 文本塔」。transformers 入口类 <code>KimiK25ForConditionalGeneration</code>（model_type <code>kimi_k25</code>），开源权重为 compressed-tensors INT4。</p>
+</header>
+
+<section id="family">
+  <h2><span class="secno">1</span>家族全景</h2>
+  <p>K2.5 是原生多模态智能体模型，全部数值以远端官方 config（moonshotai/Kimi-K2.5，2026-10-31 拉取）为准；本机无权重。下表逐字段标来源。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:26%"><col style="width:44%"><col style="width:30%"></colgroup>
+    <thead><tr><th>字段</th><th>取值</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures</td><td>KimiK25ForConditionalGeneration</td><td>官方 config</td></tr>
+      <tr><td class="k">text_config.model_type</td><td>kimi_k2 → 运行时重写为 deepseek_v3</td><td>config + configuration_kimi_k25.py:53</td></tr>
+      <tr><td class="k">层数 / hidden / Q·KV 头</td><td>61 层 · 7168 · 64 / 64</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">MLA</td><td>kv_lora 512 · q_lora 1536 · nope 128 · rope 64 · v 128</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">MoE</td><td>384 routed + 1 shared · top-8 · moe_inter 2048 · first_k_dense_replace 1</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">dense FFN</td><td>intermediate 18432（仅第 0 层）</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">路由</td><td>sigmoid · noaux_tc · routed_scaling 2.827 · aux_loss_alpha=0</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">RoPE / 上下文</td><td>θ=50000 · YaRN factor 64 · max_position 262144</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">词表 / tie</td><td>163840 · tie=false（text_config）</td><td>官方 config text_config</td></tr>
+      <tr><td class="k">视觉塔</td><td>有（patch14·27层·1152·16头·4304，见 §6）</td><td>官方 config vision_config</td></tr>
+      <tr><td class="k">量化</td><td>compressed-tensors int4 group32 dynamic act-order</td><td>官方 config quantization_config</td></tr>
+      <tr><td class="k">特殊 token</td><td>image 163605 · video 163840 · vs 163602 · ve 163604</td><td>config + configuration_kimi_k25.py:25</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="diagram-shell"><img src="./_arch/01_k25端到端总览.png" alt="K2.5 端到端总览"></div>
+  <div id="chart-moe" class="chart"></div>
+</section>
+
+<section id="overview">
+  <h2><span class="secno">2</span>总体设计</h2>
+  <div class="cards">
+    <div class="card"><h3>① MoonViT-3D 视觉塔</h3><p>patch14、27 层、hidden 1152、16 头、FFN 4304、gelu_pytorch_tanh，双向非因果注意力，轴向 2D-RoPE，初始化自 SigLIP-SO-400M。</p></div>
+    <div class="card"><h3>② PatchMerger 投影器</h3><p>(2,2) 时空均值池化把 token 压到 1/4，再过 LN→Linear(4608→4608)→GELU→Linear(4608→7168)，对齐文本 hidden。</p></div>
+    <div class="card"><h3>③ K2 MoE 文本塔</h3><p>DeepSeek-V3 系 CausalLM：MLA 压缩注意力 + 384 专家 MoE，第 0 层 dense，1–60 层 MoE。</p></div>
+    <div class="card"><h3>训练流水线（论文 §4.3）</h3><p>视觉塔先 caption-loss 对齐 Moonlight-16B-A3B（~1T token）→ 短训投影器桥接 → 联合预训练 ~15T 视-文 token（early fusion）→ YaRN 32K→262144。</p></div>
+  </div>
+</section>
+
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖</h2>
+  <p>文本塔解码层即 DeepseekV3DecoderLayer（源码 models\deepseek_v3\modeling_deepseek_v3.py:485-529），pre-norm 双残差：RMSNorm→MLA 注意力→残差；RMSNorm→FFN→残差。FFN 按层号二选一：第 0 层 dense SwiGLU（18432）；1–60 层 MoE（8  routed 专家加权 + 常驻共享专家）。</p>
+  <div class="diagram-shell"><img src="./_arch/02_k25解码层与MoE.png" alt="K2.5 解码层与 MoE"></div>
+</section>
+
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制</h2>
+  <div class="cards">
+    <div class="card"><h3>sigmoid 无辅助损失路由</h3><p>sigmoid 打分 + e_score_correction_bias 修正（:136-137），top-8 后归一化再乘 routed_scaling_factor 2.827；aux_loss_alpha=0，靠 bias 做负载均衡。</p></div>
+    <div class="card"><h3>共享专家常驻</h3><p>n_shared_experts=1，对每 token 都前向一次，与 routed 专家加权和相加（:220-221），承载跨专家通用知识。</p></div>
+    <div class="card"><h3>PatchMerger（SD2 tpool）</h3><p>merge_kernel (2,2) 时空均值池化，token ÷4；投影器 LN1152→Linear4608→GELU→Linear7168（modeling_kimi_k25.py:560-564）。</p></div>
+    <div class="card"><h3>early fusion</h3><p>视觉 token 在 embedding 层按占位位 masked_scatter 填入文本序列，与文本 token 一起进 MoE 塔，早期固定低比例共训。</p></div>
+  </div>
+</section>
+
+<section id="attn">
+  <h2><span class="secno">5</span>注意力</h2>
+  <p>文本塔为 <b>MLA（Multi-head Latent Attention）</b>，全因果、无滑窗、Q/KV 均 64 头，靠低秩潜向量压缩 KV cache：Query 经 q_a(7168→1536)→RMSNorm→q_b 展开；KV 经 kv_a(7168→512+64) 压缩后缓存，解码时 kv_b 展开；RoPE 仅加在 64 维 rope 部分。<b>非</b>线性注意力——KDA 线性注意力属独立家族 Kimi-Linear。</p>
+  <div class="formula">q:  7168 --q_a--> 1536 --RMSNorm--> q_b --> 64 × (128 nope + 64 rope)
+kv: 7168 --kv_a--> 512(潜向量,缓存) + 64(RoPE)   [解码时 kv_b 展开为 64 × (128 + 128 v)]</div>
+</section>
+
+<section id="mm" class="mm">
+  <h2 class="mm"><span class="secno">6</span>多模态：MoonViT-3D 视觉塔与 token 流</h2>
+  <p class="tip mm">官方无独立「Kimi-K2-VL」仓库；K2 代 VL 即本模型（config 内嵌 vision_config），同架构亦用于 K2.6。视觉塔逐字段见下。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:34%"><col style="width:36%"><col style="width:30%"></colgroup>
+    <thead><tr><th class="mm-th">视觉塔字段</th><th class="mm-th">取值</th><th class="mm-th">说明</th></tr></thead>
+    <tbody>
+      <tr><td class="k">patch / hidden / 层数 / 头 / FFN</td><td>14 / 1152 / 27 / 16 / 4304</td><td>官方 config vision_config</td></tr>
+      <tr><td class="k">位置编码 / RoPE</td><td>可学习 64×64 网格（超网格双三次插值）+ 轴向 2D-RoPE</td><td>configuration_kimi_k25.py:173-190</td></tr>
+      <tr><td class="k">merge / 投影器</td><td>(2,2) 时空池化 · patchmerger · gelu</td><td>官方 config vision_config</td></tr>
+      <tr><td class="k">原生分辨率</td><td>不切 tile，max_patches=16384 预算等比缩放 + NaViT 打平</td><td>image_processing_kimi_k25.py:50-97</td></tr>
+      <tr><td class="k">视频</td><td>最多 4 帧共享权重，时间均值池化 4× 压缩</td><td>论文 §4.2</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>图像 H×W → patch14 → grid_h×grid_w patch → 27 层双向视觉 Transformer → 2×2 空间池化 → (gh/2)(gw/2) 视觉 token → 投影 7168 → 按 image=163605 位 masked_scatter 填入。512×512 例：36×36 patch → 池化后 324 视觉 token。</p>
+</section>
+
+<section id="tokens">
+  <h2><span class="secno">7</span>Token 与词表</h2>
+  <p>词表 163840。bos=163584、eos=163585、pad=163839；视觉四元组 vs=163602 / image=163605 / video=163840 / ve=163604。上下文 262144（YaRN factor 64 从 4096 外推）。</p>
+</section>
+
+<section id="evo">
+  <h2><span class="secno">8</span>演进</h2>
+  <div class="cards">
+    <div class="card"><h3>K2 / K2-0905（2025-07/09）</h3><p>1.04T-A32B 纯文本 MoE，DeepSeek-V3 系 MLA + 384 专家 top-8；本目录文本塔即其直接继承（K2 论文 arXiv:2507.20534）。</p></div>
+    <div class="card"><h3>K2.5（本目录，2026）</h3><p>K2 底座 + MoonViT-3D 原生多模态；early-fusion 联合预训练；开源 INT4；routed_scaling 2.827。</p></div>
+    <div class="card"><h3>K2.6（同架构）</h3><p>同 kimi_k25 架构，config 与 K2.5 基本一致，eos=163586。</p></div>
+    <div class="card"><h3>其他（未单独立目录）</h3><p>K2.7-Code、Kimi-K3、Kimi-Linear-48B-A3B（KDA 线性注意力）、Kimi-VL-A3B、Moonlight-16B-A3B。</p></div>
+  </div>
+</section>
+
+<section id="sources">
+  <h2><span class="secno">9</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config：moonshotai/Kimi-K2.5/config.json（hf-mirror，2026-10-31 拉取）<span class="u">https://hf-mirror.com/moonshotai/Kimi-K2.5/raw/main/config.json</span></li>
+    <li>官方模型卡：<span class="u">https://huggingface.co/moonshotai/Kimi-K2.5</span></li>
+    <li>Kimi K2.5 技术报告 arXiv:2602.02276<span class="u">https://arxiv.org/abs/2602.02276</span></li>
+    <li>Kimi K2 技术报告 arXiv:2507.20534<span class="u">https://arxiv.org/abs/2507.20534</span></li>
+    <li>transformers 源码（E:\transformers）：models\kimi_k25\、models\deepseek_v3\<span class="u">本机可编辑安装</span></li>
+  </ol>
+</section>
+
+<footer>Kimi K2.5 家族架构详解 · 数值以远端官方 config（2026-10-31）+ transformers 源码 + arXiv 2602.02276 为准 · 本机无权重</footer>
+</div>
+
+<script>
+(function(){
+  var el = document.getElementById('chart-moe');
+  if(!el || typeof echarts === 'undefined') { if(el) el.style.display='none'; return; }
+  var c = echarts.init(el);
+  c.setOption({
+    title:{text:'MoE 稀疏性与 KV cache 压缩（官方 config 实参）', left:'center', textStyle:{fontSize:13}},
+    tooltip:{trigger:'axis'},
+    legend:{bottom:0},
+    grid:{left:60,right:30,top:50,bottom:50},
+    xAxis:{type:'category', data:['路由专家总数','每 token 激活专家','MLA KV 潜向量(每token)','标准64头KV(对照)']},
+    yAxis:{type:'value', name:'数量'},
+    series:[
+      {name:'数量', type:'bar', data:[384, 8, 576, 64*256],
+       itemStyle:{color:'#1d4ed8'},
+       label:{show:true, position:'top'}}
+    ]
+  });
+  window.addEventListener('resize', function(){ c.resize(); });
+})();
+</script>
+</body>
+</html>

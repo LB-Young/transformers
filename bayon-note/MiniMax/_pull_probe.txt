@@ -1,0 +1,40 @@
+[OK] MiniMaxAI/MiniMax-Text-01 exists, files count=435
+     config.json present: True; sample: ['.gitattributes', 'LICENSE-CODE', 'LICENSE-MODEL', 'MiniMax-Text-01_Function_Call_Guide.md', 'MiniMax-Text-01_Function_Call_Guide_CN.md', 'README.md', 'config.json', 'configuration_minimax_text_01.py', 'figures/MiniMaxLogo.png', 'figures/TextBench.png', 'figures/VisionBench.png', 'figures/hailuo.svg']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_text_01\_tools\_cfgpull\config.json
+     model_type=minimax_text_01 arch=['MiniMaxText01ForCausalLM']
+[OK] MiniMaxAI/MiniMax-Text-01-hf exists, files count=434
+     config.json present: True; sample: ['.gitattributes', 'LICENSE-CODE', 'LICENSE-MODEL', 'MiniMax-Text-01_Function_Call_Guide.md', 'MiniMax-Text-01_Function_Call_Guide_CN.md', 'README.md', 'config.json', 'figures/MiniMaxLogo.png', 'figures/TextBench.png', 'figures/VisionBench.png', 'figures/hailuo.svg', 'figures/image.jpg']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_text_01_hf_probe\_tools\_cfgpull\config.json
+     model_type=minimax arch=['MiniMaxForCausalLM']
+[MISS] MiniMaxAI/MiniMax-Visual-01: RepositoryNotFoundError 401 Client Error. (Request ID: Root=1-6ae5ff5c-7f827fc659103e9d0b591570;ea387eb5-ef01-4d05-aef1-bdcaf9f8f0e2)
+
+Repository Not Found for url: https://hf-mirror.c
+[OK] MiniMaxAI/MiniMax-M1 exists, files count=433
+     config.json present: True; sample: ['.gitattributes', 'LICENSE', 'MiniMax_M1_tech_report.pdf', 'README.md', 'config.json', 'configuration_minimax_m1.py', 'docs/function_call_guide.md', 'docs/function_call_guide_cn.md', 'docs/transformers_deployment_guide.md', 'docs/transformers_deployment_guide_cn.md', 'docs/vllm_deployment_guide.md', 'docs/vllm_deployment_guide_cn.md']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m1\_tools\_cfgpull\config.json
+     model_type=minimax_m1 arch=['MiniMaxM1ForCausalLM']
+[OK] MiniMaxAI/MiniMax-M1-80k exists, files count=434
+     config.json present: True; sample: ['.gitattributes', 'LICENSE', 'MiniMax_M1_tech_report.pdf', 'README.md', 'config.json', 'configuration_minimax_m1.py', 'docs/function_call_guide.md', 'docs/function_call_guide_cn.md', 'docs/transformers_deployment_guide.md', 'docs/transformers_deployment_guide_cn.md', 'docs/vllm_deployment_guide.md', 'docs/vllm_deployment_guide_cn.md']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m1_80k_probe\_tools\_cfgpull\config.json
+     model_type=minimax_m1 arch=['MiniMaxM1ForCausalLM']
+[OK] MiniMaxAI/MiniMax-M2 exists, files count=153
+     config.json present: True; sample: ['.gitattributes', 'README.md', 'chat_template.jinja', 'config.json', 'configuration_minimax_m2.py', 'docs/mlx_deploy_guide.md', 'docs/sglang_deploy_guide.md', 'docs/sglang_deploy_guide_cn.md', 'docs/tool_calling_guide.md', 'docs/tool_calling_guide_cn.md', 'docs/transformers_deploy_guide.md', 'docs/transformers_deploy_guide_cn.md']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m2\_tools\_cfgpull\config.json
+     model_type=minimax_m2 arch=['MiniMaxM2ForCausalLM']
+[MISS] MiniMaxAI/MiniMax-M2-hf: RepositoryNotFoundError 401 Client Error. (Request ID: Root=1-6ae5ff62-02fd7d402a9bc8aa31f581be;f3ece2fc-c098-4a4f-834e-2220cc36606c)
+
+Repository Not Found for url: https://hf-mirror.c
+[MISS] MiniMaxAI/MiniMax-Text-04: RepositoryNotFoundError 401 Client Error. (Request ID: Root=1-6ae5ff62-406862162546fe486d580a36;82d8afe3-3b4b-4a8c-86e2-60ae3f11f17f)
+
+Repository Not Found for url: https://hf-mirror.c
+[OK] MiniMaxAI/MiniMax-M3 exists, files count=82
+     config.json present: True; sample: ['.eval_results/lhtb.yaml', '.eval_results/minimax-m3.yaml', '.gitattributes', 'LICENSE', 'README.md', 'added_tokens.json', 'chat_template.jinja', 'config.json', 'configuration_minimax_m3_vl.py', 'figures/benchmark.jpeg', 'figures/efficiency_gqa_vs_msa.png', 'figures/logo.svg']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m3_probe\_tools\_cfgpull\config.json
+     model_type=minimax_m3_vl arch=['MiniMaxM3SparseForConditionalGeneration']
+[MISS] MiniMaxAI/MiniMax-M3-VL: RepositoryNotFoundError 401 Client Error. (Request ID: Root=1-6ae5ff67-54745b7e484d732e239cf402;1ddd5333-873a-4ba7-af36-6b83d442dcf6)
+
+Repository Not Found for url: https://hf-mirror.c
+[OK] MiniMaxAI/MiniMax-VL-01 exists, files count=445
+     config.json present: True; sample: ['.gitattributes', 'LICENSE-CODE', 'LICENSE-MODEL', 'MiniMax-VL-01_Function_Call_Guide.md', 'MiniMax-VL-01_Function_Call_Guide_CN.md', 'README.md', 'added_tokens.json', 'apple.jpg', 'chat_template.json', 'config.json', 'configuration_minimax_text_01.py', 'configuration_minimax_vl_01.py']
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_vl01_probe\_tools\_cfgpull\config.json
+     model_type=minimax_vl_01 arch=['MiniMaxVL01ForConditionalGeneration']

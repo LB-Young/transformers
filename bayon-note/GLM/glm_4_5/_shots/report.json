@@ -1,0 +1,136 @@
+{
+  "src": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\index.html",
+  "url": "file:///E:/transformers/bayon-note/GLM/glm_4_5/index.html",
+  "outdir": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots",
+  "include": [
+    "lint",
+    "screenshots",
+    "structure"
+  ],
+  "shots": {
+    "desktop": {
+      "screenshot": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\index_desktop.jpg",
+      "screenshotBytes": 337951,
+      "truncated": false,
+      "structure": {
+        "title": "GLM-4.5 家族架构详解 — 355B-A32B MoE · 4.5-Air · 4.6",
+        "firstH1": "GLM-4.5 家族架构详解",
+        "viewport": {
+          "w": 1422,
+          "h": 748
+        },
+        "fullpage": {
+          "w": 1422,
+          "h": 4854
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 2,
+          "canvas": 1,
+          "svg": 1,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": [],
+      "reportSource": "cdp"
+    },
+    "mobile": {
+      "slices": [
+        "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\index_mobile_p1of2.jpg",
+        "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\index_mobile_p2of2.jpg"
+      ],
+      "sliceHint": "按顺序 Read slices 里的各分片。",
+      "truncated": false,
+      "structure": {
+        "title": "GLM-4.5 家族架构详解 — 355B-A32B MoE · 4.5-Air · 4.6",
+        "firstH1": "GLM-4.5 家族架构详解",
+        "viewport": {
+          "w": 500,
+          "h": 692
+        },
+        "fullpage": {
+          "w": 500,
+          "h": 5357
+        },
+        "counts": {
+          "section": 8,
+          "h1": 1,
+          "h2": 8,
+          "img": 2,
+          "canvas": 1,
+          "svg": 1,
+          "links": 8,
+          "buttons": 0
+        }
+      },
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "horizontalOverflow": [],
+      "resourceErrors": [],
+      "reportSource": "cdp"
+    }
+  },
+  "engine": "chrome_cli",
+  "chromiumExec": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "engineDegraded": true,
+  "engineDegradedReason": "playwright 未装",
+  "elapsedSec": 20.96,
+  "schemaVersion": 2,
+  "status": "pass",
+  "engineInfo": {
+    "name": "chrome_cli",
+    "degraded": true,
+    "degradedReasons": [
+      "playwright 未装"
+    ]
+  },
+  "input": {
+    "original": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\index.html",
+    "resolvedPath": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\index.html",
+    "baseUrl": "file:///E:/transformers/bayon-note/GLM/glm_4_5/index.html",
+    "protocol": "file",
+    "cwd": "E:\\transformers",
+    "mediaMode": {
+      "reducedMotion": true
+    }
+  },
+  "artifacts": {
+    "screenshots": [
+      {
+        "viewport": "desktop",
+        "path": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\index_desktop.jpg",
+        "size": 337951,
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      },
+      {
+        "viewport": "mobile",
+        "tiles": [
+          "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\index_mobile_p1of2.jpg",
+          "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\index_mobile_p2of2.jpg"
+        ],
+        "visualCoverage": {
+          "complete": true,
+          "reason": null
+        }
+      }
+    ]
+  },
+  "summary": {
+    "blocker": 0,
+    "error": 0,
+    "warning": 0,
+    "info": 0
+  },
+  "findings": [],
+  "prioritizedActions": [],
+  "reportPath": "E:\\transformers\\bayon-note\\GLM\\glm_4_5\\_shots\\report.json"
+}

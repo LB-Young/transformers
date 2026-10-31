@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-4.5 家族架构详解 — 355B-A32B MoE · 4.5-Air · 4.6</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E%E2%82%84%E2%82%85%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#5b21b6; --accent-soft:#ede7fb; --accent-line:#d3c4f5;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#6d28d9;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell img{max-width:100%; height:auto; border-radius:8px;}
+  .chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-top:10px;}
+  .chart-box{width:100%; height:360px;}
+  table.cmp{width:100%; min-width:760px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f6f2fd;}
+  table.cmp td.k{font-weight:600;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#e3d6fc; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:360px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#7c3aed"/><text x="12" y="16" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">4.5</text></svg>GLM-4.5</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">Token</a>
+  <a class="link" href="#evo">演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>GLM-4.5 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">Glm4MoeForCausalLM（model_type=glm4_moe）</span>
+    <span class="badge">MoE：160 路由专家 + 1 共享专家，top-8（≈355B-A32B）</span>
+    <span class="badge">sigmoid 路由 + norm_topk_prob + scaling 2.5</span>
+    <span class="badge">QK-Norm · 2×RMSNorm 前置 · MTP（num_nextn=1）</span>
+    <span class="badge">4.5-Air ≈106B-A12B · 4.6 max_position=202752</span>
+  </div>
+  <p class="lead">本页以 <b>官方 config</b>（2026-10-31 hf-mirror 留档 <span class="num">_tools/_cfgpull/</span>）与 <b>transformers 源码 <span class="num">models\glm4_moe\</span></b> 为唯一依据。<b>关键事实</b>：GLM-4.5 是 <b>glm4_moe 架构的 355B-A32B 稀疏 MoE</b>，不是 dense 32B——以 config 的专家字段为准。</p>
+</header>
+
+<!-- 1 家族全景 -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：GLM-4.5 三档 MoE 规格对照</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:30%"><col style="width:23.3%"><col style="width:23.3%"><col style="width:23.4%"></colgroup>
+    <thead><tr><th>字段</th><th>GLM-4.5</th><th>GLM-4.5-Air</th><th>GLM-4.6</th></tr></thead>
+    <tbody>
+      <tr><td class="k">model_type / 形态</td><td>glm4_moe（MoE）</td><td>glm4_moe（MoE）</td><td>glm4_moe（MoE）</td></tr>
+      <tr><td class="k">hidden_size</td><td>5120</td><td>4096</td><td>5120</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>92</td><td>46</td><td>92</td></tr>
+      <tr><td class="k">Q / KV 头</td><td>96 / 8</td><td>96 / 8</td><td>96 / 8</td></tr>
+      <tr><td class="k">intermediate_size（dense）</td><td>12288</td><td>10944</td><td>12288</td></tr>
+      <tr><td class="k">moe_intermediate_size</td><td>1536</td><td>1408</td><td>1536</td></tr>
+      <tr><td class="k">n_routed_experts</td><td>160</td><td>128</td><td>160</td></tr>
+      <tr><td class="k">n_shared_experts / top-k</td><td>1 / 8</td><td>1 / 8</td><td>1 / 8</td></tr>
+      <tr><td class="k">first_k_dense_replace</td><td>3</td><td>1</td><td>3</td></tr>
+      <tr><td class="k">routed_scaling_factor</td><td>2.5</td><td>1.0</td><td>2.5</td></tr>
+      <tr><td class="k">use_qk_norm</td><td>true</td><td>false</td><td>true</td></tr>
+      <tr><td class="k">rope_theta / max_position</td><td>1e6 / 131072</td><td>1e6 / 131072</td><td>1e6 / <b>202752</b></td></tr>
+      <tr><td class="k">MTP（num_nextn）</td><td>1</td><td>1</td><td>1</td></tr>
+      <tr><td class="k">激活参数（官方口径）</td><td>≈32B/token</td><td>≈12B/token</td><td>≈32B/token</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="chart"><div id="chartMoe" class="chart-box"></div></div>
+  <p class="tip">GLM-4.6 与 4.5 config 逐项相同，唯一差异 max_position 202752 vs 131072；Air 是窄版（hidden 4096/46层/128专家/use_qk_norm=false/scaling 1.0）。</p>
+</section>
+
+<!-- 2 数据流 -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">token → Embed（5120，不绑定 LM Head）→ 前 K 层 dense FFN + 其余 MoE 层（GQA 注意力[QK-Norm] + Router 路由 top-8 专家并叠加共享专家）→ 最终 RMSNorm → LM Head；另有 MTP 头。</p>
+  <div class="diagram-shell"><img src="_arch/01_glm45端到端总览.png" alt="GLM-4.5 端到端数据流"></div>
+</section>
+
+<!-- 3 解码层 -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：MoE 层</h2>
+  <p class="note"><span class="num">Glm4MoeDecoderLayer</span>（modeling_glm4_moe.py:394-438）相对 GLM-4 的 4×RMSNorm 双残差简化为 <b>2×RMSNorm 前置</b>；first_k_dense_replace 之前用 dense MLP，之后用 MoE（:401-404）。</p>
+  <div class="diagram-shell"><img src="_arch/02_glm45MoE解码层.png" alt="GLM-4.5 MoE 解码层解剖"></div>
+  <div class="formula">Glm4MoeDecoderLayer.forward（394-438）:
+residual = hidden_states
+hidden_states = input_layernorm(hidden_states)      # 前置 RMSNorm ①
+hidden_states = self_attn(hidden_states, ...)        # GQA 96/8 + QK-Norm
+hidden_states = residual + hidden_states
+residual = hidden_states
+hidden_states = post_attention_layernorm(hidden_states) # 前置 RMSNorm ②
+hidden_states = self.mlp(hidden_states)               # dense MLP 或 MoE
+hidden_states = residual + hidden_states</div>
+</section>
+
+<!-- 4 核心机制 -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：MoE 路由 · QK-Norm · 共享专家 · MTP</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>① sigmoid Top-k 路由（非 softmax）</h3>
+      <p><span class="num">TopkRouter</span>（:268）用 sigmoid 打分（:284），选 top-k（:300-305），norm_topk_prob 归一（:302-304），乘 routed_scaling_factor（:305）。</p>
+      <div class="formula">w_i = sigmoid(router(x)_i), i ∈ top_k(x)
+w̃_i = w_i / Σ_topk w_j  × λ
+λ = 2.5（GLM-4.5）；Air λ=1.0</div>
+    </div>
+    <div class="card">
+      <h3>② 路由专家 + 共享专家并联</h3>
+      <p><span class="num">Glm4MoeMoE</span>（:370）：路由分支 = top-k 专家加权和；共享专家 <span class="num">Glm4MoeMLP(moe_inter×n_shared)</span>（:380-381）全 token 激活，与路由分支残差相加（:384-390）。</p>
+      <div class="formula">FFN_MoE(x) = Σ_top8 w̃_i·E_i(x)  +  Shared(x)
+#        路由专家（稀疏）      共享专家（每 token）</div>
+    </div>
+    <div class="card">
+      <h3>③ QK-Norm</h3>
+      <p>注意力内对 Q、K 各加 <span class="num">Glm4MoeRMSNorm(head_dim)</span>（use_qk_norm 分支 :198-201，应用 :218-220），稳定长上下文。Air 的 use_qk_norm=false。</p>
+      <div class="formula">Q ← RMSNorm_headdim(Q)
+K ← RMSNorm_headdim(K)</div>
+    </div>
+    <div class="card">
+      <h3>④ MTP（多 token 预测）</h3>
+      <p><span class="num">num_nextn_predict_layers=1</span>：除主 LM Head 外附一个浅层 MTP 模块预测下一-下一 token，提升训练密度与推理 speculation。</p>
+      <div class="formula">logits_main  = LMHead(h_L)
+logits_mtp   = MTPHead(h_{L-1})  # num_nextn=1</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 注意力 -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：GQA 96Q/8KV + partial rotary</h2>
+  <p class="note">与 GLM-4 共享 GQA + partial rotary 血统：96 Q 头 / 8 KV 头（12:1）、head_dim 128、partial_rotary_factor 0.5、attention_bias=true；新增 QK-Norm 与 rope_theta=1e6（配合 128K+ 上下文）。GQA/partial rotary 原理见 <span class="num">glm_4/index.md</span> §5。</p>
+</section>
+
+<!-- 6 token -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:34%"><col style="width:30%"><col style="width:36%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">pad / eos</td><td>151329 / [151329,151336,151338]</td><td>填充 / 结束</td></tr>
+      <tr><td class="k">vocab_size</td><td>151552</td><td>词表（GLM 系沿用）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">GLM-4.5 文本代不新增特殊 token；MTP 头不引入新 token。视觉变体 GLM-4.5V 扩展 video/image token，折入 §8 提及。</p>
+</section>
+
+<!-- 7 演进 -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：GLM-4（Dense）→ GLM-4.5（MoE）→ 4.6 / 4.5V</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:20%"><col style="width:26%"><col style="width:24%"><col style="width:15%"><col style="width:15%"></colgroup>
+    <thead><tr><th>维度</th><th>GLM-4 Dense</th><th>GLM-4.5 MoE</th><th>GLM-4.6</th><th>GLM-4.5V</th></tr></thead>
+    <tbody>
+      <tr><td class="k">形态</td><td>Dense</td><td>MoE 160 专家 top-8</td><td>同 4.5</td><td>MoE + 视觉</td></tr>
+      <tr><td class="k">hidden/层数</td><td>4096·40 / 6144·61</td><td>5120/92</td><td>5120/92</td><td>4096/46</td></tr>
+      <tr><td class="k">Q/KV</td><td>32·2 / 48·2</td><td>96·8</td><td>96·8</td><td>96·8</td></tr>
+      <tr><td class="k">归一化</td><td>4×RMSNorm</td><td>2×前置+QK-Norm</td><td>同 4.5</td><td>同 4.5-Air</td></tr>
+      <tr><td class="k">路由</td><td>无</td><td>sigmoid top-8+共享</td><td>同 4.5</td><td>同 4.5-Air</td></tr>
+      <tr><td class="k">MTP</td><td>无</td><td>1</td><td>1</td><td>1</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">GLM-4.5 主线：Dense→MoE；4×RMSNorm 双残差简化为 2×前置 + QK-Norm；新增 MTP；词表 151552、partial rotary 0.5 沿用。GLM-4.5V（glm4v_moe）文本塔=4.5-Air + 新视觉塔（24层/1536/336/merge2，支持视频）。</p>
+</section>
+
+<!-- 8 来源 -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>官方 config（GLM-4.5，2026-10-31 hf-mirror 留档）<span class="u">zai-org/GLM-4.5（glm4_moe；hidden 5120/92层/96Q·8KV/inter 12288/moe_inter 1536/160专家/1共享/top8/first_k_dense 3/scaling 2.5/norm_topk/use_qk_norm/partial 0.5/rope_theta 1e6/max 131072/MTP 1）</span></li>
+    <li>官方 config（GLM-4.5-Air）<span class="u">zai-org/GLM-4.5-Air（hidden 4096/46层/inter 10944/moe_inter 1408/128专家/top8/first_k_dense 1/scaling 1.0/use_qk_norm=false/max 131072/MTP 1）</span></li>
+    <li>官方 config（GLM-4.6）<span class="u">zai-org/GLM-4.6（与 4.5 相同，唯一差异 max_position_embeddings=202752）</span></li>
+    <li>transformers 源码 models\glm4_moe\modeling_glm4_moe.py<span class="u">RotaryEmbedding 45；Attention 174（q/k RMSNorm 198-201，应用 218-220）；Glm4MoeMLP 252；TopkRouter 268（sigmoid 284，topk 300-305，norm 302-304，scaling 305）；Experts 331/343；Glm4MoeMoE 370（shared 380-381，forward 384-390）；DecoderLayer 394-438（dense/MoE 401-404）；ForCausalLM 550</span></li>
+    <li>GLM-4.5 模型卡片<span class="u">https://huggingface.co/zai-org/GLM-4.5（355B-A32B MoE、128K、MTP 开源公告）</span></li>
+  </ol>
+  <p class="note">[S:n]=modeling_glm4_moe.py 行号；「≈32B/≈12B 激活参数」为官方 card 口径。核验日期：2026-10-31。</p>
+</section>
+
+<footer>GLM-4.5 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码（E:\transformers）+ 官方论文/model card · 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  var pinned = null;
+  function showTip(el,x,y){
+    TIP.innerHTML="";
+    var txt=el.getAttribute("data-tip")||"";
+    txt.split("\n").forEach(function(line,i){ if(i>0) TIP.appendChild(document.createElement("br")); TIP.appendChild(document.createTextNode(line)); });
+    TIP.style.display="block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left=Math.min(Math.max(x+14,8),vw-w-8)+"px";
+    TIP.style.top=(y+16+h>vh?y-h-10:y+16)+"px";
+  }
+  function hideTip(){ if(!pinned) TIP.style.display="none"; }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){ if(pinned===el) return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ if(pinned===el) return; showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ if(pinned===el) return; hideTip();});
+    el.addEventListener("click",function(e){ e.stopPropagation(); if(pinned===el){pinned=null;hideTip();} else {pinned=el;showTip(el,e.clientX,e.clientY);} });
+  })(els[i]);}
+  document.addEventListener("click",function(){ if(pinned){pinned=null;hideTip();} });
+
+  var chart = echarts.init(document.getElementById("chartMoe"));
+  chart.setOption({
+    title:{text:"GLM-4.5 vs 4.5-Air：MoE 规格对比（官方 config 实参）", left:"center", textStyle:{fontSize:13}},
+    tooltip:{trigger:"axis"},
+    legend:{bottom:0},
+    grid:{left:60,right:20,top:50,bottom:50},
+    xAxis:{type:"category", data:["hidden_size","层数","路由专家数"]},
+    yAxis:{type:"value", name:"数值"},
+    series:[
+      {name:"GLM-4.5", type:"bar", data:[5120,92,160], itemStyle:{color:"#7c3aed"}, label:{show:true,position:"top"}},
+      {name:"GLM-4.5-Air", type:"bar", data:[4096,46,128], itemStyle:{color:"#c4b5fd"}, label:{show:true,position:"top"}}
+    ]
+  });
+  window.addEventListener("resize", function(){ chart.resize(); });
+})();
+</script>
+</body>
+</html>

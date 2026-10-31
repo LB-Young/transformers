@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-V3 家族架构详解 — 671B-T37B MoE · MLA · aux-loss-free · MTP</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV3%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:26%;}
+  table.cmp col.c2{width:46%;}
+  table.cmp col.c3{width:28%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+
+  #chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px;}
+  #chartBox{width:100%; height:380px;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+
+  @media (min-width:768px){
+    #chartBox{height:420px;}
+  }
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">V3</text></svg>DeepSeek-V3 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">vs V2</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>DeepSeek-V3 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">DeepseekV3ForCausalLM · model_type deepseek_v3</span>
+    <span class="badge">671B 总参 / ≈37B 激活（MoE）</span>
+    <span class="badge">MLA 多头潜在注意力（kv_lora=512 · q_lora=1536 · rope 64 / nope 128）</span>
+    <span class="badge">256 路由专家选 8 + 1 共享专家 · aux-loss-free（sigmoid/noaux_tc）</span>
+    <span class="badge">MTP 投机预测头 · FP8 e4m3 训练 · YaRN 163840</span>
+  </div>
+  <p class="lead">本页以 <b>官方 <span class="num">config.json</span></b>（经 hf-mirror 拉取 deepseek-ai/DeepSeek-V3 与 V3-Base，逐字段核对）与 <b>transformers 源码 <span class="num">models\deepseek_v3\</span></b>（本地 E:\transformers）为唯一依据。V3 与 V3-Base 架构字段完全一致，差异仅在重训/对话对齐。所有数字均标注来源。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：V3 / V3-Base 官方 config 对照</h2>
+  <p class="note">下表全部字段来自远端官方 config（2026-10-31 经 hf-mirror 逐字段核对，存 <span class="num">_tools\_cfgpull\</span>）。V3 与 V3-Base 逐字段一致。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>字段</th><th>V3 / V3-Base 取值</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>DeepseekV3ForCausalLM / deepseek_v3</td><td>config 顶层</td></tr>
+      <tr class="hl"><td class="k">形态</td><td><b>MoE：671B 总参 / ≈37B 激活</b></td><td>论文 arXiv:2412.19437</td></tr>
+      <tr><td class="k">hidden_size</td><td>7168</td><td>config</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>61（前 3 层 Dense，后 58 层 MoE）<small>first_k_dense_replace=3</small></td><td>config + 源码 492-495</td></tr>
+      <tr><td class="k">num_attention_heads (Q)</td><td>128</td><td>config</td></tr>
+      <tr><td class="k">kv_lora_rank / q_lora_rank</td><td>512 / 1536（MLA 双低秩）</td><td>config</td></tr>
+      <tr><td class="k">qk_rope / qk_nope / v_head_dim</td><td>64 / 128 / 128</td><td>config</td></tr>
+      <tr><td class="k">intermediate_size（Dense FFN）</td><td>18432</td><td>config</td></tr>
+      <tr><td class="k">moe_intermediate_size（每专家）</td><td>2048</td><td>config</td></tr>
+      <tr class="hl"><td class="k">路由专家 / 每 token 激活</td><td>256 / 8</td><td>config</td></tr>
+      <tr><td class="k">n_shared_experts（共享专家）</td><td>1（宽度 2048）</td><td>config + 源码 211-213</td></tr>
+      <tr><td class="k">routed_scaling_factor</td><td>2.5</td><td>config</td></tr>
+      <tr><td class="k">vocab_size</td><td>129280</td><td>config</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>163840（YaRN factor=40，原 4096）</td><td>config + rope_scaling</td></tr>
+      <tr><td class="k">rope_theta</td><td>10000</td><td>config</td></tr>
+      <tr><td class="k">tie_word_embeddings</td><td>false（嵌入与 LM Head 解绑）</td><td>config</td></tr>
+      <tr><td class="k">num_nextn_predict_layers</td><td>1（MTP 头）</td><td>config</td></tr>
+      <tr><td class="k">scoring_func / topk_method</td><td>sigmoid / noaux_tc（aux-loss-free）</td><td>config</td></tr>
+      <tr><td class="k">n_group / topk_group</td><td>8 / 4（专家分组限选）</td><td>config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">要点：① 671B 总参由 256×58 层细粒度路由专家主导，每 token 只激活 8/256 + 1 共享专家；② 前 3 层 Dense FFN（18432），第 4 层起换 MoE；③ KV cache 只存 512+64=576 维压缩潜变量；④ quantization_config=fp8 e4m3 是训练权重格式，不改拓扑。</p>
+
+  <div id="chart">
+    <h3 style="margin-top:0">图：671B 总参构成（按 config 字段复算，单位 B）与每 token 激活量对比</h3>
+    <div id="chartBox"></div>
+    <p class="note">路由专家占总参绝对大头；每 token 只激活其中 8 个专家 + 共享专家，故激活量约 37B。</p>
+  </div>
+</section>
+
+<!-- ==================== 2 数据流总览 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token → 词嵌入（129280×7168，解绑）→ 61×DecoderLayer（前 3 层 Dense / 后 58 层 MoE）→ 最终 RMSNorm → LM Head；另有 1 层 MTP 头。</p>
+  <div class="diagram-shell">
+    <svg class="dg" viewBox="0 0 1000 300" role="img" aria-label="端到端总览">
+      <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#c9c4ba"/></marker></defs>
+      <g class="node"><rect x="20" y="110" width="110" height="60" rx="8"/><text class="t" x="75" y="135" text-anchor="middle">文本 token</text><text class="s" x="75" y="153" text-anchor="middle">词表 129280</text></g>
+      <g class="node"><rect x="160" y="110" width="110" height="60" rx="8"/><text class="t" x="215" y="135" text-anchor="middle">词嵌入</text><text class="s" x="215" y="153" text-anchor="middle">7168 维 解绑</text></g>
+      <g class="node dim"><rect x="300" y="100" width="150" height="80" rx="8"/><text class="t" x="375" y="125" text-anchor="middle">前 3 层 Dense</text><text class="s" x="375" y="145" text-anchor="middle">MLA + SwiGLU</text><text class="m" x="375" y="163" text-anchor="middle">inter=18432</text></g>
+      <g class="node core"><rect x="480" y="100" width="170" height="80" rx="8"/><text class="t" x="565" y="125" text-anchor="middle">后 58 层 MoE</text><text class="s" x="565" y="145" text-anchor="middle">MLA + DeepSeekMoE</text><text class="m" x="565" y="163" text-anchor="middle">256选8 + 1共享</text></g>
+      <g class="node"><rect x="680" y="110" width="100" height="60" rx="8"/><text class="t" x="730" y="145" text-anchor="middle">最终 RMSNorm</text></g>
+      <g class="node"><rect x="810" y="110" width="110" height="60" rx="8"/><text class="t" x="865" y="135" text-anchor="middle">LM Head</text><text class="s" x="865" y="153" text-anchor="middle">→ 129280</text></g>
+      <g class="node" style="--c:#b45309"><rect x="480" y="220" width="170" height="55" rx="8" fill="#fef3c7" stroke="#b45309"/><text class="t" x="565" y="245" text-anchor="middle" fill="#92400e">MTP 头 ×1</text><text class="s" x="565" y="262" text-anchor="middle" fill="#92400e">投机解码草稿</text></g>
+      <path class="edge" d="M130,140 L160,140"/><path class="edge" d="M270,140 L300,140"/><path class="edge" d="M450,140 L480,140"/><path class="edge" d="M650,140 L680,140"/><path class="edge" d="M780,140 L810,140"/>
+      <path class="edge" d="M565,180 L565,220" stroke="#b45309"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ==================== 3 解码层解剖 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：DeepseekV3DecoderLayer</h2>
+  <p class="note">单 RMSNorm 前置残差块（源码 <span class="num">modeling_deepseek_v3.py:485-529</span>）。FFN 子层按层号二选一：layer_idx&lt;3 用 Dense SwiGLU，≥3 用 DeepSeekMoE。</p>
+  <div class="diagram-shell">
+    <svg class="dg" viewBox="0 0 1000 340" role="img" aria-label="解码层">
+      <defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#c9c4ba"/></marker></defs>
+      <g class="node"><rect x="20" y="140" width="90" height="50" rx="8"/><text class="t" x="65" y="170" text-anchor="middle">hidden</text></g>
+      <g class="node dim"><rect x="150" y="60" width="130" height="50" rx="8"/><text class="t" x="215" y="90" text-anchor="middle">RMSNorm ①</text></g>
+      <g class="node dim"><rect x="150" y="230" width="130" height="50" rx="8"/><text class="t" x="215" y="260" text-anchor="middle">RMSNorm ②</text></g>
+      <g class="node core"><rect x="320" y="45" width="260" height="80" rx="8"/><text class="t" x="450" y="72" text-anchor="middle">MLA 注意力</text><text class="s" x="450" y="92" text-anchor="middle">Q/KV 低秩压缩（512 维潜变量）</text><text class="m" x="450" y="110" text-anchor="middle">scaling=192^-0.5</text></g>
+      <g class="node core"><rect x="320" y="215" width="260" height="80" rx="8"/><text class="t" x="450" y="242" text-anchor="middle">FFN 子层</text><text class="s" x="450" y="262" text-anchor="middle">前3层 SwiGLU(18432) / 后58层 MoE</text><text class="m" x="450" y="280" text-anchor="middle">256选8 + 共享专家直加</text></g>
+      <g class="node"><rect x="640" y="70" width="60" height="40" rx="8"/><text class="t" x="670" y="96" text-anchor="middle">⊕</text></g>
+      <g class="node"><rect x="640" y="235" width="60" height="40" rx="8"/><text class="t" x="670" y="261" text-anchor="middle">⊕</text></g>
+      <g class="node"><rect x="760" y="140" width="110" height="50" rx="8"/><text class="t" x="815" y="170" text-anchor="middle">下一层</text></g>
+      <path class="edge" d="M110,155 L150,85"/><path class="edge" d="M280,85 L320,85"/><path class="edge" d="M580,85 L640,90"/>
+      <path class="edge" d="M65,140 L65,115 L150,255" marker-end="url(#arr2)"/>
+      <path class="edge" d="M110,255 L150,255"/><path class="edge" d="M280,255 L320,255"/><path class="edge" d="M580,255 L640,255"/>
+      <path class="edge" d="M700,90 L760,155"/><path class="edge" d="M700,255 L760,180"/>
+    </svg>
+  </div>
+  <div class="formula">residual = x<br>x = input_layernorm(x) → MLA → ⊕<br>x = post_attention_layernorm(x) → FFN/MoE → ⊕</div>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：MLA · DeepSeekMoE · aux-loss-free · MTP · FP8</h2>
+
+  <h3>4.1 MLA 多头潜在注意力（Q/KV 双低秩压缩）</h3>
+  <p>Q 侧：hidden→q_a_proj(7168→1536)→RMSNorm→q_b_proj(1536→128头×192)；KV 侧：hidden→kv_a_proj(7168→512+64)，512 维过 RMSNorm 后由 kv_b_proj 还原逐头 K-nope/V，64 维 k_rot 走 RoPE。KV cache 只存 576 维压缩潜变量。</p>
+  <div class="formula">z_kv = W_DKV · x ; c = RMSNorm(z_kv) ; [K;V] = W_UKV · c<br>q = W_UQ · RMSNorm(W_AQ · x) ; K_rope = RoPE(k_rot)<br>Attn = softmax(q·kᵀ / √192 + mask) · v</div>
+
+  <h3>4.2 DeepSeekMoE：256 细粒度路由专家 + 1 共享专家</h3>
+  <p>路由专家每专家宽 2048（细粒度），每 token 选 8；共享专家宽 2048 常开、输出直接相加（源码 220-221）。</p>
+
+  <h3>4.3 aux-loss-free 负载均衡（noaux_tc）</h3>
+  <p>sigmoid 打分 + e_score_correction_bias 历史负载修正 + 分组（256 分 8 组、组内 top2 求和、选 4 组）内再选 8，<b>无路由辅助损失</b>（config topk_method=noaux_tc）。</p>
+
+  <h3>4.4 MTP 与 FP8</h3>
+  <p>num_nextn_predict_layers=1：训练时多预测一个未来 token，推理可作投机解码草稿头。quantization_config=fp8 e4m3 为训练/存储精度（128×128 块权重缩放、激活动态量化），不改架构拓扑。</p>
+</section>
+
+<!-- ==================== 5 注意力 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力机制：MLA 低秩 KV · YaRN 长上下文</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>项</th><th>取值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Q 投影</td><td>7168 → 1536 → 128头×192</td><td>双低秩 q_a/q_b</td></tr>
+      <tr><td class="k">KV 潜变量</td><td>7168 → 512(nope)+64(rot)</td><td>单头共享一份</td></tr>
+      <tr><td class="k">逐头 K/V 还原</td><td>512 → 128头×(128 K + 128 V)</td><td>attn 前即时扩展</td></tr>
+      <tr><td class="k">KV cache / token</td><td>576 维</td><td>≈MQA 量级</td></tr>
+      <tr><td class="k">RoPE</td><td>仅作用 64 维段，rope_interleave</td><td>k_rot 全头共享</td></tr>
+      <tr><td class="k">YaRN</td><td>factor=40，4096→163840</td><td>rope_theta=10000</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 6 特殊 token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="k">bos_token_id</td><td>0</td><td>序列开始</td></tr>
+      <tr><td class="k">eos_token_id</td><td>1</td><td>序列结束</td></tr>
+      <tr><td class="k">vocab_size</td><td>129280</td><td>DeepSeek 自研 BPE</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">嵌入与 LM Head 不绑定（tie_word_embeddings=false）。</p>
+</section>
+
+<!-- ==================== 7 演进 ==================== -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：DeepSeek-V2 → V3</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>维度</th><th>DeepSeek-V2（基线）</th><th>DeepSeek-V3</th></tr></thead>
+    <tbody>
+      <tr><td class="k">注意力</td><td>MLA（V2 首次引入，kv_lora=512，Q/KV 双低秩）</td><td><b>MLA 延续，维度一致</b>（512/1536/64/128/128）</td></tr>
+      <tr><td class="k">负载均衡</td><td>group_limited_greedy + aux-loss 辅助损失</td><td><b>aux-loss-free</b>（sigmoid+bias 修正+分组 noaux_tc）</td></tr>
+      <tr><td class="k">专家</td><td>160 路由专家选 6 + 2 共享（V2 主模型 236B-A21B）</td><td>256 路由专家选 8 + 1 共享</td></tr>
+      <tr><td class="k">Dense 起始层</td><td>first_k_dense_replace=1</td><td><b>3</b>（前 3 层 Dense）</td></tr>
+      <tr><td class="k">上下文</td><td>163840（YaRN40；论文口径 128K 待确认）</td><td>163840（YaRN40）</td></tr>
+      <tr><td class="k">投机预测</td><td>无</td><td><b>MTP ×1</b></td></tr>
+      <tr><td class="k">训练精度</td><td>bf16</td><td><b>FP8 e4m3 混合精度</b></td></tr>
+      <tr><td class="k">词表</td><td>102400</td><td>129280</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">V3 升级点：MoE 扩规模（路由 160→256、共享 2→1）、路由去辅助损失（→ sigmoid/noaux_tc）、MTP、FP8 e4m3、扩表 102400→129280、Dense 起始层 1→3；MLA 维度 V2→V3 一致。16B-A2.4B 属 V2-Lite 档，不计入 V2 主模型行。相邻代（V1/V2）由另一执行者目录负责。</p>
+</section>
+
+<!-- ==================== 8 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config（hf-mirror，2026-10-31 逐字段核对）
+      <span class="u">deepseek-ai/DeepSeek-V3.config.json；deepseek-ai/DeepSeek-V3-Base.config.json（存 _tools\_cfgpull\）</span></li>
+    <li>transformers 源码（本地 E:\transformers\src\transformers\models\deepseek_v3\）
+      <span class="u">configuration_deepseek_v3.py:82-117；modeling_deepseek_v3.py（RMSNorm 37 / TopkRouter 120-158 / MoE 201-222 / MLA 349-482 / DecoderLayer 485-529）</span></li>
+    <li>DeepSeek-V3 技术报告
+      <span class="u">https://arxiv.org/abs/2412.19437（671B-T37B、MLA、aux-loss-free、MTP、FP8 训练）</span></li>
+    <li>官方模型仓库
+      <span class="u">https://huggingface.co/deepseek-ai/DeepSeek-V3 ；https://huggingface.co/deepseek-ai/DeepSeek-V3-Base ；https://modelscope.cn/models/deepseek-ai/DeepSeek-V3</span></li>
+  </ol>
+</section>
+
+<footer>DeepSeek-V3 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ transformers 源码 + arXiv:2412.19437 · 2026-10-31 核验</footer>
+</div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chartBox'));
+  chart.setOption({
+    tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
+    legend: {data: ['总参数构成 (B)', '每 token 激活 (B)']},
+    grid: {left: 50, right: 20, top: 40, bottom: 60},
+    xAxis: {type: 'category', data: ['路由专家\n(256×58层)', '共享专家\n(58×44M)', '注意力\n(61层)', 'Dense FFN\n(前3层)', '嵌入+LM Head'],
+      axisLabel: {interval: 0, fontSize: 11}},
+    yAxis: {type: 'value', name: '参数 (B)'},
+    series: [
+      {name: '总参数构成 (B)', type: 'bar', data: [654, 2.5, 5.0, 1.2, 1.9], itemStyle: {color: '#1d4ed8'},
+        label: {show: true, position: 'top', fontSize: 11}},
+      {name: '每 token 激活 (B)', type: 'bar', data: [22.7, 2.5, 5.0, 1.2, 1.9], itemStyle: {color: '#b45309'},
+        label: {show: true, position: 'top', fontSize: 11}}
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+</script>
+</body>
+</html>

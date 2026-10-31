@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-LLM（一代）家族架构详解 — 7B / 67B · LLaMA 式 dense · RMSNorm+SwiGLU+RoPE</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV1%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px; text-align:center;}
+  .diagram-shell img{max-width:100%; height:auto; display:inline-block;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp col.c1{width:26%;}
+  table.cmp col.c2{width:24%;}
+  table.cmp col.c3{width:24%;}
+  table.cmp col.c4{width:26%;}
+  tr.hl td{background:#eaf1fe !important;}
+
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+
+  #chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px;}
+  #chartBox{width:100%; height:380px;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+
+  @media (min-width:768px){ #chartBox{height:420px;} }
+  @media print{ nav.top{display:none;} body{background:#fff; font-size:12px;} .diagram-shell{overflow:visible; border:none; padding:0;} }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">V1</text></svg>DeepSeek-LLM 一代家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>DeepSeek-LLM（一代）家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">LlamaForCausalLM · model_type llama（无 deepseek_v1 原生模块）</span>
+    <span class="badge">7B / 67B · dense 主干 · 词表 102400</span>
+    <span class="badge">RMSNorm 前置残差 + SwiGLU FFN + RoPE(θ=1e4)</span>
+    <span class="badge">7B：MHA 32Q/32KV · 67B：GQA 64Q/8KV（8:1）</span>
+    <span class="badge">上下文 4096 · tie=false · attention_bias 无</span>
+  </div>
+  <p class="lead">本页以 <b>远端官方 config.json</b>（2026-10-31 经 hf-mirror 拉取留档）、<b>官方论文</b>（DeepSeek LLM: Scaling Open-Source Language Models with Longtermism，arXiv:2401.02954）与 <b>transformers 源码</b>（<span class="num">E:\transformers\src\transformers\models\llama\</span>，标准 llama 模块加载）为依据。一代两档均为标准 LLaMA 式 dense Transformer，差异集中在层数、宽度与 KV 头分组。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：官方 config 实参对照</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+    <thead><tr><th>字段</th><th>7B-base</th><th>67B-base</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>LlamaForCausalLM / llama</td><td>LlamaForCausalLM / llama</td><td>远端官方 config</td></tr>
+      <tr><td class="k">hidden_size</td><td>4096</td><td>8192</td><td>远端官方 config</td></tr>
+      <tr><td class="k">num_hidden_layers</td><td>30</td><td>95</td><td>远端官方 config</td></tr>
+      <tr><td class="k">Q heads / KV heads</td><td>32 / 32（MHA）</td><td>64 / 8（GQA，8:1）</td><td>远端官方 config</td></tr>
+      <tr><td class="k">intermediate_size</td><td>11008</td><td>22016</td><td>远端官方 config</td></tr>
+      <tr><td class="k">vocab_size</td><td>102400</td><td>102400</td><td>远端官方 config</td></tr>
+      <tr><td class="k">max_position_embeddings</td><td>4096</td><td>4096</td><td>远端官方 config</td></tr>
+      <tr><td class="k">rope_theta / rms_norm_eps</td><td>10000 / 1e-6</td><td>10000 / 1e-6</td><td>远端官方 config</td></tr>
+      <tr><td class="k">hidden_act / tie_word_embeddings</td><td>silu / false</td><td>silu / false</td><td>远端官方 config</td></tr>
+      <tr class="hl"><td class="k">注意力偏置 / QK 偏置</td><td>attention_bias=false · attn_logit_softcapping 无</td><td>同左</td><td>远端官方 config</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div id="chart"><div id="chartBox"></div></div>
+  <p class="note">图：两档 config 实测维度（7B vs 67B）。QK head_dim=128 两档一致；67B 用 8 个 KV 头服务 64 个 Q 头（GQA 8:1），是 V2 MLA 的前置探索。</p>
+</section>
+
+<!-- ==================== 2 端到端数据流 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p>文本 token（词表 102400）→ 词嵌入（hidden 4096 / 8192，tie=false 与 LM Head 解绑）→ <span class="num">N × DecoderLayer</span>（单 RMSNorm 前置残差块：自注意力 + SwiGLU FFN）→ 最终 RMSNorm → LM Head → 下一 token logits。两档均无注意力偏置。</p>
+  <div class="diagram-shell"><img src="_arch/01_deepseek_v1端到端总览.png" alt="DeepSeek-LLM 端到端数据流总览"></div>
+  <p class="note">图 1：DeepSeek-LLM 端到端数据流（LLaMA 式 dense 主干）。7B：30 层 · 4096 · MHA；67B：95 层 · 8192 · GQA。</p>
+</section>
+
+<!-- ==================== 3 解码层 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖</h2>
+  <p>单 RMSNorm 前置残差块（对应 <span class="num">LlamaDecoderLayer</span>）：</p>
+  <div class="formula">x = x + SelfAttn(RMSNorm(x))   # 注意力子层
+x = x + SwiGLU(RMSNorm(x))     # FFN 子层（inter=11008 / 22016）</div>
+  <div class="diagram-shell"><img src="_arch/02_deepseek_v1解码层与核心机制.png" alt="DeepSeek-LLM 解码层解剖"></div>
+  <p class="note">图 2：解码层与核心机制。RMSNorm eps=1e-6；RoPE 施加于 Q/K 全部 128 维头维度。</p>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：RMSNorm · SwiGLU · RoPE</h2>
+  <h3>① RMSNorm（前置）</h3>
+  <div class="formula">y = x / sqrt( mean(x²) + eps ) · W      eps=1e-6，无中心化（去均值）</div>
+  <h3>② SwiGLU FFN</h3>
+  <div class="formula">FFN(x) = down( silu(gate(x)) ⊙ up(x) )    gate/up 各 hidden→inter，inter→hidden</div>
+  <h3>③ RoPE（θ=1e4，全维旋转）</h3>
+  <div class="formula">q', k' = RoPE(q, k; θ=10000)    作用维度 head_dim=128；上下文 4096 内原生外推</div>
+  <p class="tip">要点：一代全部为 dense 结构，无 MoE、无潜在压缩、无辅助损失；67B 的 GQA 是为后续 V2 MLA 做的 KV 侧分组铺垫。</p>
+</section>
+
+<!-- ==================== 5 注意力 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力：7B MHA vs 67B GQA</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+    <thead><tr><th>维度</th><th>7B（MHA）</th><th>67B（GQA）</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Q 头数</td><td>32</td><td>64</td><td>config</td></tr>
+      <tr><td class="k">KV 头数</td><td>32（每 Q 头独立 KV）</td><td>8（8 个 Q 头共享一组 KV）</td><td>config</td></tr>
+      <tr><td class="k">head_dim</td><td>128</td><td>128</td><td>复算 hidden/heads</td></tr>
+      <tr><td class="k">缩放因子</td><td>1/sqrt(128)</td><td>1/sqrt(128)</td><td>标准 softmax(QKᵀ/√d)V</td></tr>
+      <tr><td class="k">注意力偏置</td><td>无</td><td>无</td><td>config（默认 false）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">GQA 分组比 8:1：64 个 Q 头分成 8 组，每组共享同一份 K/V，显著降低 67B 推理 KV cache。</p>
+</section>
+
+<!-- ==================== 6 特殊 token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">bos_token_id</td><td>1</td><td>序列开始</td><td>远端官方 config</td></tr>
+      <tr><td class="k">eos_token_id</td><td>2</td><td>序列结束</td><td>远端官方 config</td></tr>
+      <tr><td class="k">pad_token</td><td>待确认</td><td>官方 tokenizer_config 未显式设置独立值</td><td>远端官方 tokenizer_config</td></tr>
+      <tr><td class="k">vocab_size</td><td>102400</td><td>中英双语 BPE，面向中文语料扩表</td><td>远端官方 config / 论文</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 7 演进 ==================== -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：LLaMA-2 → DeepSeek-LLM（一代）</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+    <thead><tr><th>维度</th><th>LLaMA-2（基线）</th><th>DeepSeek-LLM 7B/67B</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td class="k">主干</td><td>RMSNorm+SwiGLU+RoPE</td><td>相同（config 实证 model_type=llama）</td><td>架构完全沿用</td></tr>
+      <tr><td class="k">注意力</td><td>全系 MHA（70B 亦 MHA）</td><td>7B MHA · 67B GQA（8KV）</td><td>67B 首次引入 GQA</td></tr>
+      <tr><td class="k">词表</td><td>32000</td><td>102400（中英双语）</td><td>面向双语扩表</td></tr>
+      <tr><td class="k">上下文</td><td>4096</td><td>4096（RoPE θ=1e4，无外推）</td><td>相同</td></tr>
+      <tr><td class="k">训练量</td><td>2T（7B/13B/70B）</td><td>2T token 预训练 + SFT/DPO</td><td>官方论文口径</td></tr>
+      <tr><td class="k">定位</td><td>英语为主</td><td>中英双语 · Longtermism scaling 研究</td><td>论文主题</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">相邻代引用：下一代 <b>DeepSeek-V2</b>（236B-A21B）引入 MLA + DeepSeekMoE、上下文扩到 163840（数字引自 V2 官方 config，见 deepseek_v2 目录）；再下一代 V3/R1（671B-A37B、无辅助损失负载均衡）只引用官方来源，不在本目录展开。</p>
+</section>
+
+<!-- ==================== 8 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config（hf-mirror 拉取留档，2026-10-31 逐字段核验）
+      <span class="u">deepseek-ai/deepseek-llm-7b-base.config.json（hidden 4096 / 30 层 / 32Q·32KV / inter 11008 / vocab 102400 / max 4096 / ropeθ1e4 / tie=false）；deepseek-ai/deepseek-llm-67b-base.config.json（hidden 8192 / 95 层 / 64Q·8KV GQA / inter 22016）——存 _tools\_cfgpull\</span></li>
+    <li>transformers 源码（本地 E:\transformers\src\transformers\models\llama\）
+      <span class="u">一代无 deepseek_v1 原生模块，按标准 llama 模块加载（LlamaForCausalLM）</span></li>
+    <li>DeepSeek LLM 官方论文（arXiv 联网核实）
+      <span class="u">https://arxiv.org/abs/2401.02954（DeepSeek LLM: Scaling Open-Source Language Models with Longtermism；7B/67B、2T token、SFT+DPO、67B 超 LLaMA-2 70B；任务原始线索 2312.06585 实为 RFT 论文，已勘误）</span></li>
+    <li>官方模型仓库
+      <span class="u">https://huggingface.co/deepseek-ai/deepseek-llm-7b-base ；https://huggingface.co/deepseek-ai/deepseek-llm-67b-base</span></li>
+  </ol>
+</section>
+
+<footer>DeepSeek-LLM（一代）家族架构详解 · 数据来源：远端官方 config（hf-mirror 拉取）+ transformers 源码 + arXiv:2401.02954 · 2026-10-31 核验 · 仅供技术学习与论文研究</footer>
+</div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chartBox'));
+  chart.setOption({
+    tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
+    legend: {data: ['7B-base', '67B-base']},
+    grid: {left: 60, right: 20, top: 40, bottom: 70},
+    xAxis: {type: 'category', data: ['hidden_size', '层数', 'Q 头', 'KV 头', 'intermediate'],
+      axisLabel: {interval: 0, fontSize: 11}},
+    yAxis: {type: 'value', name: 'config 实测值', type: 'log'},
+    series: [
+      {name: '7B-base', type: 'bar', data: [4096, 30, 32, 32, 11008], itemStyle: {color: '#1d4ed8'},
+        label: {show: true, position: 'top', fontSize: 10}},
+      {name: '67B-base', type: 'bar', data: [8192, 95, 64, 8, 22016], itemStyle: {color: '#b45309'},
+        label: {show: true, position: 'top', fontSize: 10}}
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+</script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-V2 家族架构详解 — 236B-A21B · MLA + DeepSeekMoE（含 V2-Chat / V2.5 变体）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV2%3C/text%3E%3C/svg%3E">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  sup.src{color:var(--accent-ink); font-size:.72em; font-weight:700; cursor:help; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px; text-align:center;}
+  .diagram-shell img{max-width:100%; height:auto; display:inline-block;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp col.c1{width:30%;}
+  table.cmp col.c2{width:42%;}
+  table.cmp col.c3{width:28%;}
+  tr.hl td{background:#eaf1fe !important;}
+
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+
+  #chart{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px;}
+  #chartBox{width:100%; height:380px;}
+
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+
+  @media (min-width:768px){ #chartBox{height:420px;} }
+  @media print{ nav.top{display:none;} body{background:#fff; font-size:12px;} .diagram-shell{overflow:visible; border:none; padding:0;} }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">V2</text></svg>DeepSeek-V2 家族</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力/MLA</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">演进 vs V1</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>DeepSeek-V2 家族架构详解</h1>
+  <div class="badges">
+    <span class="badge">DeepseekV2ForCausalLM · model_type deepseek_v2（transformers v5 原生模块）</span>
+    <span class="badge">236B 总参 / ≈21B 激活（MoE：1 dense + 59 MoE 层）</span>
+    <span class="badge">MLA：kv_lora=512 · q_lora=1536 · qk_nope=128 · qk_rope=64 · v_head=128</span>
+    <span class="badge">DeepSeekMoE：160 路由专家选 6 + 共享专家 2 · group_limited_greedy</span>
+    <span class="badge">YaRN 上下文 163840 · aux_loss_alpha=0.001 · tie=false</span>
+  </div>
+  <p class="lead">本页以 <b>远端官方 config.json</b>（2026-10-31 经 hf-mirror 拉取留档：DeepSeek-V2 / V2-Chat / V2.5）、<b>transformers 本地源码</b>（<span class="num">E:\transformers\src\transformers\models\deepseek_v2\</span>）与官方论文（arXiv:2405.04434）为依据。<b>DeepSeek-V2.5</b> 经核验与 V2 同架构（仅多 <span class="num">ep_size=1</span>、YaRN mscale 0.707→1.0），并入本目录作变体节。</p>
+</header>
+
+<!-- ==================== 1 家族全景 ==================== -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：官方 config 实参对照</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th>字段</th><th>取值（V2 / V2-Chat / V2.5 相同）</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">architectures / model_type</td><td>DeepseekV2ForCausalLM / deepseek_v2</td><td>远端官方 config</td></tr>
+      <tr><td class="k">hidden_size / num_hidden_layers</td><td>5120 / 60</td><td>远端官方 config</td></tr>
+      <tr><td class="k">Q 头 / KV 头（MLA 语义）</td><td>128 / 128（MLA 潜在压缩，非标准 GQA）</td><td>远端官方 config</td></tr>
+      <tr><td class="k">intermediate_size（dense，仅第 0 层）</td><td>12288</td><td>远端官方 config</td></tr>
+      <tr class="hl"><td class="k">kv_lora_rank / q_lora_rank</td><td>512 / 1536（MLA 低秩压缩维）</td><td>远端官方 config</td></tr>
+      <tr><td class="k">qk_nope / qk_rope / v_head_dim</td><td>128 / 64 / 128（qk_head_dim=192）</td><td>远端官方 config + 复算</td></tr>
+      <tr class="hl"><td class="k">n_routed_experts / n_shared_experts / num_experts_per_tok</td><td>160 / 2 / 6</td><td>远端官方 config</td></tr>
+      <tr><td class="k">moe_intermediate_size / first_k_dense_replace / moe_layer_freq</td><td>1536 / 1 / 1</td><td>远端官方 config</td></tr>
+      <tr><td class="k">topk_method / n_group / topk_group / routed_scaling_factor</td><td>group_limited_greedy / 8 / 3 / 16.0</td><td>远端官方 config</td></tr>
+      <tr><td class="k">norm_topk_prob / aux_loss_alpha / seq_aux</td><td>false / 0.001 / true</td><td>远端官方 config</td></tr>
+      <tr><td class="k">vocab / max_position / rope_theta</td><td>102400 / 163840 / 10000</td><td>远端官方 config</td></tr>
+      <tr><td class="k">rope_scaling</td><td>YaRN：factor=40 · original_max=4096 · beta_fast=32 · beta_slow=1</td><td>远端官方 config</td></tr>
+      <tr><td class="k">tie_word_embeddings / attention_bias</td><td>false / false</td><td>远端官方 config</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>1.1 参数量复算（Total 236B / Active 21B 对账）</h3>
+  <div id="chart"><div id="chartBox"></div></div>
+  <p class="note">图：按 config 字段逐层复算的参数构成（B）。Total ≈ 236B、每 token 激活 ≈ 21B，与官方论文口径对账一致。共享专家与注意力在两条序列中数值相同（全时激活，无路由差异）。</p>
+
+  <h3>1.2 变体节：V2-Chat 与 V2.5</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th>变体</th><th>架构差异（与 V2 base 比）</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td class="k">DeepSeek-V2（base）</td><td>—（基准）</td><td>远端官方 config 逐字段核对</td></tr>
+      <tr><td class="k">DeepSeek-V2-Chat</td><td>config 字段与 base 完全一致</td><td>SFT+RL 对齐版；generation temp 0.3 / top_p 0.95</td></tr>
+      <tr class="hl"><td class="k">DeepSeek-V2.5</td><td>仅多 ep_size=1；YaRN mscale/mscale_all_dim 由 0.707→1.0</td><td>官方口径：合并 V2-Chat 与 Coder-V2-Instruct；其余架构字段与 V2 逐字段一致，并入本目录不单独立目录</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 2 端到端 ==================== -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p>文本 token（词表 102400）→ 词嵌入（5120，tie=false）→ <span class="num">60 × DecoderLayer</span>：第 0 层 dense（RMSNorm→MLA→⊕→RMSNorm→SwiGLU→⊕），第 1–59 层 FFN 子层换 DeepSeekMoE（Router→160 选 6 路由专家 + 2 共享专家并行）→ 最终 RMSNorm → LM Head。MLA 在 KV 侧只缓存 576 维潜在向量。</p>
+  <div class="diagram-shell"><img src="_arch/01_deepseek_v2端到端总览.png" alt="DeepSeek-V2 端到端数据流总览"></div>
+  <p class="note">图 1：MLA + 1 dense / 59 MoE 层的端到端主干。</p>
+</section>
+
+<!-- ==================== 3 解码层 ==================== -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：DeepseekV2DecoderLayer</h2>
+  <p>单 RMSNorm 前置残差块（<span class="num">modeling_deepseek_v2.py:421-461</span>）；FFN 子层按层索引二选一（源码 427 行：layer_idx≥1 走 MoE，第 0 层 dense）。</p>
+  <div class="formula">residual = hidden; hidden = input_layernorm(hidden); hidden = self_attn(hidden); hidden = residual + hidden
+residual = hidden; hidden = post_attention_layernorm(hidden); hidden = self.mlp(hidden); hidden = residual + hidden</div>
+  <div class="diagram-shell"><img src="_arch/02_deepseek_v2解码层与核心机制.png" alt="DeepSeek-V2 解码层与核心机制"></div>
+  <p class="note">图 2：MLA 注意力子层 + DeepSeekMoE FFN 子层。</p>
+</section>
+
+<!-- ==================== 4 核心机制 ==================== -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制：MLA · DeepSeekMoE · group_limited_greedy</h2>
+  <h3>① MLA 多头潜在注意力</h3>
+  <div class="formula">Q: q_a_proj(x)(5120→1536) → RMSNorm → q_b_proj(→128×192)  # q_lora 分解，316-326
+KV: kv_a_proj_with_mqa(x)(→576=512+64) → RMSNorm(512) → 缓存   # kv_lora 压缩，328-333
+q_pe/k_pe 仅 64 维分量施加 RoPE → expand_kv → softmax(QKᵀ/√192)V → o_proj</div>
+  <p class="note">KV cache 形态（源码 394-395）：每层只存 512+64=576 维/token；论文口径 KV cache 较标准注意力压缩 93.3%。</p>
+  <h3>② DeepSeekMoE：160 路由专家 + 2 共享专家</h3>
+  <div class="formula">hidden = Σ_{i∈top6} w_i · Expert_i(x)  +  SharedExperts(x)
+共享专家中间维 = moe_intermediate_size × n_shared_experts = 1536×2 = 3072（源码 125-127）</div>
+  <h3>③ group_limited_greedy 路由</h3>
+  <div class="formula">softmax(xW) → 160 专家分 8 组，按组内最高分选 3 组 → 组内掩码后 top-6 → × routed_scaling_factor=16.0
+（norm_topk_prob=false，不做归一化；aux_loss_alpha=0.001 辅助负载均衡）</div>
+</section>
+
+<!-- ==================== 5 注意力 ==================== -->
+<section id="attn">
+  <h2><span class="secno">5</span>注意力：MLA 缓存形态对照</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th>形态</th><th>每 token 每层 KV 缓存维数</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">标准 MHA（128 头 × (k+v)128）</td><td>128×128×2 = 32768</td><td>对照推算</td></tr>
+      <tr><td class="k">67B GQA（8 KV 头 × 128×2）</td><td>8×128×2 = 2048</td><td>对照推算</td></tr>
+      <tr class="hl"><td class="k">DeepSeek-V2 MLA</td><td>512（kv_lora）+ 64（rope）= 576</td><td>远端官方 config + 源码 388-395</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">缩放 = (qk_head_dim)^-0.5 = 192^-0.5，并乘 YaRN mscale（V2/V2-Chat=0.707；V2.5=1.0）。RoPE 只施加在 q_pe/k_pe 的 64 维分量（partial rotary）。</p>
+</section>
+
+<!-- ==================== 6 特殊 token ==================== -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th>token</th><th>ID / 含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">bos_token_id</td><td>100000（add_bos_token=true）</td><td>远端官方 config</td></tr>
+      <tr><td class="k">eos_token_id</td><td>100001（generation_config 同）</td><td>远端官方 config</td></tr>
+      <tr><td class="k">vocab_size</td><td>102400（与一代同一词表）</td><td>远端官方 config</td></tr>
+      <tr><td class="k">Chat 模板</td><td>User: … / Assistant: … 格式</td><td>远端官方 tokenizer_config</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ==================== 7 演进 ==================== -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进视角：DeepSeek-LLM（一代）→ DeepSeek-V2</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <thead><tr><th>维度</th><th>一代 67B（基线）</th><th>DeepSeek-V2（236B-A21B）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">形态</td><td>Dense（95 层）</td><td>MoE：1 dense + 59 MoE 层，160 专家选 6 + 2 共享</td></tr>
+      <tr><td class="k">注意力</td><td>GQA（64Q/8KV）</td><td>MLA（KV 潜在压缩 576 维，缓存 -93.3%）</td></tr>
+      <tr><td class="k">Q 路径</td><td>直接投影</td><td>Q 低秩分解（q_lora=1536）+ 逐分量 RMSNorm</td></tr>
+      <tr><td class="k">路由</td><td>无（dense）</td><td>group_limited_greedy：8 组选 3 再选 6；×16.0</td></tr>
+      <tr><td class="k">上下文</td><td>4096（RoPE θ=1e4）</td><td>163840（YaRN factor=40，原始 4096）</td></tr>
+      <tr><td class="k">总参/激活</td><td>67B dense</td><td>236B total / 21B activated（论文）</td></tr>
+      <tr><td class="k">负载均衡</td><td>无</td><td>辅助损失 aux_loss_alpha=0.001（V3 才改无辅助损失）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">相邻代引用：V3（671B-A37B）沿用 MLA + DeepSeekMoE 并改为无辅助损失负载均衡、引入 MTP——数字引自 V3 官方来源（arXiv:2412.19437），不在本目录展开。</p>
+</section>
+
+<!-- ==================== 8 来源 ==================== -->
+<section id="sources">
+  <h2><span class="secno">8</span>参考文献</h2>
+  <ol class="src">
+    <li>远端官方 config（hf-mirror 拉取留档，2026-10-31 逐字段核验）
+      <span class="u">DeepSeek-V2.config.json（hidden 5120 / 60 层 / 128Q / kv_lora 512 / q_lora 1536 / nope128+rope64 / 160 专家选 6 / 共享 2 / moe_inter 1536 / first_k_dense 1 / max 163840 / YaRN factor40 / routed_scale 16.0）；DeepSeek-V2-Chat / DeepSeek-V2.5 同目录留档——存 _tools\_cfgpull\</span></li>
+    <li>transformers 源码（本地 E:\transformers\src\transformers\models\deepseek_v2\）
+      <span class="u">configuration_deepseek_v2.py:76-127；modeling_deepseek_v2.py（Experts 46-82 / TopkRouter 85-116 / Moe 119-136 / MLP 139-152 / RMSNorm 156-173 / RoPE 176-210 / Attention 290-418 / DecoderLayer 421-461）</span></li>
+    <li>DeepSeek-V2 官方论文（arXiv 联网核实）
+      <span class="u">https://arxiv.org/abs/2405.04434（236B total / 21B activated；MLA KV cache -93.3%；训练成本 -42.5%；吞吐 5.76×；8.1T token）</span></li>
+    <li>官方发布说明（V2.5 定位）
+      <span class="u">https://api-docs.deepseek.com/news/news0905（DeepSeek-V2.5 = V2-Chat 与 Coder-V2-Instruct 合并升级）</span></li>
+    <li>官方模型仓库
+      <span class="u">https://huggingface.co/deepseek-ai/DeepSeek-V2 ；https://huggingface.co/deepseek-ai/DeepSeek-V2-Chat ；https://huggingface.co/deepseek-ai/DeepSeek-V2.5</span></li>
+    <li>相邻代引用（V3，官方来源，不在本目录展开）
+      <span class="u">https://arxiv.org/abs/2412.19437（DeepSeek-V3 Technical Report：671B-A37B、无辅助损失负载均衡、MTP）</span></li>
+  </ol>
+</section>
+
+<footer>DeepSeek-V2 家族架构详解 · 数据来源：远端官方 config（hf-mirror 拉取）+ transformers 源码 + arXiv:2405.04434 / 官方发布说明 · 2026-10-31 核验 · 仅供技术学习与论文研究</footer>
+</div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chartBox'));
+  chart.setOption({
+    tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
+    legend: {data: ['总参数构成 (B)', '每 token 激活 (B)']},
+    grid: {left: 50, right: 20, top: 40, bottom: 70},
+    xAxis: {type: 'category', data: ['路由专家\n(59 MoE 层)', '共享专家\n(59 层)', '注意力\n(60 层)', 'Dense FFN\n(第 0 层)', '嵌入+LM Head'],
+      axisLabel: {interval: 0, fontSize: 11}},
+    yAxis: {type: 'value', name: '参数 (B)'},
+    series: [
+      {name: '总参数构成 (B)', type: 'bar', data: [223, 2.8, 8.9, 0.19, 1.05], itemStyle: {color: '#1d4ed8'},
+        label: {show: true, position: 'top', fontSize: 11}},
+      {name: '每 token 激活 (B)', type: 'bar', data: [8.4, 2.8, 8.9, 0.19, 1.05], itemStyle: {color: '#b45309'},
+        label: {show: true, position: 'top', fontSize: 11}}
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+</script>
+</body>
+</html>

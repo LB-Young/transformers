@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatGLM2 / ChatGLM3 家族架构详解</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='14' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --sliding:#dbe7fc; --sliding-edge:#a9c2f3; --full:#1d4ed8;
+    --mm:#0e7490; --mm-ink:#155e75; --mm-soft:#e0f2f7; --mm-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:12px 0;}
+  @media (min-width:820px){.badges{grid-template-columns:repeat(4,minmax(0,1fr));}}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.85rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f5f8ff;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  table.cmp col.c1{width:22%;}
+  table.cmp col.cx{width:19.5%;}
+  table.cmp tr.hl td{background:#eaf1fe;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{margin-top:0; font-size:.98rem;}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .formula{background:#1f2937; color:#bfd3ff; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6;}
+  #chart{width:100%; height:340px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); margin-top:10px;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  @media print{nav.top{display:none;} body{background:#fff;} .diagram-shell{overflow:visible; border:none; padding:0;}}
+</style>
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+
+<nav class="top"><div class="wrap">
+  <div class="brand">ChatGLM2/3</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流总览</a>
+  <a class="link" href="#layer">解码层解剖</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#attn">注意力</a>
+  <a class="link" href="#tokens">特殊 Token</a>
+  <a class="link" href="#evo">演进视角</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>ChatGLM2 / ChatGLM3 家族架构详解</h1>
+  <div class="badges"><span class="badge">model_type=chatglm · ChatGLMModel · trust_remote_code</span><span class="badge">28 层 · hidden 4096 · 32Q/2KV（MQA）· kv_channels 128</span><span class="badge">RMSNorm(post) · SwiGLU FFN 13696 · 1D-RoPE(original)</span><span class="badge">词表 65024 · 两版架构数字完全一致（仅 seq_length 异）</span></div>
+  <p class="lead">逐字段比对确认两代 config 架构数字完全一致（仅 seq_length 不同），故合并本页。来源：HF THUDM/chatglm2-6b 与 chatglm3-6b 远端 config（hf-mirror）。</p>
+</header>
+<section id="family"><h2><span class="secno">1</span>家族全景：两代 config 逐字段对照</h2><p class="note">来源：HF THUDM/chatglm2-6b 与 chatglm3-6b 远端 config（hf-mirror，2026-10-31 留档）。逐字段比对：架构数字全部相同，唯一差异 seq_length。</p><div class="table-scroll"><table class="cmp"><colgroup><col style="width:30%"><col style="width:18%"><col style="width:18%"><col style="width:34%"></colgroup><thead><tr><th>字段</th><th>ChatGLM2</th><th>ChatGLM3</th><th>说明</th></tr></thead><tbody><tr><td class="k" >hidden_size</td><td>4096</td><td>4096</td><td>相同</td></tr><tr><td class="k" >num_layers</td><td>28</td><td>28</td><td>相同</td></tr><tr><td class="k" >num_attention_heads</td><td>32</td><td>32</td><td>Q 头</td></tr><tr><td class="k" >kv_channels</td><td>128</td><td>128</td><td>head_dim</td></tr><tr><td class="k" >multi_query_group_num</td><td>2</td><td>2</td><td>KV 组</td></tr><tr><td class="k" >ffn_hidden_size</td><td>13696</td><td>13696</td><td>SwiGLU</td></tr><tr><td class="k" >rmsnorm / post_layer_norm</td><td>true/true</td><td>true/true</td><td>RMSNorm</td></tr><tr><td class="k" >original_rope</td><td>true</td><td>true</td><td>1D RoPE</td></tr><tr><td class="k" >add_qkv_bias</td><td>true</td><td>true</td><td>仅 QKV 带 bias</td></tr><tr><td class="hl" >('k', 'seq_length')</td><td class="hl" >32768</td><td class="hl" >8192</td><td>唯一差异</td></tr><tr><td class="k" >padded_vocab_size</td><td>65024</td><td>65024</td><td>相同</td></tr><tr><td class="k" >tie_word_embeddings</td><td>false</td><td>false</td><td>解绑</td></tr></tbody></table></div></section><section id="overview"><h2><span class="secno">2</span>端到端数据流总览（两代同构）</h2><div class="diagram-shell"><img src="_arch/01_end_to_end.png" style="width:100%;min-width:820px" alt="ChatGLM2/3 端到端主干"></div></section><section id="layer"><h2><span class="secno">3</span>解码层解剖</h2><div class="formula">x = RMSNorm(x)
+a = SelfAttn(QKV_bias, kv_groups=2, rope=1d)
+x = x + a   # post_layer_norm
+x = RMSNorm(x)
+x = x + SwiGLU(x)  # ffn 13696</div></section><section id="mech"><h2><span class="secno">4</span>核心机制</h2><div class="diagram-shell"><img src="_arch/02_core_mech.png" style="width:100%;min-width:820px" alt="ChatGLM2/3 核心机制"></div><div class="cards"><div class="card"><h3>① MQA/GQA</h3><p>32 Q 头共享 2 组 KV，KV cache 降为 1/16；官方称推理提速约 42%。</p></div><div class="card"><h3>② RMSNorm+SwiGLU</h3><p>rmsnorm=true 取代 LayerNorm；ffn 13696≈10/3·4096 补偿 GQA 减参。</p></div><div class="card"><h3>③ 1D-RoPE</h3><p>original_rope=true，移除 ChatGLM-6B 的 2D-RoPE。</p></div><div class="card"><h3>④ 上下文</h3><p>ChatGLM2 config=32768（FlashAttention 32K）；ChatGLM3 config=8192。</p></div></div></section><section id="attn"><h2><span class="secno">5</span>注意力机制</h2><div class="formula">Attn = softmax_fp32( QKᵀ/√128 + mask ) V   # K,V 仅 2 组（repeat_kv 到 32 头）</div><div class="table-scroll"><table class="cmp"><colgroup><col style="width:32%"><col style="width:68%"></colgroup><thead><tr><th>项</th><th>取值</th></tr></thead><tbody><tr><td class="k" >Q 头 / KV 组</td><td>32 / 2</td></tr><tr><td class="k" >kv_channels</td><td>128</td></tr><tr><td class="k" >位置编码</td><td>1D-RoPE</td></tr><tr><td class="k" >QKV bias</td><td>true</td></tr></tbody></table></div></section><section id="tokens"><h2><span class="secno">6</span>特殊 Token 与词表</h2><div class="table-scroll"><table class="cmp"><colgroup><col style="width:36%"><col style="width:64%"></colgroup><thead><tr><th>项</th><th>取值</th></tr></thead><tbody><tr><td class="k" >padded_vocab_size</td><td>65024</td></tr><tr><td class="k" >eos / pad</td><td>2 / 0</td></tr><tr><td class="k" >tie_word_embeddings</td><td>false</td></tr><tr><td class="k" >ChatGLM3 新增</td><td>function call / Agent 角色标记（chat template）</td></tr></tbody></table></div></section><section id="evo"><h2><span class="secno">7</span>演进视角：ChatGLM-6B → ChatGLM2 → ChatGLM3</h2><div class="table-scroll"><table class="cmp"><colgroup><col style="width:24%"><col style="width:25%"><col style="width:25%"><col style="width:26%"></colgroup><thead><tr><th>维度</th><th>ChatGLM-6B</th><th>ChatGLM2</th><th>ChatGLM3</th></tr></thead><tbody><tr><td class="k" >注意力</td><td>MHA 32</td><td>MQA 32/2</td><td>MQA 32/2</td></tr><tr><td class="k" >位置编码</td><td>2D-RoPE</td><td>1D-RoPE</td><td>1D-RoPE</td></tr><tr><td class="k" >归一化</td><td>LayerNorm</td><td>RMSNorm</td><td>RMSNorm</td></tr><tr><td class="k" >FFN</td><td>16384</td><td>13696 SwiGLU</td><td>13696 SwiGLU</td></tr><tr><td class="k" >config 上下文</td><td>2048</td><td>32768</td><td>8192</td></tr><tr><td class="k" >词表</td><td>130528</td><td>65024</td><td>65024</td></tr></tbody></table></div></section><section id="sources"><h2><span class="secno">8</span>参考文献</h2><ol class='src'><li>config HF THUDM/chatglm2-6b（hf-mirror）<span class='u'>https://hf-mirror.com/THUDM/chatglm2-6b/resolve/main/config.json</span></li><li>config HF THUDM/chatglm3-6b（hf-mirror）<span class='u'>https://hf-mirror.com/THUDM/chatglm3-6b/resolve/main/config.json</span></li><li>官方仓库 ChatGLM2-6B / ChatGLM3<span class='u'>https://github.com/THUDM/ChatGLM3</span></li><li>ChatGLM 家族综述 arXiv:2406.12793<span class='u'>https://arxiv.org/abs/2406.12793</span></li></ol></section>
+<section id="chartsec"><h2><span class="secno">9</span>早期代关键尺寸对比（真实 config 复算）</h2>
+<div id="chart"></div>
+<p class="note">数据来自各模型官方 config / 论文：层数、hidden、FFN、词表（千）等字段逐值复算。</p></section>
+<footer>ChatGLM2/3 家族架构详解 · 远端官方 config + 官方仓库 + arXiv 2406.12793 · 仅供技术学习</footer>
+</div>
+<script>
+const chart = echarts.init(document.getElementById('chart'));
+chart.setOption({
+      backgroundColor:'transparent',
+      tooltip:{},
+      legend:{bottom:0},
+      grid:{left:60,right:30,top:40,bottom:60},
+      xAxis:{type:'category',data:['层数','hidden','FFN','KV 组']},
+      yAxis:{type:'value'},
+      series:[
+        {name:'ChatGLM2-6B',type:'bar',data:[28,4096,13696,2]},
+        {name:'ChatGLM3-6B',type:'bar',data:[28,4096,13696,2]}
+      ]
+    });
+window.addEventListener('resize', ()=>chart.resize());
+</script>
+</body>
+</html>
