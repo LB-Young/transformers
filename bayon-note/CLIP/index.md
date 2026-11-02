@@ -83,6 +83,8 @@
 
 ## 4. 核心机制（对照代码）
 
+![架构图：CLIP 端到端双塔架构（视觉塔/文本塔→投影→L2 归一化→余弦相似度对比对齐）](./_arch/01_clip端到端双塔架构.png)
+
 ### 4.1 双塔各自编码
 
 - **视觉塔**（`CLIPVisionModel`，:585）：`CLIPVisionEmbeddings` 把 224×224 切成 32×32 patch（49 个）拼上 CLS token → 12 层双向 Transformer → 池化取 **[CLS]** 状态（:630 docstring「pooled CLS states」）。

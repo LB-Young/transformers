@@ -64,6 +64,8 @@
 
 ## 4. 视觉塔实现对比（核心机制）
 
+![架构图：SigLIP 1 vs SigLIP 2 视觉塔对比（固定分辨率 vs NaFlex 灵活分辨率，位置编码插值流程）](./_arch/01_siglip两代视觉塔对比.png)
+
 ### 4.1 位置嵌入：固定扁平 vs 16×16 网格插值
 
 **SigLIP 1**（`SiglipVisionEmbeddings`，modeling_siglip.py:116）

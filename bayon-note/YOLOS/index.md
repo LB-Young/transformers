@@ -67,6 +67,8 @@
 
 ## 4. 核心机制（对照代码）
 
+![架构图：YOLOS 端到端架构总览（图像→Patch 嵌入→1829 token 序列→12 层 ViT encoder→检测头）](./_arch/01_yolos端到端架构总览.png)
+
 ### 4.1 Token 序列拼接（YolosEmbeddings，modeling_yolos.py:76）
 
 ```
@@ -103,6 +105,8 @@
 - **匈牙利二分匹配**：训练时把预测框与 GT 框做最优匹配，匹配代价 = `class_cost×分类` + `bbox_cost×L1` + `giou_cost×GIoU`（1/5/2）
 - **损失**：匹配后的分类 CE + bbox L1 + GIoU，系数 5/2；`eos_coefficient=0.1` 压低 no-object 类对损失的影响
 - 推理时 `YolosImageProcessor.post_process_object_detection` 把归一化框还原为像素坐标（支持阈值过滤 + top-k）
+
+![架构图：匈牙利匹配集合预测流程（预测框 ↔ GT 框最优一对一分配）](./_arch/02_yolos匈牙利匹配.png)
 
 ---
 

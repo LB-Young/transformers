@@ -103,6 +103,8 @@
 
 ## 4. 核心机制（对照代码）
 
+![架构图：BLIP 端到端架构总览（视觉塔/文本塔→投影→公共空间→ITC/ITM/ITG 三头）](./_arch/01_blip端到端架构总览.png)
+
 ### 4.1 MED：同一套文本参数，三种模式（modeling_blip_text.py）
 
 `BlipTextLayer`（:272）在 `is_decoder=True` 时加入 **cross-attention**（:280-282），由此同一套 Transformer 权重可切换为：
@@ -112,6 +114,8 @@
 | 单模态编码器 | ITC（对比） | `BlipModel` 中 `text_model(input_ids)` 无跨注意力 |
 | 图像引导编码器 | ITM / VQA | `text_model(..., encoder_hidden_states=image_embeds)` 启用跨注意力 |
 | 图像引导解码器 | ITG（生成） | `text_decoder(..., encoder_hidden_states=image_embeds, labels)` 自回归 LM |
+
+![架构图：MED 三模式切换（同一套文本参数，靠 is_decoder 开关跨注意力）](./_arch/02_blip_med三模式.png)
 
 ### 4.2 池化
 
@@ -154,6 +158,8 @@ text_embeds  = text_projection(pooler_output)     # 768 → 512
 ```
 
 - 训练数据来源：COCO / Visual Genome / Conceptual Captions / SBU Captions 等 14M 级人工标注数据 + 大规模网络图片（论文整体扩充规模约 1.29 亿张，具体构成以论文为准，待确认）。
+
+![架构图：CapFilt 数据引导流程（Captioner 生成候选 + Filter 过滤噪声对）](./_arch/03_blip_capfilt数据引导.png)
 
 ---
 
