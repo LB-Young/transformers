@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SigLIP vs SigLIP 2 家族架构详解 — sigmoid 损失 · NaFlex 灵活分辨率</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='22' font-size='12' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3ESigLIP%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#6d28d9; --accent-soft:#f0e9fc; --accent-line:#d4c5f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#6d28d9;
+    --t2:#0e7490; --t2-ink:#155e75; --t2-soft:#e0f2f7; --t2-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.t2{border-color:var(--t2-line); background:var(--t2-soft); color:var(--t2-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#f5f0fe; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.t2 rect{fill:var(--t2-soft); stroke:var(--t2); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+
+  .ts{overflow-x:auto; border-radius:var(--radius); margin-top:8px;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  table.cmp th{background:var(--accent-soft); color:var(--accent-ink); font-size:.85rem; text-align:left; padding:8px 12px; border-bottom:1px solid var(--accent-line);}
+  table.cmp td{padding:8px 12px; font-size:.9rem; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.cmp tr:last-child td{border-bottom:none;}
+  table.cmp td.f{font-weight:700; white-space:nowrap;}
+  table.cmp td.m{font-family:ui-monospace,Consolas,monospace; font-size:.85rem; color:var(--mono); white-space:nowrap;}
+
+  pre.code{background:#f4f4f7; border:1px solid var(--line); border-radius:10px; padding:12px 14px; overflow-x:auto; font-size:.85rem; line-height:1.55; margin-top:8px;}
+  pre.code code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:820px){ .grid2{grid-template-columns:1fr;} }
+
+  footer{margin:48px 0 20px; color:var(--sub); font-size:.8rem; border-top:1px solid var(--line); padding-top:14px;}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#7c3aed"/><text x="12" y="15" font-size="8" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">SL2</text></svg>SigLIP 家族</div>
+  <a class="link" href="#s1">定位</a>
+  <a class="link" href="#s2">模块与类</a>
+  <a class="link" href="#s3">配置对比</a>
+  <a class="link" href="#s4">视觉塔对比</a>
+  <a class="link" href="#s5">训练方法</a>
+  <a class="link" href="#s6">家族速览</a>
+  <a class="link" href="#s7">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <div class="badges">
+    <span class="badge">逐对 sigmoid 损失替代 softmax 对比</span>
+    <span class="badge">BiC 偏置校正初始化</span>
+    <span class="badge t2">SigLIP 2 · NaFlex 原生灵活分辨率</span>
+    <span class="badge t2">decoder loss · masked prediction</span>
+    <span class="badge">arXiv:2303.15343 / 2502.14786</span>
+  </div>
+  <h1>SigLIP vs SigLIP 2 架构详解</h1>
+  <p class="lead">研读对象 <b>models/siglip/</b>（v1）与 <b>models/siglip2/</b>（v2），transformers 5.21.0.dev0。SigLIP 是 Google 的视觉语言双塔编码器，核心用<b>逐对 sigmoid 损失</b>替代 CLIP 的 softmax 对比损失；SigLIP 2 引入 <b>NaFlex 原生灵活分辨率</b>与更强训练目标。视觉塔被大量多模态 LLM（含 Gemma 3）直接借用。</p>
+</header>
+
+<section id="s1">
+  <h2><span class="secno">1</span>一句话定位</h2>
+  <p><b>SigLIP 1</b>（2023，arXiv:2303.15343）：固定分辨率（默认 224×224 → 14×14=196 patch），learned 位置嵌入，sigmoid 损失训练更稳、收敛更快。</p>
+  <p><b>SigLIP 2</b>（2025，arXiv:2502.14786）：<b>NaFlex 原生灵活分辨率</b>（单 checkpoint 支持任意宽高比/分辨率，≤256 patch），训练目标叠加 decoder loss + global-local / masked prediction，多语言 + 去偏数据。</p>
+</section>
+
+<section id="s2">
+  <h2><span class="secno">2</span>源码模块与类关系</h2>
+  <p class="note">两个版本是独立模块，但 v2 的类全部继承 v1；文本侧 v2 与 v1 结构完全一致（继承、无重写）——差异全部集中在视觉塔。</p>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>模块</th><th>视觉类</th><th>文本类</th><th>双塔类</th><th>分类头</th></tr>
+    <tr><td class="f">models/siglip/</td><td>SiglipVisionModel（:553）</td><td>SiglipTextModel（:471）</td><td>SiglipModel（:647）</td><td>SiglipForImageClassification（:835）</td></tr>
+    <tr><td class="f">models/siglip2/</td><td>Siglip2VisionModel（:499，<b>继承 SiglipVisionModel</b>）</td><td>Siglip2TextModel（:587，<b>继承 SiglipTextModel</b>）</td><td>Siglip2Model（:712，<b>继承 SiglipModel</b>）</td><td>Siglip2ForImageClassification（:915）</td></tr>
+  </table>
+  </div>
+  <div class="tip">modeling_siglip2.py 由 modular_siglip2.py 自动生成（文件头有警示，改动要改 modular）。</div>
+</section>
+
+<section id="s3">
+  <h2><span class="secno">3</span>配置字段对比</h2>
+  <h3>3.1 文本侧：完全相同</h3>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>字段</th><th style="width:32%">SiglipTextConfig</th><th style="width:32%">Siglip2TextConfig</th></tr>
+    <tr><td class="f">model_type</td><td class="m">siglip_text_model</td><td class="m">siglip2_text_model</td></tr>
+    <tr><td class="f">vocab_size</td><td class="m">32000</td><td class="m">32000</td></tr>
+    <tr><td class="f">hidden_size</td><td class="m">768</td><td class="m">768</td></tr>
+    <tr><td class="f">intermediate_size</td><td class="m">3072</td><td class="m">3072</td></tr>
+    <tr><td class="f">num_hidden_layers</td><td class="m">12</td><td class="m">12</td></tr>
+    <tr><td class="f">num_attention_heads</td><td class="m">12</td><td class="m">12</td></tr>
+    <tr><td class="f">max_position_embeddings</td><td class="m">64</td><td class="m">64</td></tr>
+    <tr><td class="f">hidden_act</td><td class="m">gelu_pytorch_tanh</td><td class="m">gelu_pytorch_tanh</td></tr>
+    <tr><td class="f">projection_size</td><td class="m">默认 = hidden_size</td><td class="m">默认 = hidden_size</td></tr>
+  </table>
+  </div>
+  <h3>3.2 视觉侧：关键分界点</h3>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>字段</th><th style="width:32%">SiglipVisionConfig</th><th style="width:32%">Siglip2VisionConfig</th></tr>
+    <tr><td class="f">model_type</td><td class="m">siglip_vision_model</td><td class="m">siglip2_vision_model</td></tr>
+    <tr><td class="f">hidden_size</td><td class="m">768</td><td class="m">768</td></tr>
+    <tr><td class="f">intermediate_size</td><td class="m">3072</td><td class="m">3072</td></tr>
+    <tr><td class="f">num_hidden_layers</td><td class="m">12</td><td class="m">12</td></tr>
+    <tr><td class="f">num_attention_heads</td><td class="m">12</td><td class="m">12</td></tr>
+    <tr><td class="f">patch_size</td><td class="m">16</td><td class="m">16</td></tr>
+    <tr><td class="f">image_size</td><td class="m"><b>224</b>（固定，可配 list）</td><td class="m">无此字段</td></tr>
+    <tr><td class="f">num_patches</td><td class="m">无此字段</td><td class="m"><b>256</b>（NaFlex：patch 数上限）</td></tr>
+  </table>
+  </div>
+  <p class="note">一句话：v1 的视觉配置靠 image_size 定死输入；v2 删掉 image_size，改为「最多 256 个 patch」的容量上限——这是 NaFlex 的配置层体现。</p>
+</section>
+
+<section id="s4">
+  <h2><span class="secno">4</span>视觉塔实现对比（核心机制）</h2>
+  <h3>4.1 位置嵌入：固定扁平 vs 16×16 网格插值</h3>
+  <div class="grid2">
+  <div>
+    <p class="note"><b>SigLIP 1</b>（SiglipVisionEmbeddings，modeling_siglip.py:116）</p>
+    <ul style="font-size:.9rem; margin-left:18px;">
+      <li>patch_embedding = nn.Linear(3×16×16, 768)</li>
+      <li>position_embedding = nn.Embedding(196, 768)（224/16=14 → 14×14=196，<b>扁平索引</b>）</li>
+      <li>forward：embeddings = inputs_embeds + position_embeddings（纯加性，位置网格固定）</li>
+    </ul>
+  </div>
+  <div>
+    <p class="note"><b>SigLIP 2</b>（Siglip2VisionEmbeddings，modeling_siglip2.py:114）</p>
+    <ul style="font-size:.9rem; margin-left:18px;">
+      <li>patch_embedding 同上</li>
+      <li>position_embedding = nn.Embedding(256, 768) —— 看作 <b>16×16 的 2D 位置网格</b>（position_embedding_size = sqrt(256) = 16）</li>
+      <li>forward 调用 resize_positional_embeddings（:130）</li>
+    </ul>
+  </div>
+  </div>
+  <div class="diagram-shell">
+  <svg class="dg" viewBox="0 0 980 300" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c9c4ba"/></marker>
+    </defs>
+    <g class="node dim"><rect x="16" y="20" width="200" height="52" rx="8"/><text x="116" y="40" text-anchor="middle" class="t">SigLIP 1 · 固定分辨率</text><text x="116" y="58" text-anchor="middle" class="s">image_size=224 → 14×14=196 patch</text></g>
+    <g class="node core"><rect x="250" y="16" width="180" height="60" rx="10"/><text x="340" y="38" text-anchor="middle" class="t">扁平位置编码</text><text x="340" y="56" text-anchor="middle" class="m">Embedding(196, 768)</text></g>
+    <g class="node"><rect x="466" y="16" width="150" height="60" rx="8"/><text x="541" y="38" text-anchor="middle" class="t">固定加性叠加</text><text x="541" y="56" text-anchor="middle" class="s">位置网格恒定</text></g>
+    <g class="node dim"><rect x="16" y="140" width="200" height="52" rx="8"/><text x="116" y="160" text-anchor="middle" class="t">SigLIP 2 · NaFlex</text><text x="116" y="178" text-anchor="middle" class="s">num_patches=256 上限</text></g>
+    <g class="node core"><rect x="250" y="136" width="180" height="60" rx="10"/><text x="340" y="158" text-anchor="middle" class="t">16×16 网格位置编码</text><text x="340" y="176" text-anchor="middle" class="m">Embedding(256, 768)</text></g>
+    <g class="node t2"><rect x="466" y="120" width="190" height="92" rx="10"/><text x="561" y="144" text-anchor="middle" class="t">resize_positional_embeddings</text><text x="561" y="162" text-anchor="middle" class="s">① 双线性插值到实际网格</text><text x="561" y="180" text-anchor="middle" class="s">② 首行复制填充不足部分</text><text x="561" y="198" text-anchor="middle" class="m">输出固定 (B,256,768)</text></g>
+    <g class="node"><rect x="690" y="120" width="150" height="92" rx="8"/><text x="765" y="144" text-anchor="middle" class="t">任意宽高比</text><text x="765" y="162" text-anchor="middle" class="s">≤256 patch 保比例</text><text x="765" y="180" text-anchor="middle" class="s">+ pixel mask 遮 padding</text><text x="765" y="198" text-anchor="middle" class="m">create_bidirectional_mask</text></g>
+    <path class="edge" d="M216,46 L248,46"/>
+    <path class="edge" d="M430,46 L464,46"/>
+    <path class="edge" d="M216,166 L248,166"/>
+    <path class="edge" d="M430,166 L464,166"/>
+    <path class="edge" d="M656,166 L688,166"/>
+    <g class="lg"><text x="16" y="280">共享（两版相同）：双向注意力 12 层 Encoder + post_layernorm + MHA pooling head（非 CLS 池化）</text></g>
+  </svg>
+  </div>
+  <h3>4.2 forward 签名与 padding 掩码</h3>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th style="width:30%"></th><th>SiglipVisionModel.forward</th><th>Siglip2VisionModel.forward</th></tr>
+    <tr><td class="f">输入</td><td>pixel_values（固定 (B,3,H,W)）</td><td>pixel_values（<b>已 patchify</b>，(B,256,…)）+ pixel_attention_mask + spatial_shapes</td></tr>
+    <tr><td class="f">掩码</td><td>无需</td><td>create_bidirectional_mask 按像素掩码遮掉 padding patch</td></tr>
+    <tr><td class="f">输出</td><td>last_hidden_state + pooler_output</td><td>同左</td></tr>
+  </table>
+  </div>
+  <h3>4.3 共享结构（两版相同）</h3>
+  <p>双向注意力 Encoder（SiglipEncoderLayer / Siglip2EncoderLayer，均 12 层）、post_layernorm、<b>MHA pooling head</b>（SiglipMultiheadAttentionPoolingHead，use_head 可关，vision_use_head 控制）——视觉塔输出用多头注意力池化聚合，而非 CLIP 式的取 CLS。</p>
+</section>
+
+<section id="s5">
+  <h2><span class="secno">5</span>训练方法对比（论文层面）</h2>
+  <h3>5.1 SigLIP 1（arXiv:2303.15343）</h3>
+<pre class="code"><code>对 batch 内 (图像, 文本) 每对独立计算：
+loss = log(1 + exp(-y · (sim · t + b)))
+# 不做 softmax 归一化 —— 摆脱负样本 pair 之间的耦合
+# t：可学习温度，初始 log(10)
+# b：可学习偏置，初始 -10（BiC 偏置校正初始化）
+#   —— 负样本对远多于正样本，先压低所有 logit，避免初期大步纠偏</code></pre>
+  <h3>5.2 SigLIP 2（arXiv:2502.14786）</h3>
+  <p>在 SigLIP 对比目标之上叠加：</p>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th style="width:30%">训练目标</th><th>说明</th></tr>
+    <tr><td class="f">decoder loss</td><td>解码器重建图像 patch，辅助密集特征</td></tr>
+    <tr><td class="f">global-local / masked prediction</td><td>全局-局部一致性 + 掩码预测，提升定位/局部语义（检测、分割类任务）</td></tr>
+    <tr><td class="f">NaFlex 训练</td><td>训练时混用多分辨率/多宽高比，位置嵌入插值</td></tr>
+    <tr><td class="f">多语言 + 去偏过滤</td><td>WebLI 数据上多语言训练 + debiasing 过滤，跨文化语义更均衡</td></tr>
+  </table>
+  </div>
+  <div class="tip">注意：decoder / masked 分支是<b>训练期目标</b>，HF 发布的推理模型只有「文本塔 + 视觉塔 + 对比头」结构，不含这些训练分支。</div>
+</section>
+
+<section id="s6">
+  <h2><span class="secno">6</span>模型家族速览</h2>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>版本</th><th style="width:52%">官方检查点示例</th><th>配置要点</th></tr>
+    <tr><td class="f">SigLIP 1</td><td>google/siglip-base-patch16-224、google/siglip-so400m-patch14-384</td><td>固定分辨率 224/384，patch 16/14</td></tr>
+    <tr><td class="f">SigLIP 2</td><td>google/siglip2-base-patch16-naflex、google/siglip2-so400m-patch16-naflex、google/siglip2-base-patch16-224/384</td><td>naflex = NaFlex 变体；非 naflex = 固定分辨率变体</td></tr>
+  </table>
+  </div>
+  <h3>一分钟结论</h3>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th style="width:18%">维度</th><th style="width:38%">SigLIP 1</th><th>SigLIP 2</th></tr>
+    <tr><td class="f">分辨率</td><td>固定（224/384）</td><td><b>NaFlex 灵活（≤256 patch，保宽高比）</b></td></tr>
+    <tr><td class="f">位置嵌入</td><td>固定扁平 learned（加性）</td><td><b>16×16 网格 learned + 双线性插值 + 边界复制 pad</b></td></tr>
+    <tr><td class="f">输入</td><td>原始图 (B,3,H,W)</td><td>patchify 序列 + pixel mask + spatial_shapes</td></tr>
+    <tr><td class="f">训练目标</td><td>sigmoid 对比 + t/b 初始化</td><td>+ decoder loss + masked prediction + 多语言去偏</td></tr>
+    <tr><td class="f">文本塔</td><td>12L/768/12H</td><td>完全相同（继承）</td></tr>
+    <tr><td class="f">输出池化</td><td>MHA pooling head</td><td>MHA pooling head（同）</td></tr>
+  </table>
+  </div>
+  <p class="note">与多模态 LLM 的关系：Gemma 3 视觉编码器即 SigLIP-2 变体（400M 级）；InternVL 视觉塔与 SigLIP 同源思路；Qwen2-VL 视觉塔为自研 ViT（非 SigLIP 实现）但可变分辨率思路与 NaFlex 一致；后续工作 SigLIP-HD 用 SigLIP 2 多尺度教师蒸馏标准分辨率学生。</p>
+</section>
+
+<section id="s7">
+  <h2><span class="secno">7</span>来源</h2>
+  <ol style="font-size:.88rem; margin-left:18px;">
+    <li>SigLIP 论文：Sigmoid Loss for Language Image Pre-Training，arXiv:2303.15343（Zhai et al., 2023）</li>
+    <li>SigLIP 2 论文：SigLIP 2: Multilingual Vision-Language Encoders with Improved Semantic Understanding, Localization, and Dense Features，arXiv:2502.14786（Tschannen et al., 2025）</li>
+    <li>HF 模型卡：google/siglip2-so400m-patch16-naflex（训练目标/数据说明）</li>
+    <li>transformers 源码（本机 editable）：src/transformers/models/siglip/、src/transformers/models/siglip2/（5.21.0.dev0）</li>
+  </ol>
+  <p class="note">待确认/边界：SigLIP 2 具体训练分辨率集合与 so400m 精确参数以官方权重为准（未在本机下载验证权重）；SigLIP 2 论文中 decoder 分支的 HF 复现细节未展开。</p>
+</section>
+
+<footer>SigLIP 家族架构详解 · 研读 transformers 5.21.0.dev0 源码 + arXiv:2303.15343 / 2502.14786 + HF 模型卡 · 仅供技术学习与论文研究</footer>
+</div>
+</body>
+</html>

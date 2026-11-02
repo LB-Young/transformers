@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek-V3.1 家族架构详解 — 671B-T37B MoE · 混合推理 · 840B 续训</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%231d4ed8'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EV3.1%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#1d4ed8; --accent-ink:#1e40af; --accent-soft:#e2eafb; --accent-line:#c0d0f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#3b5390;
+    --new:#0e7490; --new-ink:#155e75; --new-soft:#e0f2f7; --new-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.new{border-color:var(--new-line); background:var(--new-soft); color:var(--new-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.new{background:var(--new-soft); border-color:var(--new-line); color:var(--new-ink);}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#eef3fd; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.new rect{fill:var(--new-soft); stroke:var(--new); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .edge.new{stroke:var(--new); stroke-width:1.8;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+
+  .ts{overflow-x:auto; border-radius:var(--radius); margin-top:8px;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  table.cmp th{background:var(--accent-soft); color:var(--accent-ink); font-size:.85rem; text-align:left; padding:8px 12px; border-bottom:1px solid var(--accent-line);}
+  table.cmp td{padding:8px 12px; font-size:.9rem; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.cmp tr:last-child td{border-bottom:none;}
+  table.cmp td.f{font-weight:700; white-space:nowrap;}
+  table.cmp tr.diff td{background:#fff8ec;}
+  table.cmp td.newv{color:var(--new-ink); font-weight:700;}
+
+  pre.code{background:#f4f4f7; border:1px solid var(--line); border-radius:10px; padding:12px 14px; overflow-x:auto; font-size:.85rem; line-height:1.55; margin-top:8px;}
+  pre.code code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:820px){ .grid2{grid-template-columns:1fr;} }
+
+  footer{margin:48px 0 20px; color:var(--sub); font-size:.8rem; border-top:1px solid var(--line); padding-top:14px;}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#1d4ed8"/><text x="12" y="16" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">3.1</text></svg>DeepSeek-V3.1 家族</div>
+  <a class="link" href="#s1">家族全景</a>
+  <a class="link" href="#s2">端到端数据流</a>
+  <a class="link" href="#s3">核心机制速览</a>
+  <a class="link" href="#s4">V3.1 增量</a>
+  <a class="link" href="#s5">演进视角</a>
+  <a class="link" href="#s6">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <div class="badges">
+    <span class="badge">671B 总参 / ≈37B 激活</span>
+    <span class="badge">MoE · MLA · MTP</span>
+    <span class="badge new">混合推理（思考/非思考）</span>
+    <span class="badge new">840B tokens 长上下文续训</span>
+    <span class="badge new">UE8M0 FP8 Scale</span>
+    <span class="badge">2025-08-19 开源</span>
+  </div>
+  <h1>DeepSeek-V3.1 家族架构详解</h1>
+  <p class="lead">入口类 <b>DeepseekV3ForCausalLM</b>（model_type <code>deepseek_v3</code>）。V3.1 的 <b>config.json 与 V3 逐字段一致</b>——它不是新架构，而是「V3 架构 + 840B 长上下文续训 + 混合推理后训练 + UE8M0 精度格式」的版本升级。本文档重点记录 V3.1 相对 V3 的全部增量，架构机制速览并指向 V3 详文。</p>
+</header>
+
+<section id="s1">
+  <h2><span class="secno">1</span>家族全景：V3.1 / V3.1-Base 配置对照（与 V3 逐字段同构）</h2>
+  <p class="note">两份远端官方 config（hf-mirror 拉取，2026-11-02 逐字段核对，存 <code>_tools\_cfgpull\</code>）与 V3 逐一比对，结果如下。</p>
+  <div class="ts"><table class="cmp">
+    <tr><th style="width:34%">字段</th><th style="width:38%">DeepSeek-V3.1 / V3.1-Base</th><th>与 V3 对比</th></tr>
+    <tr><td class="f">入口类 / model_type</td><td>DeepseekV3ForCausalLM / deepseek_v3</td><td>相同</td></tr>
+    <tr><td class="f">形态</td><td>MoE（671B 总参 / ≈37B 激活）</td><td>相同</td></tr>
+    <tr><td class="f">hidden_size / 层数</td><td>7168 / 61（前 3 层 Dense，后 58 层 MoE）</td><td>相同</td></tr>
+    <tr><td class="f">注意力头</td><td>128 Q / 128 KV（MLA 压缩）</td><td>相同</td></tr>
+    <tr><td class="f">MLA 秩</td><td>kv_lora 512 / q_lora 1536 / qk_rope 64 / qk_nope 128 / v_head 128</td><td>相同</td></tr>
+    <tr><td class="f">FFN / MoE</td><td>inter 18432；moe_inter 2048；256 专家选 8 + 1 共享；routed_scaling 2.5</td><td>相同</td></tr>
+    <tr><td class="f">路由</td><td>sigmoid + noaux_tc（aux-loss-free）；n_group 8 / topk_group 4</td><td>相同</td></tr>
+    <tr><td class="f">词表 / 上下文</td><td>vocab 129280；max_pos 163840（YaRN factor 40）</td><td>相同（tokenizer 内容重构，见 §4.4）</td></tr>
+    <tr><td class="f">MTP / tie</td><td>num_nextn_predict_layers=1（~14B 附加）；tie=false</td><td>相同</td></tr>
+    <tr class="diff"><td class="f">精度格式</td><td class="newv">fp8 e4m3 + <b>scale_fmt=ue8m0</b>（权重+激活）</td><td><b>不同</b>：V3.1 明确以 UE8M0 scale 训练；V3 config 无 scale_fmt 字段</td></tr>
+  </table></div>
+  <div class="tip">「685B」口径 = 671B 主模型 + ~14B MTP 模块（官方仓库 tag / 第三方页面）；config 相同不代表权重相同——V3.1-Base 在 V3 权重上又续训了 840B tokens，且 <code>mlp.gate.e_score_correction_bias</code> 必须 FP32 加载计算。</div>
+</section>
+
+<section id="s2">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token → 词嵌入（129280×7168，与 LM Head 解绑）→ 61×DeepseekV3DecoderLayer（MLA + Dense 前 3 层 / MoE 后 58 层）→ 最终 RMSNorm → LM Head；另挂 1 层 MTP 头。与 V3 完全一致，唯一的「模式切换」发生在模板层。</p>
+  <div class="diagram-shell">
+  <svg class="dg" viewBox="0 0 1080 300" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c9c4ba"/></marker>
+    </defs>
+    <!-- 左侧：模板开关 -->
+    <g class="node new"><rect x="16" y="118" width="168" height="70" rx="10"/><text x="100" y="142" text-anchor="middle" class="t">混合推理模板开关</text><text x="100" y="160" text-anchor="middle" class="s">chat_template 参数</text><text x="100" y="178" text-anchor="middle" class="m">thinking=True / False</text></g>
+    <text x="100" y="105" text-anchor="middle" class="lg">V3.1 新增（权重无分支）</text>
+    <!-- 主链 -->
+    <g class="node dim"><rect x="224" y="16" width="96" height="60" rx="8"/><text x="272" y="42" text-anchor="middle" class="t">Tokenizer</text><text x="272" y="60" text-anchor="middle" class="s">129280</text></g>
+    <g class="node core"><rect x="224" y="104" width="96" height="60" rx="8"/><text x="272" y="130" text-anchor="middle" class="t">Embedding</text><text x="272" y="148" text-anchor="middle" class="m">129280×7168</text></g>
+    <g class="node core"><rect x="360" y="58" width="150" height="152" rx="10"/><text x="435" y="84" text-anchor="middle" class="t">61 × DecoderLayer</text><text x="435" y="102" text-anchor="middle" class="s">前 3 层 Dense FFN</text><text x="435" y="120" text-anchor="middle" class="s">后 58 层 DeepSeekMoE</text><text x="435" y="140" text-anchor="middle" class="m">MLA + 残差 + RMSNorm</text><text x="435" y="176" text-anchor="middle" class="m">256 专家选 8 + 共享 1</text></g>
+    <g class="node dim"><rect x="550" y="104" width="96" height="60" rx="8"/><text x="598" y="130" text-anchor="middle" class="t">RMSNorm</text><text x="598" y="148" text-anchor="middle" class="s">最终归一化</text></g>
+    <g class="node dim"><rect x="686" y="104" width="96" height="60" rx="8"/><text x="734" y="130" text-anchor="middle" class="t">LM Head</text><text x="734" y="148" text-anchor="middle" class="m">129280 类</text></g>
+    <g class="node"><rect x="822" y="104" width="150" height="60" rx="8"/><text x="897" y="126" text-anchor="middle" class="t">输出 token</text><text x="897" y="144" text-anchor="middle" class="s">思考 / 非思考 由模板决定</text></g>
+    <!-- MTP -->
+    <g class="node dim"><rect x="360" y="238" width="150" height="44" rx="8"/><text x="435" y="259" text-anchor="middle" class="s">MTP 头（训练期 ~14B）</text></g>
+    <!-- 边 -->
+    <path class="edge" d="M184,153 L222,134"/>
+    <path class="edge" d="M224,134 L320,134"/>
+    <path class="edge" d="M320,134 L510,134"/>
+    <path class="edge" d="M510,134 L550,134"/>
+    <path class="edge" d="M646,134 L686,134"/>
+    <path class="edge" d="M782,134 L820,134"/>
+    <path class="edge faint" d="M435,210 L435,236"/>
+    <path class="edge new" d="M100,190 L100,153 L180,145"/>
+    <text x="272" y="0" text-anchor="middle" class="lg">输入 token</text>
+    <text x="897" y="185" text-anchor="middle" class="lg">架构与 V3 逐字段同构；差异见 §4</text>
+  </svg>
+  </div>
+  <div class="tip">虚线框 = 与 V3 完全一致的组件；绿色高亮 = V3.1 在模板层新增的混合推理开关（权重与计算图无分支）。</div>
+</section>
+
+<section id="s3">
+  <h2><span class="secno">3</span>核心机制速览（与 V3 同构）</h2>
+  <div class="ts"><table class="cmp">
+    <tr><th style="width:24%">机制</th><th style="width:44%">一句话</th><th>关键实参</th></tr>
+    <tr><td class="f">MLA 多头潜在注意力</td><td>Q/KV 双低秩压缩，KV cache 只存 512+64 维潜变量</td><td>kv_lora 512 / q_lora 1536 / qk_rope 64 / qk_nope 128 / v_head 128</td></tr>
+    <tr><td class="f">DeepSeekMoE</td><td>细粒度路由专家 + 共享专家常开</td><td>256 选 8（+1 共享），moe_inter 2048，前 3 层 Dense</td></tr>
+    <tr><td class="f">aux-loss-free 负载均衡</td><td>sigmoid 打分 + bias 修正 + 分组限选</td><td>scoring=sigmoid / topk=noaux_tc / 8 组选 4</td></tr>
+    <tr><td class="f">MTP 多 token 预测</td><td>训练期预测下一未来 token，推理可作投机解码草稿</td><td>num_nextn_predict_layers=1</td></tr>
+    <tr><td class="f">YaRN 长上下文</td><td>4096 → 163840 外推（config 上限）</td><td>factor=40 / original_max=4096</td></tr>
+  </table></div>
+  <p class="note">完整解剖（MLA 压缩流程、MoE 前向、路由 bias 修正、MTP 结构）见同系列 <b>deepseek_v3</b> 详文——两版实现为同一模块 <code>models/deepseek_v3/</code>，无独立实现。</p>
+</section>
+
+<section id="s4">
+  <h2><span class="secno">4</span>V3.1 核心增量（本文档重点）</h2>
+  <p class="note">架构零改动前提下，版本升级全部发生在<b>训练数据、后训练目标、精度格式、对话模板</b>四个层面——这是区分 V3 与 V3.1 的全部依据。</p>
+
+  <h3>4.1 ① 混合推理：单一权重，思考 / 非思考双模式</h3>
+  <p>官方公告（2025-08-19）：「一个模型同时支持思考模式与非思考模式」。实现完全在 <b>chat template 层</b>（tokenizer_config / chat_template.jinja）：</p>
+<pre class="code"><code>非思考（Non-Thinking）前缀：
+｜begin▁of▁sentence｜{system}｜User｜{query}｜Assistant｜&lt;/think&gt;
+思考（Thinking）前缀：
+｜begin▁of▁sentence｜{system}｜User｜{query}｜Assistant｜&lt;think&gt;</code></pre>
+  <ul style="margin:8px 0 0 18px; font-size:.9rem;">
+    <li>非思考：Assistant 后直接加 <code>&lt;/think&gt;</code>（空思考闭合标记），直接输出答案；</li>
+    <li>思考：以 <code>&lt;think&gt;</code> 开启，先产出显式思维链再输出可见答案；</li>
+    <li>多轮：每轮保留 <code>&lt;/think&gt;</code>，仅最后一轮按模式追加 <code>&lt;think&gt;</code>。</li>
+  </ul>
+  <div class="tip new">意义：把 R1 的推理能力并入 V3 同一套权重，无需再独立部署 reasoner；V3.1-Think 在输出 token 减少 20%–50% 时平均表现与 R1-0528 持平（官方口径）。</div>
+
+  <h3>4.2 ② 长上下文续训：840B tokens 两阶段（V3.1-Base 的核心投资）</h3>
+  <div class="ts"><table class="cmp">
+    <tr><th>阶段</th><th>目标长度</th><th>续训数据量</th><th>相对 V3-0324 同阶段</th></tr>
+    <tr><td class="f">Phase 1</td><td>→ 32K</td><td class="newv">630B tokens</td><td>10 倍</td></tr>
+    <tr><td class="f">Phase 2</td><td>32K → 128K</td><td class="newv">209B tokens</td><td>3.3 倍</td></tr>
+    <tr><td class="f">合计</td><td>—</td><td class="newv">≈840B tokens</td><td>—</td></tr>
+  </table></div>
+  <p>数据来源为额外收集的长文档；官方在 128K 全范围做 <b>Needle in a Haystack（NIAH）</b> 检索测试核对召回。config 的 <code>max_position_embeddings=163840</code>（YaRN 外推上限）在 V3 已如此——<b>V3.1 的 128K 是「训练到达的长度」而非配置变化</b>：V3 只外推可用，V3.1 真正在 128K 长度上训练过。</p>
+
+  <h3>4.3 ③ UE8M0 FP8 Scale 精度格式（与 V3 的精度差异）</h3>
+  <ul style="margin:0 0 0 18px; font-size:.9rem;">
+    <li>V3 的 <code>quantization_config</code>：fp8 e4m3，dynamic activation，weight_block [128,128]；</li>
+    <li><b>V3.1 增加 <code>scale_fmt: ue8m0</code></b>（已核对远端 config）：权重与激活的 per-block <b>scale 因子</b>用 UE8M0（8 位指数 / 0 位尾数）编码，张量元素本身仍为 E4M3/E5M2 FP8；</li>
+    <li>目的：使 checkpoint 与 <b>MXFP8 微缩放硬件</b>数值兼容（官方口径「面向即将发布的国产下一代芯片设计」，DeepGEMM 提供实现）；</li>
+    <li>部署注意：<code>e_score_correction_bias</code> 必须 FP32；Terminus 版曾注记 <code>self_attn.o_proj</code> 的 scale 格式问题，后续修正。</li>
+  </ul>
+
+  <h3>4.4 ④ Tokenizer 与 chat template 重构</h3>
+  <p>官方明确「V3.1 对分词器及 chat template 进行了较大调整，与 V3 存在明显差异」：</p>
+  <ul style="margin:0 0 0 18px; font-size:.9rem;">
+    <li><b>思考标记</b>：新增 <code>&lt;think&gt;</code> / <code>&lt;/think&gt;</code>（§4.1）；</li>
+    <li><b>工具调用</b>：非思考模式支持结构化 tool-call——<code>&lt;｜tool▁calls▁begin｜&gt;&lt;｜tool▁call▁begin｜&gt;tool_name&lt;｜tool▁sep｜&gt;args&lt;｜tool▁call▁end｜&gt;…&lt;｜tool▁calls▁end｜&gt;</code>，供 Code/Search Agent 使用；</li>
+    <li><b>API 兼容</b>：支持 Anthropic API 格式（可接入 Claude Code），Beta 支持 strict Function Calling。</li>
+  </ul>
+  <div class="tip">词表大小 129280 未变，但 tokenizer 文件内容有增改（新增特殊标记）——部署须用 V3.1 配套 tokenizer。</div>
+
+  <h3>4.5 ⑤ 能力提升（官方评测口径）</h3>
+  <div class="ts"><table class="cmp">
+    <tr><th>类别</th><th>基准</th><th>V3.1 非思考</th><th>V3-0324</th><th>V3.1 思考</th><th>R1-0528</th></tr>
+    <tr><td rowspan="2">通用</td><td>MMLU-Pro</td><td>83.7</td><td>81.2</td><td>84.8</td><td>85.0</td></tr>
+    <tr><td>GPQA-Diamond</td><td>74.9</td><td>68.4</td><td>80.1</td><td>81.0</td></tr>
+    <tr><td rowspan="2">搜索智能体</td><td>BrowseComp</td><td>—</td><td>—</td><td class="newv">30.0</td><td>8.9</td></tr>
+    <tr><td>HLE (Python+Search)</td><td>—</td><td>—</td><td class="newv">29.8</td><td>24.8</td></tr>
+    <tr><td>代码智能体</td><td>Aider-Polyglot</td><td>68.4</td><td>55.1</td><td class="newv">76.3</td><td>71.6</td></tr>
+    <tr><td>数学推理</td><td>AIME 2024</td><td>66.3</td><td>59.4</td><td class="newv">93.1</td><td>91.4</td></tr>
+  </table></div>
+  <p class="note">口径：Search Agent 用官方内部搜索框架（商业搜索 API + 网页过滤 + 128K 上下文）；SWE 用内部代码 agent 框架；HLE 为纯文本子集。V3.1 定位「迈向 Agent 时代的第一步」——主要增益集中在 Code/Search Agent 与思考效率。</p>
+</section>
+
+<section id="s5">
+  <h2><span class="secno">5</span>演进视角：V3 → V3.1 → V3.1-Terminus → V3.2-Exp</h2>
+  <div class="ts"><table class="cmp">
+    <tr><th>维度</th><th>V3（2024-12）</th><th class="newv">V3.1（2025-08）</th><th>V3.1-Terminus（2025-09）</th><th>V3.2-Exp（2025-09）</th></tr>
+    <tr><td class="f">架构</td><td>MLA + MoE + MTP</td><td class="newv">逐字段同构</td><td>同构</td><td>同构</td></tr>
+    <tr><td class="f">参数量</td><td>671B / 37B 激活</td><td class="newv">671B / 37B（+~14B MTP）</td><td>同左</td><td>同左</td></tr>
+    <tr><td class="f">上下文</td><td>config 163840，训练较短</td><td class="newv">两阶段续训至 128K（840B）</td><td>同左</td><td>同左</td></tr>
+    <tr><td class="f">推理模式</td><td>单一模式</td><td class="newv">混合推理（模板切换）</td><td>同左 + 语言一致性修复</td><td>引入 DSA 稀疏注意力</td></tr>
+    <tr><td class="f">精度</td><td>FP8 e4m3</td><td class="newv">UE8M0 FP8 scale</td><td>同左</td><td>—</td></tr>
+    <tr><td class="f">定位</td><td>通用基座</td><td class="newv">Agent 时代第一步</td><td>稳定性 + Agent 再优化</td><td>实验性注意力升级</td></tr>
+  </table></div>
+  <p class="note">V3.1-Terminus（2025-09-22）修复中英文混杂/异常字符并进一步优化 Code/Search Agent；V3.2-Exp（2025-09-29）在同一架构上引入 DSA（详见 deepseek_v3_2 文档）。V3.1 系列是「V3 架构 → V4 新代际（CSA/HCA）」之间的过渡主线。</p>
+</section>
+
+<section id="s6">
+  <h2><span class="secno">6</span>来源</h2>
+  <ol style="font-size:.88rem; margin-left:18px;">
+    <li>远端官方 config（hf-mirror，2026-11-02 逐字段核对，存 <code>_tools\_cfgpull\</code>）：DeepSeek-V3.1 / V3.1-Base（与 V3 逐字段一致，含 <code>scale_fmt: ue8m0</code>）</li>
+    <li>官方发布公告：api-docs.deepseek.com/zh-cn/news/news250821/（混合推理、840B 续训、UE8M0、template 重构、Agent 提升）</li>
+    <li>官方版本更新：api-docs.deepseek.com/zh-cn/news/news250922/（V3.1-Terminus）</li>
+    <li>官方模型卡：huggingface.co/deepseek-ai/DeepSeek-V3.1 · modelscope.cn/models/deepseek-ai/DeepSeek-V3.1（评测表 / 使用建议 / chat template）</li>
+    <li>transformers 源码（本机 editable）：<code>src/transformers/models/deepseek_v3/</code>（与 V3 同一实现）；V3 技术报告 arXiv:2412.19437</li>
+  </ol>
+</section>
+
+<footer>DeepSeek-V3.1 家族架构详解 · 数据来源：远端官方 config（hf-mirror）+ 官方公告/模型卡 + transformers 源码（与 V3 同构）· 仅供技术学习与论文研究</footer>
+</div>
+</body>
+</html>

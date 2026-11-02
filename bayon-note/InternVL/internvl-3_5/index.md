@@ -25,6 +25,30 @@ InternVL 3.5 沿用「图像 → InternViT → 像素洗牌 → MLP 投影 → �
 | InternVL3.5-38B | InternViT-6B | Qwen3-32B | 38.4B |
 | InternVL3.5-241B-A28B | InternViT-6B | Qwen3-235B-A22B | 240.7B (A28B) |
 
+### 1.1 全尺寸 LLM 底座 config 对照（远程 ModelScope config 实参）
+
+| 模型（总参） | 视觉塔 | 语言底座 | hidden | 层数 | Q/KV 头 | intermediate | vocab / max_pos |
+|---|---|---|---|---|---|---|---|
+| **InternVL3.5-1B（本地，1.1B）** | InternViT-300M | Qwen3-0.6B | 1024 | 28 | 16 / 8 | 3072 | 151936 / 40960 |
+| InternVL3.5-2B（2.3B） | InternViT-300M | Qwen3-1.7B | 2048 | 28 | 16 / 8 | 6144 | 151936 / 40960 |
+| InternVL3.5-4B（4.7B） | InternViT-300M | Qwen3-4B | 2560 | 36 | 32 / 8 | 9728 | 151936 / 40960 |
+| InternVL3.5-8B（8.5B） | InternViT-300M | Qwen3-8B | 4096 | 36 | 32 / 8 | 12288 | 151936 / 40960 |
+| InternVL3.5-14B（15.1B） | InternViT-300M | Qwen3-14B | 5120 | 40 | 40 / 8 | 17408 | 151936 / 40960 |
+| InternVL3.5-20B-A4B（21.2B） | InternViT-300M | GPT-OSS-20B（MoE） | 2880 | 24 | 64 / 8 | 2880（dense 段） | 200028 / 131072 |
+| InternVL3.5-30B-A3B（30.8B） | InternViT-300M | Qwen3-30B-A3B（MoE） | 2048 | 48 | 32 / 4 | 6144（dense 段） | 151936 / 40960 |
+| InternVL3.5-38B（38.4B） | InternViT-6B | Qwen3-32B | 5120 | 64 | 64 / 8 | 25600 | 151936 / 40960 |
+| InternVL3.5-241B-A28B（240.7B） | InternViT-6B | Qwen3-235B-A22B（MoE） | 4096 | 94 | 64 / 4 | 12288（dense 段） | 151936 / 40960 |
+
+**MoE 专家配置（config 实参）**
+
+| 模型 | 专家模型 | num_experts | 每 token 激活 | moe_intermediate_size | 注意力模式 |
+|---|---|---|---|---|---|
+| 20B-A4B | GPT-OSS-20B | 32（num_local_experts） | 4 | —（dense 段 2880） | 12 层 sliding(128) + 12 层 full 交替；YaRN（factor 32，orig 4096） |
+| 30B-A3B | Qwen3-30B-A3B | 128 | 8 | 768 | 全 full attention，rope_theta 1e6 |
+| 241B-A28B | Qwen3-235B-A22B | 128 | 8 | 1536 | 全 full attention，rope_theta 1e6 |
+
+> 视觉塔两档：1B–20B-A4B/30B-A3B 用 InternViT-300M（hidden 1024/24 层/16 头/4096/448px，LayerScale 0.1 + mean pooling），38B/241B 用 InternViT-6B（hidden 3200/45 层/25 头/12800/448px）。格式注：ModelScope 上 30B-A3B / 241B-A28B 发布为 legacy `internvl_chat` 格式（顶层 llm_config），其余尺寸为 transformers 原生 `internvl` 格式；两格式数值一致。
+
 > 本地 InternVL3_5-1B-HF 即家族最小档：视觉塔 InternViT-300M、语言底座 Qwen3-0.6B，总参约 1.1B。config.json 为 transformers 原生格式，顶层含 text_config、vision_config、image_seq_length=256、image_token_id=151671。
 
 ## 2 端到端架构总览

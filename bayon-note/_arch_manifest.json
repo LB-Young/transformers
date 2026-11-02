@@ -1,0 +1,59 @@
+{
+  "BLIP": [
+    {
+      "name": "01_blip端到端架构总览",
+      "page": "E:\\transformers\\bayon-note\\BLIP\\_arch\\svg_pages\\01_01_blip端到端架构总览.html",
+      "w": 1000,
+      "h": 360,
+      "idx": 1
+    },
+    {
+      "name": "02_blip_med三模式",
+      "page": "E:\\transformers\\bayon-note\\BLIP\\_arch\\svg_pages\\02_02_blip_med三模式.html",
+      "w": 980,
+      "h": 250,
+      "idx": 2
+    },
+    {
+      "name": "03_blip_capfilt数据引导",
+      "page": "E:\\transformers\\bayon-note\\BLIP\\_arch\\svg_pages\\03_03_blip_capfilt数据引导.html",
+      "w": 940,
+      "h": 220,
+      "idx": 3
+    }
+  ],
+  "CLIP": [
+    {
+      "name": "01_clip端到端双塔架构",
+      "page": "E:\\transformers\\bayon-note\\CLIP\\_arch\\svg_pages\\01_01_clip端到端双塔架构.html",
+      "w": 1000,
+      "h": 320,
+      "idx": 1
+    }
+  ],
+  "Siglip": [
+    {
+      "name": "01_siglip两代视觉塔对比",
+      "page": "E:\\transformers\\bayon-note\\Siglip\\_arch\\svg_pages\\01_01_siglip两代视觉塔对比.html",
+      "w": 980,
+      "h": 300,
+      "idx": 1
+    }
+  ],
+  "YOLOS": [
+    {
+      "name": "01_yolos端到端架构总览",
+      "page": "E:\\transformers\\bayon-note\\YOLOS\\_arch\\svg_pages\\01_01_yolos端到端架构总览.html",
+      "w": 980,
+      "h": 320,
+      "idx": 1
+    },
+    {
+      "name": "02_yolos匈牙利匹配",
+      "page": "E:\\transformers\\bayon-note\\YOLOS\\_arch\\svg_pages\\02_02_yolos匈牙利匹配.html",
+      "w": 900,
+      "h": 180,
+      "idx": 2
+    }
+  ]
+}

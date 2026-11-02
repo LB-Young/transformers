@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YOLOS 家族架构详解 — 纯 ViT 目标检测 · 100 个 detection token</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='22' font-size='11' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3EYOLOS%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#059669; --accent-ink:#047857; --accent-soft:#e7f7f1; --accent-line:#b3e2d2;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#047857;
+    --t2:#b45309; --t2-ink:#92400e; --t2-soft:#fdf3e3; --t2-line:#f0d9b0;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.t2{border-color:var(--t2-line); background:var(--t2-soft); color:var(--t2-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#e9f8f1; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.t2 rect{fill:var(--t2-soft); stroke:var(--t2); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+
+  .ts{overflow-x:auto; border-radius:var(--radius); margin-top:8px;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  table.cmp th{background:var(--accent-soft); color:var(--accent-ink); font-size:.85rem; text-align:left; padding:8px 12px; border-bottom:1px solid var(--accent-line);}
+  table.cmp td{padding:8px 12px; font-size:.9rem; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.cmp tr:last-child td{border-bottom:none;}
+  table.cmp td.f{font-weight:700; white-space:nowrap;}
+  table.cmp td.m{font-family:ui-monospace,Consolas,monospace; font-size:.85rem; color:var(--mono); white-space:nowrap;}
+
+  pre.code{background:#f4f4f7; border:1px solid var(--line); border-radius:10px; padding:12px 14px; overflow-x:auto; font-size:.85rem; line-height:1.55; margin-top:8px;}
+  pre.code code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:820px){ .grid2{grid-template-columns:1fr;} }
+
+  footer{margin:48px 0 20px; color:var(--sub); font-size:.8rem; border-top:1px solid var(--line); padding-top:14px;}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#059669"/><text x="12" y="15" font-size="8" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">YOLOS</text></svg>YOLOS 家族</div>
+  <a class="link" href="#s1">定位</a>
+  <a class="link" href="#s2">模块与类</a>
+  <a class="link" href="#s3">配置字段</a>
+  <a class="link" href="#s4">端到端架构</a>
+  <a class="link" href="#s5">核心机制</a>
+  <a class="link" href="#s6">训练与损失</a>
+  <a class="link" href="#s7">家族速览</a>
+  <a class="link" href="#s8">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <div class="badges">
+    <span class="badge">纯 ViT encoder 目标检测</span>
+    <span class="badge">100 个可学习 detection token</span>
+    <span class="badge t2">位置编码可插值 + 中间层再注入</span>
+    <span class="badge t2">匈牙利匹配集合预测</span>
+    <span class="badge">NeurIPS 2021 · arXiv:2106.00666</span>
+  </div>
+  <h1>YOLOS 家族架构详解</h1>
+  <p class="lead">研读对象 <b>models/yolos/</b>（transformers 5.23.0.dev0）。YOLOS（You Only Look at One Sequence）是华中科技大学 Fang 等在 NeurIPS 2021 提出的目标检测模型：<b>不需要 CNN 主干、也不需要 DETR 的 encoder-decoder 跨注意力</b>——一个普通 ViT encoder + 100 个可学习 detection token 就够了，把检测重新表述为「读一个 token 序列」。它是第一个「纯 ViT、零 CNN 归纳偏置」的检测器。</p>
+</header>
+
+<section id="s1">
+  <h2><span class="secno">1</span>一句话定位</h2>
+  <p>目标检测不需要 CNN 主干、也不需要 DETR 那套 encoder-decoder 跨注意力，一个普通 ViT encoder + 100 个可学习 detection token 就够了——把检测重新表述为「读一个 token 序列」，序列末尾的 detection token 直接输出集合式预测（分类 + 框回归）。历史意义：第一个「纯 ViT、零 CNN 归纳偏置」的检测器，用于验证 ViT 作为通用视觉 backbone 的边界。</p>
+</section>
+
+<section id="s2">
+  <h2><span class="secno">2</span>源码模块与类关系</h2>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th style="width:34%">文件</th><th>职责</th></tr>
+    <tr><td class="f">configuration_yolos.py</td><td>YolosConfig（单文件，无 text/vision 分拆）</td></tr>
+    <tr><td class="f">modeling_yolos.py</td><td>全部模型类（视觉嵌入 → encoder → 检测头）</td></tr>
+    <tr><td class="f">modular_yolos.py</td><td>模块化定义源，modeling_yolos.py 由它自动生成（文件头有警示）</td></tr>
+    <tr><td class="f">image_processing_yolos.py</td><td>图像预处理 + post_process_object_detection（归一化框还原像素坐标）</td></tr>
+    <tr><td class="f">convert_yolos_to_pytorch.py</td><td>官方权重 → HF 格式</td></tr>
+  </table>
+  </div>
+  <h3>modeling_yolos.py 类清单</h3>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>类</th><th style="width:14%">行号</th><th>职责</th></tr>
+    <tr><td class="f">YolosObjectDetectionOutput</td><td class="m">:43</td><td>检测输出 dataclass（loss/logits/pred_boxes/auxiliary_outputs）</td></tr>
+    <tr><td class="f">YolosEmbeddings</td><td class="m">:76</td><td>CLS + patch + detection token 拼接、位置编码、dropout</td></tr>
+    <tr><td class="f">InterpolateInitialPositionEmbeddings</td><td class="m">:118</td><td>初始位置编码按输入分辨率插值</td></tr>
+    <tr><td class="f">InterpolateMidPositionEmbeddings</td><td class="m">:147</td><td>中间层位置编码按分辨率插值</td></tr>
+    <tr><td class="f">YolosPatchEmbeddings</td><td class="m">:187</td><td>Conv2d 分块投影</td></tr>
+    <tr><td class="f">YolosSelfAttention / YolosAttention</td><td class="m">:250 / :324</td><td>自注意力（默认 eager，可切 SDPA/Flash/Flex）</td></tr>
+    <tr><td class="f">YolosLayer</td><td class="m">:371</td><td>单层 Transformer（继承 GradientCheckpointingLayer）</td></tr>
+    <tr><td class="f">YolosEncoder</td><td class="m">:405</td><td>12 层编码器 + 中间层位置编码逻辑（:419-427）</td></tr>
+    <tr><td class="f">YolosModel</td><td class="m">:451</td><td>backbone：输出 last_hidden_state + pooler</td></tr>
+    <tr><td class="f">YolosMLPPredictionHead</td><td class="m">:510</td><td>检测用 MLP 头</td></tr>
+    <tr><td class="f">YolosForObjectDetection</td><td class="m">:534</td><td>检测任务模型：ViT + 分类/框回归头</td></tr>
+  </table>
+  </div>
+</section>
+
+<section id="s3">
+  <h2><span class="secno">3</span>配置字段（YolosConfig，configuration_yolos.py:24）</h2>
+  <p class="note">model_type = "yolos"，默认 checkpoint 口径为 hustvl/yolos-base：</p>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>字段</th><th style="width:20%">默认值</th><th>说明</th></tr>
+    <tr><td class="f">hidden_size</td><td class="m">768</td><td>token 维度</td></tr>
+    <tr><td class="f">num_hidden_layers</td><td class="m">12</td><td>encoder 层数</td></tr>
+    <tr><td class="f">num_attention_heads</td><td class="m">12</td><td>注意力头数</td></tr>
+    <tr><td class="f">intermediate_size</td><td class="m">3072</td><td>FFN 中间维度</td></tr>
+    <tr><td class="f">hidden_act</td><td class="m">gelu</td><td>激活</td></tr>
+    <tr><td class="f">image_size</td><td class="m">(512, 864)</td><td>输入分辨率（高, 宽）</td></tr>
+    <tr><td class="f">patch_size</td><td class="m">16</td><td>分块大小 → 32×54=1728 个 patch</td></tr>
+    <tr><td class="f">num_channels</td><td class="m">3</td><td>输入通道</td></tr>
+    <tr><td class="f">num_detection_tokens</td><td class="m">100</td><td>可学习检测 token 数量</td></tr>
+    <tr><td class="f">use_mid_position_embeddings</td><td class="m">True</td><td>是否在中间层再加位置编码</td></tr>
+    <tr><td class="f">auxiliary_loss</td><td class="m">False</td><td>是否启用逐层辅助损失</td></tr>
+    <tr><td class="f">class_cost / bbox_cost / giou_cost</td><td class="m">1 / 5 / 2</td><td>匈牙利匹配代价系数</td></tr>
+    <tr><td class="f">bbox_loss_coefficient / giou_loss_coefficient</td><td class="m">5 / 2</td><td>损失加权系数</td></tr>
+    <tr><td class="f">eos_coefficient</td><td class="m">0.1</td><td>no-object 类损失权重</td></tr>
+  </table>
+  </div>
+</section>
+
+<section id="s4">
+  <h2><span class="secno">4</span>端到端架构总览</h2>
+  <p class="note">输入 512×864 → patch 16 → 1728 patch token；拼接 [CLS]×1 + patch×1728 + detection×100 = <b>1829 token 序列</b>；12 层纯 ViT encoder（位置编码可插值 + 中间层再注入）；取末尾 100 个 detection token 过共享 MLP 头输出 N+1 类 logits 与归一化框。</p>
+  <div class="diagram-shell">
+  <svg class="dg" viewBox="0 0 980 320" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c9c4ba"/></marker>
+    </defs>
+    <g class="node dim"><rect x="16" y="30" width="120" height="70" rx="8"/><text x="76" y="56" text-anchor="middle" class="t">图像</text><text x="76" y="74" text-anchor="middle" class="s">512×864</text><text x="76" y="90" text-anchor="middle" class="m">3 通道</text></g>
+    <g class="node"><rect x="160" y="16" width="150" height="98" rx="8"/><text x="235" y="44" text-anchor="middle" class="t">Patch 嵌入</text><text x="235" y="62" text-anchor="middle" class="s">Conv2d 16×16</text><text x="235" y="80" text-anchor="middle" class="s">32×54 = 1728 patch</text><text x="235" y="96" text-anchor="middle" class="m">hidden 768</text></g>
+    <g class="node t2"><rect x="346" y="16" width="150" height="98" rx="10"/><text x="421" y="44" text-anchor="middle" class="t">Token 拼接</text><text x="421" y="62" text-anchor="middle" class="s">[CLS] + 1728 patch</text><text x="421" y="80" text-anchor="middle" class="s">+ 100 detection</text><text x="421" y="96" text-anchor="middle" class="m">序列长度 1829</text></g>
+    <g class="node core"><rect x="540" y="16" width="160" height="98" rx="10"/><text x="620" y="44" text-anchor="middle" class="t">ViT Encoder 12L</text><text x="620" y="62" text-anchor="middle" class="s">768 / 12H / 双向</text><text x="620" y="80" text-anchor="middle" class="s">中间层再注位置编码</text><text x="620" y="96" text-anchor="middle" class="m">位置编码可插值</text></g>
+    <g class="node"><rect x="736" y="16" width="230" height="98" rx="8"/><text x="851" y="44" text-anchor="middle" class="t">检测头（共享 MLP×2）</text><text x="851" y="62" text-anchor="middle" class="s">取末尾 100 det token</text><text x="851" y="80" text-anchor="middle" class="s">class → N+1 logits</text><text x="851" y="96" text-anchor="middle" class="m">bbox → (cx,cy,w,h) sigmoid</text></g>
+    <g class="node dim"><rect x="736" y="170" width="230" height="66" rx="8"/><text x="851" y="196" text-anchor="middle" class="t">后处理</text><text x="851" y="214" text-anchor="middle" class="s">post_process_object_detection</text><text x="851" y="230" text-anchor="middle" class="m">归一化框 → 像素坐标</text></g>
+    <g class="node t2"><rect x="16" y="200" width="280" height="80" rx="10"/><text x="156" y="226" text-anchor="middle" class="t">位置编码策略</text><text x="156" y="244" text-anchor="middle" class="s">InterpolateInitialPositionEmbeddings (:118)</text><text x="156" y="262" text-anchor="middle" class="s">InterpolateMidPositionEmbeddings (:147)</text><text x="156" y="278" text-anchor="middle" class="m">任意分辨率可跑 · 中间层 11 组再注入</text></g>
+    <path class="edge" d="M136,65 L158,65"/>
+    <path class="edge" d="M310,65 L344,65"/>
+    <path class="edge" d="M496,65 L538,65"/>
+    <path class="edge" d="M700,65 L734,65"/>
+    <path class="edge" d="M851,114 L851,168"/>
+    <path class="edge faint" d="M310,88 L296,238 L200,238"/>
+  </svg>
+  </div>
+</section>
+
+<section id="s5">
+  <h2><span class="secno">5</span>核心机制（对照代码）</h2>
+  <h3>5.1 Token 序列拼接（YolosEmbeddings :76）</h3>
+<pre class="code"><code>[CLS]×1 + patch_tokens×1728 + detection_tokens×100  →  序列长度 1829
+# cls_token：1 个可学习参数（1×1×768）
+# detection_tokens：100 个可学习参数（1×100×768），相当于 DETR 的 object queries，
+#   但完全靠自注意力与 patch token 交互
+# 位置编码 position_embeddings 形状 (1, 1728+100+1, 768)，随分辨率插值后加性叠加</code></pre>
+  <h3>5.2 位置编码：可插值 + 中间层再注入</h3>
+  <p><b>初始位置编码</b>（InterpolateInitialPositionEmbeddings :118）：forward 时按实际 (height, width) 把 [CLS] 位置、patch 位置、detection 位置拆开，patch 部分用双线性插值缩放到目标网格再拼回——因此<b>任意分辨率输入都能跑</b>。</p>
+  <p><b>中间层位置编码</b>（InterpolateMidPositionEmbeddings :147；YolosEncoder :419-427）：当 use_mid_position_embeddings=True，除最后一层外，<b>每层输出后再叠加一次插值后的位置编码</b>（共 11 组）——弥补深层自注意力对位置信息稀释的问题。</p>
+  <h3>5.3 Patch 嵌入（YolosPatchEmbeddings :187）</h3>
+  <p>Conv2d(3, 768, kernel_size=16, stride=16)，num_patches = (864//16)×(512//16) = 54×32 = 1728。</p>
+  <h3>5.4 检测头（YolosForObjectDetection :534）</h3>
+  <ol style="font-size:.9rem; margin-left:18px;">
+    <li>self.vit = YolosModel(config, add_pooling_layer=False)（不加池化层）</li>
+    <li>取 encoder 最后输出的<b>末尾 100 个 detection token</b>（:609）：sequence_output[:, -100:, :]</li>
+    <li>两个共享 MLP 头（均为 3 层，input/hidden=768）：class_labels_classifier → num_labels + 1（含 no-object）；bbox_predictor → 4 维 (cx, cy, w, h)，<b>sigmoid 归一化</b>（:613）</li>
+    <li>辅助损失（auxiliary_loss=True 且给 labels 时，:618-621）：把<b>每层 encoder 的中间输出</b>过同一对头，生成 auxiliary_outputs（对齐 DETR 的 aux loss 设计）</li>
+  </ol>
+</section>
+
+<section id="s6">
+  <h2><span class="secno">6</span>训练与损失（DETR 式集合预测）</h2>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th style="width:26%">环节</th><th>要点</th></tr>
+    <tr><td class="f">匈牙利二分匹配</td><td>训练时把预测框与 GT 框做最优匹配，匹配代价 = class_cost×分类 + bbox_cost×L1 + giou_cost×GIoU（1/5/2）</td></tr>
+    <tr><td class="f">损失</td><td>匹配后的分类 CE + bbox L1 + GIoU，系数 5/2；eos_coefficient=0.1 压低 no-object 类对损失的影响</td></tr>
+    <tr><td class="f">推理</td><td>YolosImageProcessor.post_process_object_detection 把归一化框还原为像素坐标（支持阈值过滤 + top-k）</td></tr>
+  </table>
+  </div>
+  <div class="diagram-shell">
+  <svg class="dg" viewBox="0 0 900 180" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c9c4ba"/></marker>
+    </defs>
+    <g class="node core"><rect x="16" y="40" width="190" height="70" rx="10"/><text x="111" y="68" text-anchor="middle" class="t">预测框集合 (100)</text><text x="111" y="86" text-anchor="middle" class="s">分类 + 归一化框</text><text x="111" y="102" text-anchor="middle" class="m">每 token 一个候选</text></g>
+    <g class="node t2"><rect x="260" y="40" width="190" height="70" rx="10"/><text x="355" y="68" text-anchor="middle" class="t">匈牙利二分匹配</text><text x="355" y="86" text-anchor="middle" class="s">代价 = 1·cls + 5·L1 + 2·GIoU</text><text x="355" y="102" text-anchor="middle" class="m">最优一对一分配</text></g>
+    <g class="node"><rect x="504" y="40" width="190" height="70" rx="8"/><text x="599" y="68" text-anchor="middle" class="t">GT 框集合</text><text x="599" y="86" text-anchor="middle" class="s">目标类别 + 像素框</text><text x="599" y="102" text-anchor="middle" class="m">不足 100 用 ∅ 填充</text></g>
+    <g class="node dim"><rect x="740" y="40" width="140" height="70" rx="8"/><text x="810" y="68" text-anchor="middle" class="t">损失</text><text x="810" y="86" text-anchor="middle" class="s">CE + L1 + GIoU</text><text x="810" y="102" text-anchor="middle" class="m">eos_coefficient 0.1</text></g>
+    <path class="edge" d="M206,75 L258,75"/>
+    <path class="edge" d="M450,75 L502,75"/>
+    <path class="edge" d="M694,75 L738,75"/>
+  </svg>
+  </div>
+</section>
+
+<section id="s7">
+  <h2><span class="secno">7</span>模型家族速览</h2>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th>检查点</th><th style="width:26%">规模档位</th><th>说明</th></tr>
+    <tr><td class="f">hustvl/yolos-tiny</td><td>最小变体</td><td>~7M 级</td></tr>
+    <tr><td class="f">hustvl/yolos-small</td><td>中等变体</td><td>—</td></tr>
+    <tr><td class="f">hustvl/yolos-base</td><td>最大变体</td><td>ViT-Base 规模（hidden 768 / 12 层）</td></tr>
+  </table>
+  </div>
+  <p class="note">各 checkpoint 精确参数量与训练输入分辨率以官方模型卡为准（本机未下载权重验证，待确认）。</p>
+  <h3>一分钟结论</h3>
+  <div class="ts">
+  <table class="cmp">
+    <tr><th style="width:18%">维度</th><th>要点</th></tr>
+    <tr><td class="f">架构</td><td>纯 ViT encoder（12L/768/12H）+ 100 个 detection token</td></tr>
+    <tr><td class="f">输入</td><td>512×864，patch 16 → 1728 patch + CLS + 100 det = 1829 token</td></tr>
+    <tr><td class="f">关键技巧</td><td>位置编码可插值；中间层再次注入位置编码</td></tr>
+    <tr><td class="f">输出</td><td>每 token：N+1 类 logits + (cx,cy,w,h) 归一化框</td></tr>
+    <tr><td class="f">损失</td><td>匈牙利匹配 + CE + L1 + GIoU（1/5/2，eos 0.1）</td></tr>
+    <tr><td class="f">代码入口</td><td>YolosModel（backbone）/ YolosForObjectDetection（检测）</td></tr>
+  </table>
+  </div>
+  <p class="note">与检测/多模态演进的关系：vs DETR（encoder-decoder + cross-attention 做集合预测），YOLOS 只用 encoder，detection token 通过与 patch token 的全自注意力完成信息聚合；后续 ViTDet、DINO 等进一步证明 ViT backbone 在检测上的潜力；「位置编码随分辨率插值」与 Qwen2-VL / SigLIP-2 NaFlex 的可变分辨率思想同源。</p>
+</section>
+
+<section id="s8">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol style="font-size:.88rem; margin-left:18px;">
+    <li>论文：You Only Look at One Sequence: Rethinking Transformer in Vision through Object Detection，arXiv:2106.00666（Fang et al., 2021, NeurIPS）</li>
+    <li>HF 模型卡：hustvl/yolos-base / hustvl/yolos-tiny</li>
+    <li>transformers 源码（本机 editable）：src/transformers/models/yolos/（5.23.0.dev0）</li>
+  </ol>
+  <p class="note">待确认/边界：各 checkpoint 精确参数量与训练分辨率以官方模型卡为准（本机未下载权重验证）；YOLOS 在 transformers 中只有一个模块版本，无后续系列（YOLOS-X 等未收录）。</p>
+</section>
+
+<footer>YOLOS 家族架构详解 · 研读 transformers 5.23.0.dev0 源码 + arXiv:2106.00666 + HF 模型卡 · 仅供技术学习与论文研究</footer>
+</div>
+</body>
+</html>

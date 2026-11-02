@@ -22,7 +22,23 @@ InternVL3 是上海 AI Lab InternVL 系列第三代开放多模态大模型，�
 | InternVL3-38B | 38.4B | InternViT-6B-448px-V2.5 | Qwen2.5-32B | 77.3 |
 | InternVL3-78B | 78.4B | InternViT-6B-448px-V2.5 | Qwen2.5-72B | 79.5 |
 
-### 1.1 本地 1B config 关键实参（transformers 原生 internvl 格式）
+| InternVL3-78B | 78.4B | InternViT-6B-448px-V2.5 | Qwen2.5-72B | 79.5 |
+
+### 1.1 全尺寸 LLM 底座 config 对照（远程 ModelScope config 实参）
+
+| 模型（总参） | 视觉塔 | 语言底座 | hidden | 层数 | Q/KV 头 | intermediate | vocab / max_pos |
+|---|---|---|---|---|---|---|---|
+| **InternVL3-1B（本地，0.9B）** | InternViT-300M-448px-V2.5 | Qwen2.5-0.5B | 896 | 24 | 14 / 2 | 4864 | 151674 / 32768 |
+| InternVL3-2B（1.9B） | InternViT-300M-448px-V2.5 | Qwen2.5-1.5B | 1536 | 28 | 12 / 2 | 8960 | 151674 / 32768 |
+| InternVL3-8B（8.1B） | InternViT-300M-448px-V2.5 | Qwen2.5-7B | 3584 | 28 | 28 / 4 | 18944 | 151674 / 32768 |
+| InternVL3-9B（9.2B） | InternViT-300M-448px-V2.5 | InternLM3-8B | 4096 | 48 | 32 / 2 | 10240 | 128142 / 32768 |
+| InternVL3-14B（15.1B） | InternViT-300M-448px-V2.5 | Qwen2.5-14B | 5120 | 48 | 40 / 8 | 13824 | 151674 / 32768 |
+| InternVL3-38B（38.4B） | InternViT-6B-448px-V2.5 | Qwen2.5-32B | 5120 | 64 | 40 / 8 | 27648 | 151674 / 32768 |
+| InternVL3-78B（78.4B） | InternViT-6B-448px-V2.5 | Qwen2.5-72B | 8192 | 80 | 64 / 8 | 29568 | 151674 / 32768 |
+
+> 视觉塔两档（V2.5）：1B–14B 用 InternViT-300M-448px-V2.5（hidden 1024/24 层/16 头/4096/448px，含 LayerScale 0.1 + mean pooling），38B/78B 用 InternViT-6B-448px-V2.5（hidden 3200/45 层/25 头/12800/448px）。9B 的 InternLM3-8B 底座词表 128142，与其他尺寸的 Qwen2.5 底座（151674）不同。
+
+### 1.2 本地 1B config 关键实参（transformers 原生 internvl 格式）
 
 | 字段 | 取值 | 含义 / 源码佐证 |
 |---|---|---|

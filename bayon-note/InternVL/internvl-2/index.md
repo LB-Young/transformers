@@ -4,7 +4,7 @@
 - 入口类 InternVLChatModel（legacy）
 - 本地 config：InternVL2-1B（Qwen2-0.5B 底座）
 - 视觉塔：InternViT-300M-448px / 6B-448px-V1.5 两档
-- 语言底座：7 种开源底座渐进扩展（Progressive Scaling Strategy）
+- 语言底座：7 种开源底座渐进扩展（Progressive Scaling Strategy）+ 1 个受限底座（InternLM2-102B，config 未公开）
 
 InternVL 2.0 延续 1.5 的 ViT–MLP–LLM 范式：视觉塔 → pixel shuffle → MLP 投影层 → 大语言模型。家族从端侧 1B 一直覆盖到 108B，视觉塔只有两档规格，语言底座按尺寸在 7 种底座间选择。本页以本地 **InternVL2-1B** config 实参为主尺寸，对照官方博客与官方文档梳理全家族。
 
@@ -25,7 +25,22 @@ InternVL 2.0 延续 1.5 的 ViT–MLP–LLM 范式：视觉塔 → pixel shuffle
 
 参数量拆分（ViT / MLP / LLM，单位 B）：1B 本地 config；2B = 0.304/0.013/1.893；4B = 0.304/0.022/3.824；8B = 0.304/0.034/7.742；26B = 5.54/0.116/19.854；40B = 5.54/0.143/34.387；108B = 5.54/0.172/102.988。
 
-### 1.2 本地 1B 顶层 config 实参（legacy internvl_chat）
+### 1.2 全尺寸 LLM 底座 config 对照（远程 ModelScope config 实参）
+
+| 模型（总参） | 视觉塔 | 语言底座 | hidden | 层数 | Q/KV 头 | intermediate | vocab / max_pos |
+|---|---|---|---|---|---|---|---|
+| **InternVL2-1B（本地，0.9B）** | InternViT-300M-448px | Qwen2-0.5B-Instruct | 896 | 24 | 14 / 2 | 4864 | 151655 / 32768 |
+| InternVL2-2B（2.2B） | InternViT-300M-448px | internlm2-chat-1.8b | 2048 | 24 | 16 / 8 | 8192 | 92553 / 32768 |
+| InternVL2-4B（4.2B） | InternViT-300M-448px | Phi-3-mini-128k-instruct | 3072 | 32 | 32 / 32 | 8192 | 32020 / 131072 |
+| InternVL2-8B（8.1B） | InternViT-300M-448px | internlm2_5-7b-chat | 4096 | 32 | 32 / 8 | 14336 | 92553 / 32768 |
+| InternVL2-26B（25.5B） | InternViT-6B-448px-V1.5 | internlm2-chat-20b | 6144 | 48 | 48 / 8 | 16384 | 92553 / 32768 |
+| InternVL2-40B（40.1B） | InternViT-6B-448px-V1.5 | Nous-Hermes-2-Yi-34B | 7168 | 60 | 56 / 8 | 20480 | 64007 / 8192 |
+| InternVL2-Llama3-76B（76.3B） | InternViT-6B-448px-V1.5 | Hermes-2-Theta-Llama-3-70B | 8192 | 80 | 64 / 8 | 28672 | 128265 / 8192 |
+| InternVL2-Pro（108.7B） | InternViT-6B-448px-V1.5 | InternLM2-Chat-102B | — | — | — | — | — |
+
+> 注：InternVL2-Pro（108B）的 HF 仓库为 **gated（需授权，config 未公开）**，官方博客模型卡仅给出底座 InternLM2-Chat-102B 与总参 108.7B，故 LLM 内部维度无法核验，以「—」标注，不臆造数值。全尺寸视觉塔两档：1B–8B 用 InternViT-300M（hidden 1024/24 层/16 头/4096/448px），26B–108B 用 InternViT-6B-448px-V1.5（hidden 3200/45 层/25 头/12800/448px）。
+
+### 1.3 本地 1B 顶层 config 实参（legacy internvl_chat）
 
 | 字段 | 取值 | 含义 |
 |---|---|---|
@@ -38,7 +53,7 @@ InternVL 2.0 延续 1.5 的 ViT–MLP–LLM 范式：视觉塔 → pixel shuffle
 | ps_version / select_layer | `v2` / `-1` | 投影版本；取 ViT 末层 |
 | template | `internvl2` | 对话模板 |
 
-### 1.3 本地 llm_config（Qwen2-0.5B）与 vision_config（300M 规格）
+### 1.4 本地 llm_config（Qwen2-0.5B）与 vision_config（300M 规格）
 
 | 维度 | llm_config | vision_config |
 |---|---|---|

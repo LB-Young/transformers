@@ -53,6 +53,20 @@ InternVL 2.5 在 2.0 的 ViT–MLP–LLM 架构上，同时做 **模型（model�
 
 > 1B–8B 用 300M 视觉塔，26B–78B 换用 6B 视觉塔；语言底座全面升级到 Qwen2.5 / InternLM2.5。
 
+### 1.4 全尺寸 LLM 底座 config 对照（远程 ModelScope config 实参）
+
+| 模型（总参） | 视觉塔 | 语言底座 | hidden | 层数 | Q/KV 头 | intermediate | vocab / max_pos |
+|---|---|---|---|---|---|---|---|
+| **InternVL2.5-1B（本地，0.9B）** | InternViT-300M-448px-V2.5 | Qwen2.5-0.5B-Instruct | 896 | 24 | 14 / 2 | 4864 | 151674 / 32768 |
+| InternVL2.5-2B（2.2B） | InternViT-300M-448px-V2.5 | internlm2_5-1.8b-chat | 2048 | 24 | 16 / 8 | 8192 | 92553 / 32768 |
+| InternVL2.5-4B（3.7B） | InternViT-300M-448px-V2.5 | Qwen2.5-3B-Instruct | 2048 | 36 | 16 / 2 | 11008 | 151674 / 32768 |
+| InternVL2.5-8B（8.1B） | InternViT-300M-448px-V2.5 | internlm2_5-7b-chat | 4096 | 32 | 32 / 8 | 14336 | 92553 / 32768 |
+| InternVL2.5-26B（25.5B） | InternViT-6B-448px-V2.5 | internlm2_5-20b-chat | 6144 | 48 | 48 / 8 | 16384 | 92553 / 32768 |
+| InternVL2.5-38B（38.4B） | InternViT-6B-448px-V2.5 | Qwen2.5-32B-Instruct | 5120 | 64 | 40 / 8 | 27648 | 151674 / 32768 |
+| InternVL2.5-78B（78.4B） | InternViT-6B-448px-V2.5 | Qwen2.5-72B-Instruct | 8192 | 80 | 64 / 8 | 29568 | 151674 / 32768 |
+
+> 视觉塔两档（V2.5）：1B–8B 用 InternViT-300M-448px-V2.5（hidden 1024/24 层/16 头/4096/448px/LN），26B–78B 用 InternViT-6B-448px-V2.5（hidden 3200/45 层/25 头/12800/448px/RMS+QK-Norm）。LLM 尺寸与总参、OpenCompass 分数对照见 1.3 论文表。
+
 ## 2 端到端架构总览
 
 图像按宽高比动态切成若干 448 tile（+1 缩略图）→ InternViT 编码 → pixel unshuffle 降采样 → 2 层 MLP 投影到 LLM 隐空间 → 与文本 embedding 拼接 → 因果 LLM 自回归生成。

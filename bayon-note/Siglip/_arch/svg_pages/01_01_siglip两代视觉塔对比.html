@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#6d28d9; --accent-soft:#f0e9fc; --accent-line:#d4c5f4;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#6d28d9;
+    --t2:#0e7490; --t2-ink:#155e75; --t2-soft:#e0f2f7; --t2-line:#a5d8e6;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.t2{border-color:var(--t2-line); background:var(--t2-soft); color:var(--t2-ink);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:14px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; margin-top:10px;}
+  .diagram-shell svg{display:block; min-width:880px; width:100%; height:auto;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#f5f0fe; stroke:var(--accent); stroke-width:1.6;}
+  .dg .node.t2 rect{fill:var(--t2-soft); stroke:var(--t2); stroke-width:1.6;}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:11px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.faint{stroke:var(--line); stroke-width:1.2; stroke-dasharray:3 4;}
+  .dg .lg{font-size:11px; fill:var(--sub);}
+
+  .ts{overflow-x:auto; border-radius:var(--radius); margin-top:8px;}
+  table.cmp{width:100%; min-width:860px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  table.cmp th{background:var(--accent-soft); color:var(--accent-ink); font-size:.85rem; text-align:left; padding:8px 12px; border-bottom:1px solid var(--accent-line);}
+  table.cmp td{padding:8px 12px; font-size:.9rem; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.cmp tr:last-child td{border-bottom:none;}
+  table.cmp td.f{font-weight:700; white-space:nowrap;}
+  table.cmp td.m{font-family:ui-monospace,Consolas,monospace; font-size:.85rem; color:var(--mono); white-space:nowrap;}
+
+  pre.code{background:#f4f4f7; border:1px solid var(--line); border-radius:10px; padding:12px 14px; overflow-x:auto; font-size:.85rem; line-height:1.55; margin-top:8px;}
+  pre.code code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:820px){ .grid2{grid-template-columns:1fr;} }
+
+  footer{margin:48px 0 20px; color:var(--sub); font-size:.8rem; border-top:1px solid var(--line); padding-top:14px;}
+
+body{margin:0; background:#ffffff;}
+.diagram-shell{padding:14px; border:1px solid #e5e4df; border-radius:12px; width:980.0px;}
+.diagram-shell svg{display:block; width:980.0px; height:300.0px; min-width:0;}
+</style>
+</head>
+<body><div class="diagram-shell"><svg class="dg" viewBox="0 0 980 300" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c9c4ba"/></marker>
+    </defs>
+    <g class="node dim"><rect x="16" y="20" width="200" height="52" rx="8"/><text x="116" y="40" text-anchor="middle" class="t">SigLIP 1 · 固定分辨率</text><text x="116" y="58" text-anchor="middle" class="s">image_size=224 → 14×14=196 patch</text></g>
+    <g class="node core"><rect x="250" y="16" width="180" height="60" rx="10"/><text x="340" y="38" text-anchor="middle" class="t">扁平位置编码</text><text x="340" y="56" text-anchor="middle" class="m">Embedding(196, 768)</text></g>
+    <g class="node"><rect x="466" y="16" width="150" height="60" rx="8"/><text x="541" y="38" text-anchor="middle" class="t">固定加性叠加</text><text x="541" y="56" text-anchor="middle" class="s">位置网格恒定</text></g>
+    <g class="node dim"><rect x="16" y="140" width="200" height="52" rx="8"/><text x="116" y="160" text-anchor="middle" class="t">SigLIP 2 · NaFlex</text><text x="116" y="178" text-anchor="middle" class="s">num_patches=256 上限</text></g>
+    <g class="node core"><rect x="250" y="136" width="180" height="60" rx="10"/><text x="340" y="158" text-anchor="middle" class="t">16×16 网格位置编码</text><text x="340" y="176" text-anchor="middle" class="m">Embedding(256, 768)</text></g>
+    <g class="node t2"><rect x="466" y="120" width="190" height="92" rx="10"/><text x="561" y="144" text-anchor="middle" class="t">resize_positional_embeddings</text><text x="561" y="162" text-anchor="middle" class="s">① 双线性插值到实际网格</text><text x="561" y="180" text-anchor="middle" class="s">② 首行复制填充不足部分</text><text x="561" y="198" text-anchor="middle" class="m">输出固定 (B,256,768)</text></g>
+    <g class="node"><rect x="690" y="120" width="150" height="92" rx="8"/><text x="765" y="144" text-anchor="middle" class="t">任意宽高比</text><text x="765" y="162" text-anchor="middle" class="s">≤256 patch 保比例</text><text x="765" y="180" text-anchor="middle" class="s">+ pixel mask 遮 padding</text><text x="765" y="198" text-anchor="middle" class="m">create_bidirectional_mask</text></g>
+    <path class="edge" d="M216,46 L248,46"/>
+    <path class="edge" d="M430,46 L464,46"/>
+    <path class="edge" d="M216,166 L248,166"/>
+    <path class="edge" d="M430,166 L464,166"/>
+    <path class="edge" d="M656,166 L688,166"/>
+    <g class="lg"><text x="16" y="280">共享（两版相同）：双向注意力 12 层 Encoder + post_layernorm + MHA pooling head（非 CLS 池化）</text></g>
+  </svg></div></body>
+</html>

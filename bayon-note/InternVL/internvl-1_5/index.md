@@ -18,7 +18,15 @@ InternVL 1.5 是上海 AI Lab 推出的开源多模态大模型，采用 **ViT�
 | **Mini-InternVL-Chat-2B-V1-5（本地）** | InternViT-300M-448px-V1.5（1024 维·24 层·16 头） | InternLM2-Chat-1.8B | 约 2B |
 | Mini-InternVL-Chat-4B-V1-5 | InternViT-300M-448px-V1.5（同 2B 视觉塔） | Phi-3-mini-128k-instruct | 约 4B |
 
-### 1.1 本地 Mini-2B 顶层 config 实参
+### 1.1 全尺寸 LLM 底座 config 对照（远程 ModelScope config 实参）
+
+| 模型（总参） | 视觉塔 | 语言底座 | hidden | 层数 | Q/KV 头 | intermediate | vocab / max_pos |
+|---|---|---|---|---|---|---|---|
+| InternVL-Chat-V1-5（≈26B） | InternViT-6B-448px-V1.5 | internlm2-chat-20b | 6144 | 48 | 48 / 8 | 16384 | 92553 / 32768 |
+| **Mini-InternVL-Chat-2B-V1-5（本地，≈2B）** | InternViT-300M-448px-V1.5 | internlm2-chat-1.8b | 2048 | 24 | 16 / 8 | 8192 | 92553 / 32768 |
+| Mini-InternVL-Chat-4B-V1-5（≈4B） | InternViT-300M-448px-V1.5 | Phi-3-mini-128k-instruct | 3072 | 32 | 32 / 32 | 8192 | 32020 / 131072 |
+
+### 1.2 本地 Mini-2B 顶层 config 实参
 
 文件：`E:\models\model\Mini-InternVL-Chat-2B-V1-5\config.json`（legacy internvl_chat 格式）
 
@@ -36,7 +44,7 @@ InternVL 1.5 是上海 AI Lab 推出的开源多模态大模型，采用 **ViT�
 | select_layer | `-1` | 取视觉塔最后一层特征 |
 | use_thumbnail | `true` | 额外拼接整图缩略图 |
 
-### 1.2 视觉塔双规格对照
+### 1.3 视觉塔双规格对照
 
 | 字段 | 300M（本地 2B） | 6B（主模型 V1.5） | 备注 |
 |---|---|---|---|
