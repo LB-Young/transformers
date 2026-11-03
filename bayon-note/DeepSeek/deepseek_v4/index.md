@@ -94,7 +94,7 @@
 | 上下文 | 163840 | 163840 | **1,048,576（1M）** |
 | 打分 | sigmoid/noaux_tc | 同 V3 | **sqrtsoftplus/noaux_tc** |
 
-> 待确认：完整尺寸 DeepSeek-V4 主仓官方未公开发布（404），本目录数字仅代表 V4-Flash-Base 预览版，主版规模待官方发布后补。
+> 待确认：完整尺寸 DeepSeek-V4 主仓官方未公开发布（404），本目录数字仅代表 V4-Flash-Base 预览版，主版规模待官方发布后补。产品线现状：V4-Flash 已于 2026-09-10 起退役（API 名暂时路由至 V4.1-Flash），新一代 **V4.1-Flash**（CED 非对称 + CSA2/FP4 + 原生多模态）见 `..\deepseek_v4_1\index.md`（2026-11-03 补录）。
 
 ## 8 来源
 
