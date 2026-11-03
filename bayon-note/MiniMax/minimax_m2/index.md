@@ -90,7 +90,7 @@ q/k 投影后各做 RMSNorm；RoPE 仍只旋转前 `rotary_dim=64` 维（head_di
 
 - **Text-01 / M1**：456B-A46B，7:1 Lightning+Softmax，32 专家 top-2。
 - **M2（本模型，2025-10-27）**：230B-A10B，全 Softmax，256 专家 top-8，QK-Norm + MTP + FP8，主打智能体/代码。
-- **M3（2026-05）**：在 M2 思路上再叠加 MSA 块稀疏注意力与原生多模态（见 `minimax_m3_vl`）。
+- **M3（2026-06-01；06-12 开源权重）**：在 M2 思路上再叠加 MSA 块稀疏注意力与原生多模态（见 `minimax_m3_vl`）。
 
 ## 八、参考文献与依据
 

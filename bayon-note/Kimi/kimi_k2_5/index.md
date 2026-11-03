@@ -135,8 +135,8 @@ K2 文本塔**不是**线性注意力/混合线性注意力——线性注意力
 
 - **Kimi K2 / K2-0905（2025-07/09）**：1.04T-A32B 纯文本 MoE，DeepSeek-V3 系 MLA + 384 专家 top-8，本目录的文本塔即其直接继承（规格已由同项目另一执行者核验：model_type=kimi_k2、DeepseekV3ForCausalLM、7168/61 层、MLA 同维、rope θ5e4 + YaRN64、max_position 262144、vocab 163840、tie=false、fp8 e4m3；K2 论文 arXiv:2507.20534）。
 - **Kimi K2.5（2026，本目录）**：在 K2 文本底座上 early-fusion 联合预训练 MoonViT-3D，变为原生多模态智能体模型；新增视觉塔 + PatchMerger，开源权重改 INT4 发布；路由 routed_scaling_factor 2.827、YaRN beta_fast=32。
-- **同代兄弟**：Kimi-K2.6（同 kimi_k25 架构，config 与 K2.5 基本一致，eos=163586）、Kimi-K2-Thinking（见独立目录）、Kimi-K2.7-Code / Kimi-K3（官方仓库已实证存在，本次未单独立目录）。
-- **系列内其他官方模型（本次未单独立目录）**：Kimi-K2-Base/Instruct(-0905)、Kimi-K2.6、Kimi-K2.7-Code、Kimi-K3、Kimi-Linear-48B-A3B（KDA 混合线性注意力，独立模块 models\kimi_linear\）、Kimi-VL-A3B-Instruct/Thinking(-2506)（上代小尺寸 VL，文本塔 hidden 2048/64 专家）、Moonlight-16B-A3B（K2.5 视觉塔首阶段对齐底座）。
+- **同代兄弟**：Kimi-K2.6（同 kimi_k25 架构，config 与 K2.5 逐字段 diff 唯一为 eos=163586，已单独立目录见 `kimi_k2_6/`）、Kimi-K2-Thinking（见独立目录）、Kimi-K2.7-Code（基于 K2.6 的编码 Agent 微调，已单独立目录见 `kimi_k2_7_code/`）、Kimi-K3（2026-07 旗舰，KDA+AttnRes 新架构，已单独立目录见 `kimi_k3/`）、Kimi-K3.1-Pro（2026-10-24 官网展示的最新旗舰，信息待确认，见 `kimi_k3_1_pro/`）。
+- **系列内其他官方模型（保留为引用，未单独立目录）**：Kimi-K2-Base/Instruct(-0905)、Kimi-Linear-48B-A3B（KDA 混合线性注意力，独立模块 models\kimi_linear\）、Kimi-VL-A3B-Instruct/Thinking(-2506)（上代小尺寸 VL，文本塔 hidden 2048/64 专家）、Moonlight-16B-A3B（K2.5 视觉塔首阶段对齐底座）、K2.8 Preview（2026-09-11 接管 kimi-for-coding；HF 无官方权重仓库，搜索 0 命中）。
 
 ## 9. 参考文献
 

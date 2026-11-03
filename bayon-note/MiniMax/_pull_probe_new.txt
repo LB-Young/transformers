@@ -1,0 +1,16 @@
+[OK] MiniMaxAI/MiniMax-M2.1 exists, files count=152
+     config.json present: True
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m2_1\_tools\_cfgpull\config.json
+     model_type=minimax_m2 arch=['MiniMaxM2ForCausalLM']
+[OK] MiniMaxAI/MiniMax-M2.5 exists, files count=163
+     config.json present: True
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m2_5\_tools\_cfgpull\config.json
+     model_type=minimax_m2 arch=['MiniMaxM2ForCausalLM']
+[OK] MiniMaxAI/MiniMax-M2.7 exists, files count=151
+     config.json present: True
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m2_7\_tools\_cfgpull\config.json
+     model_type=minimax_m2 arch=['MiniMaxM2ForCausalLM']
+[OK] MiniMaxAI/MiniMax-M3.1-Flash exists, files count=73
+     config.json present: True
+     saved -> E:\transformers\bayon-note\MiniMax\minimax_m3_1_flash\_tools\_cfgpull\config.json
+     model_type=minimax_m3_vl arch=['MiniMaxM3SparseForConditionalGeneration']

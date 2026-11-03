@@ -1,6 +1,6 @@
 # MiniMax-M3（M3-VL）家族架构详解
 
-> **一句话**：2026 年 5 月发布的原生多模态旗舰，文本塔 60 层、前 3 层 Dense + 后 57 层 MoE，注意力换成全新的 **MSA（MiniMax Sparse Attention）块稀疏索引**，128 专家 + 1 共享专家，原生吃图像/视频，1M 上下文。
+> **一句话**：2026 年 6 月 1 日发布（06-12 开源权重）的原生多模态旗舰，文本塔 60 层、前 3 层 Dense + 后 57 层 MoE，注意力换成全新的 **MSA（MiniMax Sparse Attention）块稀疏索引**，128 专家 + 1 共享专家，原生吃图像/视频，1M 上下文。
 
 > 命名说明：官方开源仓为 **`MiniMaxAI/MiniMax-M3`**，`model_type=minimax_m3_vl`、架构 `MiniMaxM3SparseForConditionalGeneration`，即任务清单中的「M3-VL」。本地原生模块 `src/transformers/models/minimax_m3_vl/`。
 
@@ -82,7 +82,8 @@ MSA 是 M3 的招牌，用「索引分支先选块、主分支再精确算」的
 
 - **Text-01/M1**：Lightning 线性注意力路线。
 - **M2**：回到全 Softmax、256 专家、QK-Norm、MTP。
-- **M3（本模型，2026-05）**：MSA 块稀疏注意力 + 原生多模态 + 128 专家带共享专家 + SwiGLU-OAI，1M 上下文。
+- **M3（本模型，2026-06-01；06-12 开源权重）**：MSA 块稀疏注意力 + 原生多模态 + 128 专家带共享专家 + SwiGLU-OAI，1M 上下文。
+- **M3.1-Flash（2026-10-19）**：同一底座的效率版（去 MTP / 全 60 层 MSA / 视觉 672px / MxFP8+NVFP4 量化），见 `minimax_m3_1_flash`。
 - 「MiniMax-Text-04」：截至 2026-10-31 在 HuggingFace 未检索到官方开源仓，规格**待确认**，本笔记不单独建目录。
 
 ## 九、参考文献与依据
