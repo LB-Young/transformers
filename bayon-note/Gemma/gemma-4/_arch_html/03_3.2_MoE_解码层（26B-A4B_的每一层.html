@@ -118,81 +118,92 @@
     <marker id="arrm" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#6d28d9"/></marker></defs>
 
     <!-- 输入 -->
-    <g class="node core"><rect x="20" y="300" width="110" height="70" rx="12"/>
-      <text class="t" x="75" y="330" text-anchor="middle">输入 x</text>
-      <text class="m" x="75" y="350" text-anchor="middle">[B,T,2816]</text></g>
-    <path class="edge" d="M130,335 L160,335"/>
+    <g class="node core"><rect x="20" y="250" width="110" height="70" rx="12"/>
+      <text class="t" x="75" y="280" text-anchor="middle">输入 x</text>
+      <text class="m" x="75" y="300" text-anchor="middle">[B,T,2816]</text></g>
 
-    <!-- 注意力 -->
-    <g class="node dim"><rect x="160" y="240" width="150" height="34" rx="8"/>
-      <text class="s" x="235" y="262" text-anchor="middle">input_layernorm</text></g>
-    <path class="edge" d="M130,335 L235,288 L235,274"/>
-    <g class="node"><rect x="160" y="300" width="290" height="100" rx="10"/>
-      <text class="t" x="305" y="324" text-anchor="middle">Self-Attention（QKV Norm）</text>
-      <text class="m" x="305" y="344" text-anchor="middle">sliding 层：16Q×256 · 8KV×256</text>
-      <text class="m" x="305" y="362" text-anchor="middle">full 层：16Q×512 · 2KV×512</text>
-      <text class="m" x="305" y="380" text-anchor="middle">full 层 K=V 绑定 · RoPE 双配置</text></g>
-    <g class="node core"><circle cx="500" cy="350" r="16" data-tip="⊕ 残差"/>
-      <text class="s" x="500" y="354" text-anchor="middle" font-size="12">+</text></g>
-    <g class="node dim"><rect x="160" y="430" width="150" height="34" rx="8"/>
-      <text class="s" x="235" y="452" text-anchor="middle">post_attention_layernorm</text></g>
-    <path class="edge" d="M516,350 L560,350 L560,447 L310,447"/>
-    <path class="edge" d="M310,430 L310,470"/>
+    <!-- 注意力子层：input_LN → attn → post_attn_LN → ⊕①（与 dense 相同） -->
+    <text class="lgb" x="180" y="142">注意力子层（1386-1397）</text>
+    <g class="node dim"><rect x="180" y="150" width="180" height="34" rx="8"/>
+      <text class="s" x="270" y="172" text-anchor="middle">input_layernorm</text></g>
+    <g class="node"><rect x="180" y="200" width="300" height="110" rx="10"/>
+      <text class="t" x="330" y="224" text-anchor="middle">Self-Attention（QKV Norm）</text>
+      <text class="m" x="330" y="244" text-anchor="middle">sliding 层：16Q×256 · 8KV×256</text>
+      <text class="m" x="330" y="262" text-anchor="middle">full 层：16Q×512 · 2KV×512</text>
+      <text class="m" x="330" y="280" text-anchor="middle">full 层 K=V 绑定 · RoPE 双配置</text></g>
+    <g class="node dim"><rect x="520" y="215" width="180" height="34" rx="8"/>
+      <text class="s" x="610" y="237" text-anchor="middle">post_attention_layernorm</text></g>
+    <g class="node core"><circle cx="760" cy="232" r="16" data-tip="残差 ⊕①：residual=x；hidden=x+post_attn_LN(attn)&#10;来源：modeling_gemma4.py:1384, 1396-1397"/>
+      <text class="s" x="760" y="236" text-anchor="middle" font-size="12">+</text></g>
 
-    <!-- 分支1 dense -->
-    <g class="node dim"><rect x="120" y="540" width="160" height="34" rx="8"/>
-      <text class="s" x="200" y="562" text-anchor="middle">pre_feedforward_layernorm</text></g>
-    <g class="node"><rect x="120" y="580" width="250" height="86" rx="10"/>
-      <text class="t" x="245" y="604" text-anchor="middle">dense MLP（GeGLU）</text>
-      <text class="m" x="245" y="624" text-anchor="middle">2816 → 2112 → 2816</text>
-      <text class="m" x="245" y="642" text-anchor="middle">gate×GELU ⊙ up → down</text></g>
-    <g class="node dim"><rect x="120" y="672" width="160" height="34" rx="8"/>
-      <text class="s" x="200" y="694" text-anchor="middle">post_ffn_layernorm_1</text></g>
-    <path class="edge" d="M235,470 L235,540"/>
-    <path class="edge" d="M200,574 L200,580"/>
-    <path class="edge" d="M245,666 L245,672"/>
+    <!-- 注意力子层连线 -->
+    <path class="edge" d="M130,285 L155,285 L155,167 L180,167"/>
+    <path class="edge" d="M270,184 L270,192 L330,192 L330,200"/>
+    <path class="edge" d="M480,255 L520,232"/>
+    <path class="edge" d="M700,232 L744,232"/>
+    <path class="edge faint" d="M75,320 L75,352 L744,352 L744,248"/>
 
-    <!-- 分支2 MoE -->
-    <g class="node moe"><rect x="440" y="500" width="270" height="90" rx="10">
-      <title>router</title></rect>
-      <text class="t" x="575" y="526" text-anchor="middle">Router（Gemma4TextRouter）</text>
-      <text class="m" x="575" y="548" text-anchor="middle">RMSNorm × scale×h^-0.5 → Linear→128</text>
-      <text class="m" x="575" y="566" text-anchor="middle">fp32 softmax → top-8 → 归一化</text>
-      <text class="m" x="575" y="584" text-anchor="middle">× per_expert_scale</text>
-    </g>
-    <g class="node moe"><rect x="440" y="600" width="270" height="120" rx="10"/>
-      <text class="t" x="575" y="626" text-anchor="middle">Experts（Gemma4TextExperts）</text>
-      <text class="m" x="575" y="648" text-anchor="middle">128 专家 · 每专家 FFN 中间维 704</text>
-      <text class="m" x="575" y="666" text-anchor="middle">3D 权重：gate_up [128,1408,2816]</text>
-      <text class="m" x="575" y="684" text-anchor="middle">down [128,2816,704]</text>
-      <text class="m" x="575" y="702" text-anchor="middle">每 token 命中 top-8 专家 GeGLU</text>
-    </g>
-    <g class="node moe"><rect x="440" y="730" width="200" height="34" rx="8"/>
-      <text class="s" x="540" y="752" text-anchor="middle">post_ffn_layernorm_2</text></g>
-    <path class="edge moe" d="M310,470 L575,470 L575,500"/>
-    <path class="edge moe" d="M575,590 L575,600"/>
-    <path class="edge moe" d="M540,720 L540,730"/>
+    <!-- ⊕① 输出 = 新残差 h1（1399）：总线 y=360，从右侧下分叉，避免横穿分支框 -->
+    <path class="edge" d="M776,232 L812,232 L812,360"/>
+    <text class="lg" x="824" y="354">h1 = ⊕① 输出（新残差，MLP 之前）</text>
 
-    <!-- 并行标注 -->
-    <text class="lgm" x="300" y="520">并行分支（router 输入 = 残差，非 MLP 输出）</text>
+    <!-- 分支 A：dense MLP 路径（1400-1401, 1404） -->
+    <g class="node dim"><rect x="150" y="380" width="200" height="34" rx="8"/>
+      <text class="s" x="250" y="402" text-anchor="middle">pre_feedforward_layernorm</text></g>
+    <g class="node"><rect x="150" y="430" width="250" height="80" rx="10"/>
+      <text class="t" x="275" y="454" text-anchor="middle">dense MLP（GeGLU）</text>
+      <text class="m" x="275" y="474" text-anchor="middle">2816 → 2112 → 2816</text>
+      <text class="m" x="275" y="492" text-anchor="middle">gate×GELU ⊙ up → down</text></g>
+    <g class="node dim"><rect x="150" y="524" width="200" height="34" rx="8"/>
+      <text class="s" x="250" y="546" text-anchor="middle">post_ffn_layernorm_1</text></g>
+    <path class="edge" d="M812,360 L250,360 L250,380"/>
+    <path class="edge" d="M250,414 L250,422 L275,422 L275,430"/>
+    <path class="edge" d="M275,510 L275,518 L250,518 L250,524"/>
+    <!-- dense 输出绕下侧汇入内部 ⊕A -->
+    <path class="edge" d="M350,541 L380,541 L380,704 L802,704 L802,488"/>
 
-    <!-- 合并 -->
-    <g class="node moe"><circle cx="730" cy="560" r="18" data-tip="两路并行输出相加&#10;hidden = post_ffn_norm_1(MLP) + post_ffn_norm_2(Experts)&#10;来源：modeling_gemma4.py:1415"/>
-      <text class="s" x="730" y="564" text-anchor="middle" font-size="12">+</text></g>
-    <path class="edge" d="M370,689 L730,689 L730,578"/>
-    <path class="edge moe" d="M710,560 L730,560"/>
+    <!-- 分支 B：router + experts（1407-1412） -->
+    <g class="node moe"><rect x="460" y="372" width="300" height="88" rx="10"/>
+      <text class="t" x="610" y="396" text-anchor="middle">Router（Gemma4TextRouter）</text>
+      <text class="m" x="610" y="418" text-anchor="middle">RMSNorm × scale×h^-0.5 → Linear→E</text>
+      <text class="m" x="610" y="436" text-anchor="middle">fp32 softmax → top-k → 归一化</text>
+      <text class="m" x="610" y="454" text-anchor="middle">× per_expert_scale；输出 weights/index</text></g>
+    <g class="node moe"><rect x="460" y="478" width="180" height="32" rx="8"/>
+      <text class="s" x="550" y="498" text-anchor="middle">pre_feedforward_layernorm_2</text></g>
+    <g class="node moe"><rect x="460" y="524" width="300" height="124" rx="10"/>
+      <text class="t" x="610" y="548" text-anchor="middle">Experts（Gemma4TextExperts）</text>
+      <text class="m" x="610" y="570" text-anchor="middle">128 专家 · 每专家 FFN 中间维 704</text>
+      <text class="m" x="610" y="590" text-anchor="middle">gate_up [128,1408,2816] · down [128,2816,704]</text>
+      <text class="m" x="610" y="610" text-anchor="middle">每 token 命中 top-k 专家 GeGLU</text>
+      <text class="s" x="610" y="634" text-anchor="middle">hidden←pre_LN_2；权重←router；index_add 求和</text></g>
+    <g class="node moe"><rect x="460" y="660" width="180" height="32" rx="8"/>
+      <text class="s" x="550" y="680" text-anchor="middle">post_ffn_layernorm_2</text></g>
 
-    <g class="node dim"><rect x="820" y="520" width="160" height="34" rx="8"/>
-      <text class="s" x="900" y="542" text-anchor="middle">post_feedforward_layernorm</text></g>
-    <path class="edge" d="M748,560 L820,560"/>
-    <g class="node core"><circle cx="940" cy="560" r="16" data-tip="⊕ 残差"/>
-      <text class="s" x="940" y="564" text-anchor="middle" font-size="12">+</text></g>
-    <path class="edge" d="M980,560 L1010,560"/>
-    <g class="node core"><rect x="1010" y="525" width="190" height="70" rx="12"/>
-      <text class="t" x="1105" y="554" text-anchor="middle">输出 y</text>
-      <text class="m" x="1105" y="576" text-anchor="middle">× layer_scalar</text></g>
+    <!-- 分支 B 连线：router 消费残差 hidden（灰线）；紫色线为门控权重 -->
+    <path class="edge" d="M812,360 L812,416 L760,416"/>
+    <path class="edge" d="M812,360 L812,494 L640,494"/>
+    <path class="edge moe" d="M610,460 L610,524"/>
+    <path class="edge" d="M550,510 L550,524"/>
+    <path class="edge" d="M610,648 L610,654 L550,654 L550,660"/>
+    <path class="edge" d="M640,676 L880,676 L880,488 L838,488"/>
 
-    <!-- 残差流 -->
-    <path class="edge faint" d="M75,335 L75,620 C75,680 100,680 110,680 L160,680"/>
-    <text class="lg" x="92" y="500" transform="rotate(-90 92 500)">残差流（router 取自此残差）</text>
+    <!-- 内部合并 ⊕（1415）→ post_feedforward_LN（1417）→ 外层残差 ⊕（1418）→ ×scalar -->
+    <g class="node moe"><circle cx="820" cy="470" r="18" data-tip="内部合并 ⊕：hidden = post_ffn_LN_1(dense MLP 输出) + post_ffn_LN_2(experts 输出)&#10;来源：modeling_gemma4.py:1404, 1412, 1415"/>
+      <text class="s" x="820" y="474" text-anchor="middle" font-size="12">+</text></g>
+    <g class="node dim"><rect x="870" y="453" width="190" height="34" rx="8"/>
+      <text class="s" x="965" y="475" text-anchor="middle">post_feedforward_layernorm</text></g>
+    <g class="node core"><circle cx="1100" cy="470" r="16" data-tip="外层残差 ⊕：residual = ⊕① 输出；hidden = residual + post_ffn_LN(合并结果)&#10;来源：modeling_gemma4.py:1399, 1417-1418"/>
+      <text class="s" x="1100" y="474" text-anchor="middle" font-size="12">+</text></g>
+    <g class="node core"><rect x="1138" y="435" width="92" height="70" rx="12"/>
+      <text class="t" x="1184" y="464" text-anchor="middle">输出 y</text>
+      <text class="m" x="1184" y="486" text-anchor="middle">× layer_scalar</text></g>
+
+    <path class="edge" d="M838,470 L870,470"/>
+    <path class="edge" d="M1060,470 L1084,470"/>
+    <path class="edge" d="M1116,470 L1138,470"/>
+    <!-- 外层残差旁路：⊕① 输出 → 外层 ⊕ 顶部 -->
+    <path class="edge faint" d="M812,360 L1084,360 L1084,454"/>
+
+    <text class="lg" x="150" y="734">注：源码无 shared expert；dense MLP（1401）与 router+experts（1410）为两条并行路径。</text>
+    <text class="lg" x="150" y="754">注：128 专家 / top-k / 704 等具体数值来自 checkpoint 配置，本地 modeling 源码未硬编码，标注“未经源码验证”。</text>
   </svg></body></html>

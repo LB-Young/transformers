@@ -112,19 +112,19 @@
     </defs>
 
     <!-- 输入列 -->
-    <g class="node text" data-tip="文本输入 input_ids&#10;与图像占位 token(image_token_index=262144) 交错拼接&#10;来源：modeling_gemma3.py:864-877">
+    <g class="node text" data-tip="文本输入 input_ids&#10;与图像占位 token(image_token_index=262144) 交错拼接&#10;来源：modeling_gemma3.py:856-861, 864, 876">
       <rect x="16" y="330" width="120" height="60" rx="12"/>
       <text class="t" x="76" y="356" text-anchor="middle">文本 token</text>
       <text class="s" x="76" y="374" text-anchor="middle">input_ids</text>
     </g>
-    <g class="node mm" data-tip="图像输入 pixel_values&#10;896×896 归一化像素；仅 4B/12B/27B&#10;270M/1B 无此路（input_modalities=text）&#10;来源：modeling_gemma3.py:438, 780">
+    <g class="node mm" data-tip="图像输入 pixel_values&#10;896×896 归一化像素；仅 4B/12B/27B&#10;270M/1B 无此路（Gemma3TextModel input_modalities=text，:476）&#10;来源：modeling_gemma3.py:779-781">
       <rect x="16" y="90" width="120" height="60" rx="12"/>
       <text class="t" x="76" y="116" text-anchor="middle">图像像素</text>
       <text class="s" x="76" y="134" text-anchor="middle">896×896</text>
     </g>
 
     <!-- 视觉塔 -->
-    <g class="node mm" data-tip="视觉塔 SigLIPVisionModel（仅 4B/12B/27B）&#10;hidden=1152, 27 层, 16 头, head_dim 72, inter 4304&#10;patch 14, image 896 → 64×64=4096 patches&#10;PatchEmbedder: Linear(3·14²=588→1152)&#10;双向 Transformer（SigLIP 初始化，vision_use_head=false）&#10;来源：config vision_config；modeling_gemma3.py:769">
+    <g class="node mm" data-tip="视觉塔 SigLIPVisionModel（仅 4B/12B/27B）&#10;hidden=1152, 27 层, 16 头, head_dim 72, inter 4304&#10;patch 14, image 896 → 64×64=4096 patches&#10;PatchEmbedder: Linear(3·14²=588→1152)&#10;双向 Transformer（SigLIP 初始化，vision_use_head=false，convert_gemma3_weights.py:123）&#10;来源：modeling_gemma3.py:768">
       <rect x="196" y="60" width="240" height="150" rx="12"/>
       <text class="t" x="316" y="86" text-anchor="middle">SigLIP 视觉塔</text>
       <text class="m" x="316" y="110" text-anchor="middle">patch embed 14×14</text>
@@ -136,33 +136,33 @@
     <path class="edge mm" d="M136,120 L196,120"/>
 
     <!-- projector -->
-    <g class="node mm" data-tip="Gemma3MultiModalProjector（651-684）&#10;reshape 成 (B,1152,64,64)&#10;AvgPool2d kernel=4 stride=4 → 16×16&#10;→ flatten = 256 tokens/图&#10;再 RMSNorm(1152) → Linear(1152→text hidden)&#10;mm_input_projection_weight 初始化为 0（443-444）&#10;来源：modeling_gemma3.py:663-684">
+    <g class="node mm" data-tip="Gemma3MultiModalProjector（650-683）&#10;reshape 成 (B,1152,64,64)&#10;AvgPool2d kernel=4 stride=4 → 16×16（:665,676）&#10;flatten = 256 tokens/图（:677-678）&#10;再 RMSNorm(1152)（:680）→ Linear matmul（:682）&#10;mm_input_projection_weight 初始化为 0（:654-656）&#10;来源：modeling_gemma3.py:667-683">
       <rect x="196" y="240" width="240" height="110" rx="12"/>
       <text class="t" x="316" y="266" text-anchor="middle">投影器（AvgPool）</text>
       <text class="m" x="316" y="288" text-anchor="middle">64×64 → 16×16（kernel 4）</text>
-      <text class="m" x="316" y="306" text-anchor="middle">RMSNorm → Linear → 256 tokens</text>
-      <text class="s" x="316" y="328" text-anchor="middle">tokens_per_side=√256=16</text>
+      <text class="m" x="316" y="306" text-anchor="middle">Pool/Flatten → RMSNorm → Linear</text>
+      <text class="s" x="316" y="328" text-anchor="middle">256 tokens/图，tokens_per_side=16</text>
     </g>
     <path class="edge mm" d="M316,210 L316,240"/>
 
-    <!-- 融合 -->
-    <g class="node dim" data-tip="序列融合 masked_scatter&#10;视觉投影特征填入 input_ids 中 image_token_id=262144 的位置&#10;（该 id 超出 vocab，先替换为 pad 再 scatter）&#10;与文本 embedding 拼成统一 hidden 序列&#10;来源：modeling_gemma3.py:857-877, 786-808">
-      <rect x="478" y="220" width="116" height="110" rx="12"/>
-      <text class="t" x="536" y="262" text-anchor="middle">masked_</text>
-      <text class="t" x="536" y="282" text-anchor="middle">scatter</text>
-      <text class="s" x="536" y="306" text-anchor="middle">统一序列</text>
+    <!-- embedding：先 token 嵌入（:864） -->
+    <g class="node dim" data-tip="输入嵌入 Gemma3TextScaledWordEmbedding&#10;先把文本/占位 token 嵌入为 inputs_embeds（modeling_gemma3.py:864）&#10;Embedding(V, d_model)，输出 × √d_model（:115-116,484-486）&#10;（270M √640≈25.3；4B √2560≈50.6；27B √5376≈73.3）&#10;与 lm_head 共享权重（tie，:922）&#10;来源：modeling_gemma3.py:105-116, 484-486, 864">
+      <rect x="478" y="232" width="150" height="96" rx="12"/>
+      <text class="t" x="553" y="262" text-anchor="middle">Embedding</text>
+      <text class="m" x="553" y="284" text-anchor="middle">V × d_model × √d</text>
+      <text class="s" x="553" y="304" text-anchor="middle">inputs_embeds · tied</text>
     </g>
-    <path class="edge mm" d="M436,295 C458,295 458,275 478,275"/>
-    <path class="edge" d="M136,360 C300,360 330,320 478,300"/>
+    <path class="edge" d="M136,360 L146,430 L466,430 L466,280 L478,280"/>
 
-    <!-- embedding -->
-    <g class="node dim" data-tip="输入嵌入 Gemma3TextScaledWordEmbedding&#10;Embedding(262144, d_model)，输出 × √d_model&#10;（270M √640≈25.3；4B √2560≈50.6；27B √5376≈73.3）&#10;与 lm_head 共享权重（tie）&#10;来源：modeling_gemma3.py:105-116, 484-486">
-      <rect x="622" y="228" width="150" height="96" rx="12"/>
-      <text class="t" x="697" y="262" text-anchor="middle">Embedding</text>
-      <text class="m" x="697" y="284" text-anchor="middle">262144 × d_model</text>
-      <text class="s" x="697" y="304" text-anchor="middle">× √d_model · tied</text>
+    <!-- 融合：嵌入之后再 masked_scatter 视觉特征（:876） -->
+    <g class="node dim" data-tip="序列融合 masked_scatter（在 Embedding 之后）&#10;先把 OOV 图像占位 id(262144) 替换为 pad=0（:856-859）&#10;再用 special_image_mask 把投影视觉特征 scatter 进 inputs_embeds 对应位置（:873-876）&#10;与文本 embedding 拼成统一 hidden 序列后送入 language_model（:897-905）&#10;来源：modeling_gemma3.py:856-861, 864, 876; get_placeholder_mask :785-807">
+      <rect x="660" y="222" width="120" height="110" rx="12"/>
+      <text class="t" x="720" y="260" text-anchor="middle">masked_</text>
+      <text class="t" x="720" y="280" text-anchor="middle">scatter</text>
+      <text class="s" x="720" y="304" text-anchor="middle">统一 hidden 序列</text>
     </g>
-    <path class="edge" d="M594,275 L622,275"/>
+    <path class="edge" d="M628,280 L660,280"/>
+    <path class="edge mm" d="M436,285 C540,195 660,185 720,185 L720,222"/>
 
     <!-- 解码层堆 -->
     <g class="node core" data-tip="解码层 × N（sliding 与 full 5:1 交错）&#10;270M 18 层 / 1B 26 / 4B 34 / 12B 48 / 27B 62&#10;每 6 层第 6 层为 full，其余 sliding&#10;每层 = RMSNorm→Attn(双 RoPE/GQA)→RMSNorm→⊕&#10;      + RMSNorm→GeGLU→RMSNorm→⊕&#10;来源：config layer_types；modeling_gemma3.py:375-418">
@@ -183,7 +183,7 @@
         <text class="m" x="937" y="384" text-anchor="middle">gelu_pytorch_tanh</text>
         <text class="s" x="937" y="410" text-anchor="middle">无 softcap / 无 layer_scalar</text>
       </g>
-      <g class="node mm" data-tip="图像 token 的双向注意力（多模态模型）&#10;token_type_ids 标记图像块：块内图像 token 双向、&#10;不看未来图像；full=OR(causal,blockwise)&#10;sliding=AND(滑窗,OR(causal,blockwise))&#10;来源：modeling_gemma3.py:687-755, 889-896">
+      <g class="node mm" data-tip="图像 token 的双向注意力（多模态模型）&#10;token_type_ids 标记图像块：块内图像 token 双向、&#10;不看未来图像；full=OR(causal,blockwise)&#10;sliding=AND(滑窗,OR(causal,blockwise))&#10;来源：modeling_gemma3.py:686-754, 888-893">
         <rect x="830" y="458" width="214" height="110" rx="10"/>
         <text class="t" x="937" y="482" text-anchor="middle">图像块双向掩码</text>
         <text class="m" x="937" y="504" text-anchor="middle">blockwise overlay</text>
@@ -191,7 +191,7 @@
         <text class="s" x="937" y="546" text-anchor="middle">纯文本 270M/1B 标准因果</text>
       </g>
     </g>
-    <path class="edge" d="M772,275 L812,275"/>
+    <path class="edge" d="M780,277 L812,277"/>
 
     <!-- final norm -->
     <g class="node dim" data-tip="最终 RMSNorm（全部层后）&#10;Gemma3RMSNorm：fp32 归一，×(1+γ)，γ 初始化 0（零中心）&#10;eps=1e-6&#10;来源：modeling_gemma3.py:135-149, 490">
@@ -203,7 +203,7 @@
     <path class="edge" d="M1062,300 L1090,300"/>
 
     <!-- lm head -->
-    <g class="node dim" data-tip="LM Head（共享权重，无 bias）&#10;d_model → 262144&#10;Gemma 3 无 final soft-capping（config 为 null）&#10;对比 Gemma 2：tanh(logits/30)×30 已移除&#10;来源：config final_logit_softcapping=null；modeling_gemma3.py:633-636">
+    <g class="node dim" data-tip="LM Head（共享权重，无 bias，:928,922）&#10;d_model → vocab 维（ForCG 在 :1014 直接线性投影，无 softcap 分支）&#10;Gemma 3 无 final soft-capping（final_logit_softcapping=null，configuration_gemma3.py:96）&#10;对比 Gemma 2：tanh(logits/cap)×cap 已不启用（:632-635 仅在非 null 时执行）&#10;来源：modeling_gemma3.py:1014, 632-635; configuration_gemma3.py:96">
       <rect x="1196" y="230" width="70" height="140" rx="12"/>
       <text class="t" x="1231" y="266" text-anchor="middle">LM</text>
       <text class="t" x="1231" y="286" text-anchor="middle">Head</text>

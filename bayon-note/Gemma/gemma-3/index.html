@@ -207,19 +207,19 @@
     </defs>
 
     <!-- 输入列 -->
-    <g class="node text" data-tip="文本输入 input_ids&#10;与图像占位 token(image_token_index=262144) 交错拼接&#10;来源：modeling_gemma3.py:864-877">
+    <g class="node text" data-tip="文本输入 input_ids&#10;与图像占位 token(image_token_index=262144) 交错拼接&#10;来源：modeling_gemma3.py:856-861, 864, 876">
       <rect x="16" y="330" width="120" height="60" rx="12"/>
       <text class="t" x="76" y="356" text-anchor="middle">文本 token</text>
       <text class="s" x="76" y="374" text-anchor="middle">input_ids</text>
     </g>
-    <g class="node mm" data-tip="图像输入 pixel_values&#10;896×896 归一化像素；仅 4B/12B/27B&#10;270M/1B 无此路（input_modalities=text）&#10;来源：modeling_gemma3.py:438, 780">
+    <g class="node mm" data-tip="图像输入 pixel_values&#10;896×896 归一化像素；仅 4B/12B/27B&#10;270M/1B 无此路（Gemma3TextModel input_modalities=text，:476）&#10;来源：modeling_gemma3.py:779-781">
       <rect x="16" y="90" width="120" height="60" rx="12"/>
       <text class="t" x="76" y="116" text-anchor="middle">图像像素</text>
       <text class="s" x="76" y="134" text-anchor="middle">896×896</text>
     </g>
 
     <!-- 视觉塔 -->
-    <g class="node mm" data-tip="视觉塔 SigLIPVisionModel（仅 4B/12B/27B）&#10;hidden=1152, 27 层, 16 头, head_dim 72, inter 4304&#10;patch 14, image 896 → 64×64=4096 patches&#10;PatchEmbedder: Linear(3·14²=588→1152)&#10;双向 Transformer（SigLIP 初始化，vision_use_head=false）&#10;来源：config vision_config；modeling_gemma3.py:769">
+    <g class="node mm" data-tip="视觉塔 SigLIPVisionModel（仅 4B/12B/27B）&#10;hidden=1152, 27 层, 16 头, head_dim 72, inter 4304&#10;patch 14, image 896 → 64×64=4096 patches&#10;PatchEmbedder: Linear(3·14²=588→1152)&#10;双向 Transformer（SigLIP 初始化，vision_use_head=false，convert_gemma3_weights.py:123）&#10;来源：modeling_gemma3.py:768">
       <rect x="196" y="60" width="240" height="150" rx="12"/>
       <text class="t" x="316" y="86" text-anchor="middle">SigLIP 视觉塔</text>
       <text class="m" x="316" y="110" text-anchor="middle">patch embed 14×14</text>
@@ -231,33 +231,33 @@
     <path class="edge mm" d="M136,120 L196,120"/>
 
     <!-- projector -->
-    <g class="node mm" data-tip="Gemma3MultiModalProjector（651-684）&#10;reshape 成 (B,1152,64,64)&#10;AvgPool2d kernel=4 stride=4 → 16×16&#10;→ flatten = 256 tokens/图&#10;再 RMSNorm(1152) → Linear(1152→text hidden)&#10;mm_input_projection_weight 初始化为 0（443-444）&#10;来源：modeling_gemma3.py:663-684">
+    <g class="node mm" data-tip="Gemma3MultiModalProjector（650-683）&#10;reshape 成 (B,1152,64,64)&#10;AvgPool2d kernel=4 stride=4 → 16×16（:665,676）&#10;flatten = 256 tokens/图（:677-678）&#10;再 RMSNorm(1152)（:680）→ Linear matmul（:682）&#10;mm_input_projection_weight 初始化为 0（:654-656）&#10;来源：modeling_gemma3.py:667-683">
       <rect x="196" y="240" width="240" height="110" rx="12"/>
       <text class="t" x="316" y="266" text-anchor="middle">投影器（AvgPool）</text>
       <text class="m" x="316" y="288" text-anchor="middle">64×64 → 16×16（kernel 4）</text>
-      <text class="m" x="316" y="306" text-anchor="middle">RMSNorm → Linear → 256 tokens</text>
-      <text class="s" x="316" y="328" text-anchor="middle">tokens_per_side=√256=16</text>
+      <text class="m" x="316" y="306" text-anchor="middle">Pool/Flatten → RMSNorm → Linear</text>
+      <text class="s" x="316" y="328" text-anchor="middle">256 tokens/图，tokens_per_side=16</text>
     </g>
     <path class="edge mm" d="M316,210 L316,240"/>
 
-    <!-- 融合 -->
-    <g class="node dim" data-tip="序列融合 masked_scatter&#10;视觉投影特征填入 input_ids 中 image_token_id=262144 的位置&#10;（该 id 超出 vocab，先替换为 pad 再 scatter）&#10;与文本 embedding 拼成统一 hidden 序列&#10;来源：modeling_gemma3.py:857-877, 786-808">
-      <rect x="478" y="220" width="116" height="110" rx="12"/>
-      <text class="t" x="536" y="262" text-anchor="middle">masked_</text>
-      <text class="t" x="536" y="282" text-anchor="middle">scatter</text>
-      <text class="s" x="536" y="306" text-anchor="middle">统一序列</text>
+    <!-- embedding：先 token 嵌入（:864） -->
+    <g class="node dim" data-tip="输入嵌入 Gemma3TextScaledWordEmbedding&#10;先把文本/占位 token 嵌入为 inputs_embeds（modeling_gemma3.py:864）&#10;Embedding(V, d_model)，输出 × √d_model（:115-116,484-486）&#10;（270M √640≈25.3；4B √2560≈50.6；27B √5376≈73.3）&#10;与 lm_head 共享权重（tie，:922）&#10;来源：modeling_gemma3.py:105-116, 484-486, 864">
+      <rect x="478" y="232" width="150" height="96" rx="12"/>
+      <text class="t" x="553" y="262" text-anchor="middle">Embedding</text>
+      <text class="m" x="553" y="284" text-anchor="middle">V × d_model × √d</text>
+      <text class="s" x="553" y="304" text-anchor="middle">inputs_embeds · tied</text>
     </g>
-    <path class="edge mm" d="M436,295 C458,295 458,275 478,275"/>
-    <path class="edge" d="M136,360 C300,360 330,320 478,300"/>
+    <path class="edge" d="M136,360 L146,430 L466,430 L466,280 L478,280"/>
 
-    <!-- embedding -->
-    <g class="node dim" data-tip="输入嵌入 Gemma3TextScaledWordEmbedding&#10;Embedding(262144, d_model)，输出 × √d_model&#10;（270M √640≈25.3；4B √2560≈50.6；27B √5376≈73.3）&#10;与 lm_head 共享权重（tie）&#10;来源：modeling_gemma3.py:105-116, 484-486">
-      <rect x="622" y="228" width="150" height="96" rx="12"/>
-      <text class="t" x="697" y="262" text-anchor="middle">Embedding</text>
-      <text class="m" x="697" y="284" text-anchor="middle">262144 × d_model</text>
-      <text class="s" x="697" y="304" text-anchor="middle">× √d_model · tied</text>
+    <!-- 融合：嵌入之后再 masked_scatter 视觉特征（:876） -->
+    <g class="node dim" data-tip="序列融合 masked_scatter（在 Embedding 之后）&#10;先把 OOV 图像占位 id(262144) 替换为 pad=0（:856-859）&#10;再用 special_image_mask 把投影视觉特征 scatter 进 inputs_embeds 对应位置（:873-876）&#10;与文本 embedding 拼成统一 hidden 序列后送入 language_model（:897-905）&#10;来源：modeling_gemma3.py:856-861, 864, 876; get_placeholder_mask :785-807">
+      <rect x="660" y="222" width="120" height="110" rx="12"/>
+      <text class="t" x="720" y="260" text-anchor="middle">masked_</text>
+      <text class="t" x="720" y="280" text-anchor="middle">scatter</text>
+      <text class="s" x="720" y="304" text-anchor="middle">统一 hidden 序列</text>
     </g>
-    <path class="edge" d="M594,275 L622,275"/>
+    <path class="edge" d="M628,280 L660,280"/>
+    <path class="edge mm" d="M436,285 C540,195 660,185 720,185 L720,222"/>
 
     <!-- 解码层堆 -->
     <g class="node core" data-tip="解码层 × N（sliding 与 full 5:1 交错）&#10;270M 18 层 / 1B 26 / 4B 34 / 12B 48 / 27B 62&#10;每 6 层第 6 层为 full，其余 sliding&#10;每层 = RMSNorm→Attn(双 RoPE/GQA)→RMSNorm→⊕&#10;      + RMSNorm→GeGLU→RMSNorm→⊕&#10;来源：config layer_types；modeling_gemma3.py:375-418">
@@ -278,7 +278,7 @@
         <text class="m" x="937" y="384" text-anchor="middle">gelu_pytorch_tanh</text>
         <text class="s" x="937" y="410" text-anchor="middle">无 softcap / 无 layer_scalar</text>
       </g>
-      <g class="node mm" data-tip="图像 token 的双向注意力（多模态模型）&#10;token_type_ids 标记图像块：块内图像 token 双向、&#10;不看未来图像；full=OR(causal,blockwise)&#10;sliding=AND(滑窗,OR(causal,blockwise))&#10;来源：modeling_gemma3.py:687-755, 889-896">
+      <g class="node mm" data-tip="图像 token 的双向注意力（多模态模型）&#10;token_type_ids 标记图像块：块内图像 token 双向、&#10;不看未来图像；full=OR(causal,blockwise)&#10;sliding=AND(滑窗,OR(causal,blockwise))&#10;来源：modeling_gemma3.py:686-754, 888-893">
         <rect x="830" y="458" width="214" height="110" rx="10"/>
         <text class="t" x="937" y="482" text-anchor="middle">图像块双向掩码</text>
         <text class="m" x="937" y="504" text-anchor="middle">blockwise overlay</text>
@@ -286,7 +286,7 @@
         <text class="s" x="937" y="546" text-anchor="middle">纯文本 270M/1B 标准因果</text>
       </g>
     </g>
-    <path class="edge" d="M772,275 L812,275"/>
+    <path class="edge" d="M780,277 L812,277"/>
 
     <!-- final norm -->
     <g class="node dim" data-tip="最终 RMSNorm（全部层后）&#10;Gemma3RMSNorm：fp32 归一，×(1+γ)，γ 初始化 0（零中心）&#10;eps=1e-6&#10;来源：modeling_gemma3.py:135-149, 490">
@@ -298,7 +298,7 @@
     <path class="edge" d="M1062,300 L1090,300"/>
 
     <!-- lm head -->
-    <g class="node dim" data-tip="LM Head（共享权重，无 bias）&#10;d_model → 262144&#10;Gemma 3 无 final soft-capping（config 为 null）&#10;对比 Gemma 2：tanh(logits/30)×30 已移除&#10;来源：config final_logit_softcapping=null；modeling_gemma3.py:633-636">
+    <g class="node dim" data-tip="LM Head（共享权重，无 bias，:928,922）&#10;d_model → vocab 维（ForCG 在 :1014 直接线性投影，无 softcap 分支）&#10;Gemma 3 无 final soft-capping（final_logit_softcapping=null，configuration_gemma3.py:96）&#10;对比 Gemma 2：tanh(logits/cap)×cap 已不启用（:632-635 仅在非 null 时执行）&#10;来源：modeling_gemma3.py:1014, 632-635; configuration_gemma3.py:96">
       <rect x="1196" y="230" width="70" height="140" rx="12"/>
       <text class="t" x="1231" y="266" text-anchor="middle">LM</text>
       <text class="t" x="1231" y="286" text-anchor="middle">Head</text>
@@ -314,14 +314,7 @@
     <text class="lgm" x="620" y="520">视觉路径仅 4B/12B/27B</text>
   </svg>
   </div>
-  <p class="note">全家族统一主干：<span class="num">嵌入(×√d) → 解码层×N → 最终 RMSNorm → 共享 LM Head</span>；差异集中在层数、维度、滑窗窗口、KV 头数，以及是否挂 SigLIP 视觉塔。</p>
-</section>
-
-<!-- ==================== 3 解码层解剖 ==================== -->
-<section id="layer">
-  <h2><span class="secno">3</span>解码层解剖：Gemma 2 式双 RMSNorm 残差块</h2>
-  <p class="note">Gemma 3 的每个解码层（<span class="num">Gemma3DecoderLayer</span>）含两组残差子层：注意力子层与 FFN 子层，均为 <b>pre-norm + post-norm</b> 并用（Gemma 2 起的传统）。全部五尺寸共享此结构，仅维度随尺寸缩放。</p>
-  <div class="diagram-shell" aria-label="Gemma 3 解码层结构图">
+  <div class="diagram-shell" aria-label="Gemma 3 解码层解剖：Gemma 2 式双 RMSNorm 残差块">
   <svg viewBox="0 0 1240 600" class="dg" role="img">
     <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#c9c4ba"/></marker></defs>
 
@@ -331,15 +324,17 @@
       <text class="t" x="75" y="270" text-anchor="middle">输入 x</text>
       <text class="m" x="75" y="290" text-anchor="middle">[B,T,d]</text>
     </g>
-    <path class="edge" d="M130,275 L160,275"/>
+    <!-- x 主路 → input_layernorm（:399） -->
+    <path class="edge" d="M130,288 C148,240 148,167 160,167"/>
 
     <!-- 注意力子层 -->
-    <g class="node dim" data-tip="input_layernorm&#10;Gemma3RMSNorm(d, eps 1e-6)&#10;fp32 归一 · ×(1+γ) · γ 零初始化&#10;来源：modeling_gemma3.py:383, 135-149">
+    <g class="node dim" data-tip="input_layernorm（:383 初始化，:399 调用）&#10;Gemma3RMSNorm(d, eps 1e-6)&#10;fp32 归一 · ×(1+γ) · γ 零初始化（:135-149）&#10;来源：modeling_gemma3.py:383, 399, 135-149">
       <rect x="160" y="150" width="160" height="34" rx="8"/>
       <text class="s" x="240" y="172" text-anchor="middle">input_layernorm (RMSNorm)</text>
     </g>
-    <path class="edge" d="M130,275 L240,184"/>
-    <g class="node" data-tip="自注意力 Gemma3Attention（296-372）&#10;q/k/v/o_proj 全部 bias=False&#10;q_proj: d→Q头×head_dim；k/v_proj: d→KV头×head_dim&#10;Q/K 各过 head_dim 维 RMSNorm（QK-Norm）&#10;再按层类型做 RoPE（global θ1e6 / local θ1e4）&#10;GQA: repeat_kv 把 KV 头复制到 Q 头数&#10;scaling = query_pre_attn_scalar^-0.5&#10;来源：modeling_gemma3.py:311-349, 370-371">
+    <!-- input_layernorm → Self-Attention（:399 → :401） -->
+    <path class="edge" d="M240,184 L240,200"/>
+    <g class="node" data-tip="自注意力 Gemma3Attention（297-372）&#10;q/k/v/o_proj 全部 bias=False（:311-322）&#10;q_proj: d→Q头×head_dim；k/v_proj: d→KV头×head_dim&#10;Q/K 各过 head_dim 维 RMSNorm（QK-Norm，:327-328,345-346）&#10;再按层类型做 RoPE（:348-349；global θ1e6 / local θ1e4）&#10;GQA: repeat_kv 把 KV 头复制到 Q 头数（:306）&#10;scaling = query_pre_attn_scalar^-0.5（:307,365）&#10;来源：modeling_gemma3.py:330-372">
       <rect x="160" y="200" width="300" height="130" rx="10"/>
       <text class="t" x="310" y="224" text-anchor="middle">Self-Attention（Q/K/V/O）</text>
       <text class="m" x="310" y="246" text-anchor="middle">q_proj → q_norm → RoPE</text>
@@ -349,41 +344,50 @@
       <text class="s" x="310" y="318" text-anchor="middle">270M: 4Q/1KV·head256；27B: 32Q/16KV·head128</text>
     </g>
     <g class="node core">
-      <circle cx="510" cy="265" r="16" data-tip="残差 ⊕：x + attn(x)&#10;来源：modeling_gemma3.py:397-410"/>
+      <circle cx="510" cy="265" r="16" data-tip="残差 ⊕A：h₁ = x + post_attn_norm(attn(input_norm(x)))&#10;残差 x 走旁路（:397）；主路 :399→:401→:409；相加 :410"/>
       <text class="s" x="510" y="269" text-anchor="middle" font-size="12">+</text>
     </g>
-    <g class="node dim" data-tip="post_attention_layernorm&#10;残差相加之前对子层输出再归一&#10;来源：modeling_gemma3.py:384, 409">
+    <!-- 残差 x 旁路 → ⊕A 顶（:397 → :410） -->
+    <path class="edge faint" d="M75,240 L75,104 L510,104 L510,249"/>
+    <!-- ⊕A 输出 h₁ → pre_ffn_norm（:410 → :413） -->
+    <path class="edge" d="M526,265 L560,265 L560,427 L320,427"/>
+    <g class="node dim" data-tip="post_attention_layernorm（:384 初始化，:409 调用）&#10;先对子层输出归一，再由 ⊕A 与残差相加（:409 → :410）&#10;来源：modeling_gemma3.py:384, 409-410">
       <rect x="160" y="360" width="160" height="34" rx="8"/>
       <text class="s" x="240" y="382" text-anchor="middle">post_attention_layernorm</text>
     </g>
-    <path class="edge" d="M526,265 L560,265 L560,377 L320,377"/>
+    <!-- attn 输出 → post_attn_norm（:401 → :409） -->
     <path class="edge" d="M310,330 L310,360"/>
-    <path class="edge faint" d="M75,275 L75,377 L160,377"/>
+    <!-- post_attn_norm → ⊕A 底（:409 → :410） -->
+    <path class="edge" d="M320,377 L510,377 L510,281"/>
 
     <!-- FFN 子层 -->
-    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一&#10;来源：modeling_gemma3.py:385, 413">
+    <g class="node dim" data-tip="pre_feedforward_layernorm（:385 初始化，:413 调用）&#10;对 h₁ 归一后进入 FFN（:413 → :414）&#10;来源：modeling_gemma3.py:385, 413">
       <rect x="160" y="410" width="160" height="34" rx="8"/>
       <text class="s" x="240" y="432" text-anchor="middle">pre_feedforward_layernorm</text>
     </g>
-    <path class="edge" d="M240,394 L240,410"/>
-    <g class="node" data-tip="Gemma3MLP（GeGLU，119-132）&#10;gate/up: d→intermediate；down: intermediate→d&#10;激活 = gelu_pytorch_tanh（tanh 近似 GELU）&#10;270M inter 2048；4B 10240；27B 21504&#10;全部 Linear bias=False&#10;来源：modeling_gemma3.py:125-132">
+    <!-- pre_ffn_norm → FFN（:413 → :414） -->
+    <path class="edge" d="M240,444 L240,450"/>
+    <g class="node" data-tip="Gemma3MLP（GeGLU，:119-132）&#10;gate/up: d→intermediate；down: intermediate→d（:125-127）&#10;激活 = gelu_pytorch_tanh（:128,131）&#10;270M inter 2048；4B 10240；27B 21504（convert_gemma3_weights.py:154,188,230）&#10;全部 Linear bias=False&#10;来源：modeling_gemma3.py:130-132">
       <rect x="160" y="450" width="300" height="86" rx="10"/>
       <text class="t" x="310" y="474" text-anchor="middle">FFN（GeGLU dense MLP）</text>
       <text class="m" x="310" y="494" text-anchor="middle">down( gelu_tanh(gate) ⊙ up )</text>
       <text class="s" x="310" y="512" text-anchor="middle">d → intermediate → d · 无 bias</text>
     </g>
-    <g class="node dim" data-tip="post_feedforward_layernorm&#10;FFN 输出归一后与残差相加&#10;来源：modeling_gemma3.py:386, 415-416">
+    <!-- FFN → post_ffn_norm（:414 → :415） -->
+    <path class="edge" d="M310,536 L310,548"/>
+    <g class="node dim" data-tip="post_feedforward_layernorm（:386 初始化，:415 调用）&#10;FFN 输出先归一，再由 ⊕F 与残差 h₁ 相加（:415 → :416）&#10;来源：modeling_gemma3.py:386, 415-416">
       <rect x="160" y="548" width="160" height="30" rx="8"/>
       <text class="s" x="240" y="568" text-anchor="middle">post_feedforward_layernorm</text>
     </g>
-    <path class="edge" d="M310,536 L310,548"/>
+    <!-- post_ffn_norm → ⊕F 底（:415 → :416） -->
+    <path class="edge" d="M320,563 L510,563 L510,509"/>
 
     <g class="node core">
-      <circle cx="510" cy="493" r="16" data-tip="残差 ⊕：h₁ + ffn(h₁)&#10;来源：modeling_gemma3.py:412-416"/>
+      <circle cx="510" cy="493" r="16" data-tip="残差 ⊕F：y = h₁ + post_ffn_norm(mlp(pre_ffn_norm(h₁)))&#10;残差 h₁ 走旁路（:412）；主路 :413→:414→:415；相加 :416"/>
       <text class="s" x="510" y="497" text-anchor="middle" font-size="12">+</text>
     </g>
-    <path class="edge" d="M560,377 L560,493 L526,493"/>
-    <path class="edge" d="M460,493 L494,493"/>
+    <!-- h₁ 残差旁路（⊕A 输出总线 :412）→ ⊕F 顶（:416） -->
+    <path class="edge faint" d="M560,427 L560,477 L510,477"/>
 
     <!-- 输出 -->
     <g class="node core" data-tip="输出 hidden_states → 下一层&#10;无 layer_scalar（区别于 Gemma 4）&#10;来源：modeling_gemma3.py:418">
@@ -392,9 +396,9 @@
       <text class="m" x="660" y="301" text-anchor="middle">[B,T,d]</text>
     </g>
     <path class="edge" d="M526,493 L580,493 L580,285 L600,285"/>
-    <text class="lg" x="588" y="400" transform="rotate(90 588 400)">残差流</text>
-    <text class="lgb" x="180" y="130">注意力子层</text>
-    <text class="lgb" x="180" y="400">FFN 子层</text>
+    <text class="lg" x="576" y="400" transform="rotate(90 576 400)">h₁ 残差旁路</text>
+    <text class="lgb" x="180" y="130">注意力子层（pre-norm 残差块）</text>
+    <text class="lgb" x="384" y="400">FFN 子层（pre-norm 残差块）</text>
   </svg>
   </div>
   <div class="formula">Gemma3DecoderLayer.forward（modeling_gemma3.py:397-418）:

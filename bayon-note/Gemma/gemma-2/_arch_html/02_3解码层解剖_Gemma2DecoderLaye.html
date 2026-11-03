@@ -170,6 +170,9 @@
     <circle cx="820" cy="445" r="17" fill="#eef8fa" stroke="#0e7490" stroke-width="1.6"/>
     <text class="t" x="820" y="451" text-anchor="middle">+</text>
     <path class="e2" d="M770,445 L803,445"/>
+    <!-- residual2：line 321 residual = 第一个相加后的 hidden_states -> 第二个相加 line 325 -->
+    <path class="e2rm" d="M820,400 L862,400 L862,445 L837,445"/>
+    <text class="lg" x="868" y="395">残差 residual（line 321）→ 相加 line 325</text>
 
     <!-- 输出 -->
     <g class="node core" data-tip="本层输出 hidden_states&#10;= residual + post_ffn_norm(mlp(...))  line 325&#10;送入下一层">
@@ -177,5 +180,6 @@
       <text class="t" x="1035" y="270" text-anchor="middle">输出 → 下一层</text>
       <text class="m" x="1035" y="290" text-anchor="middle">[B,T,2304]</text>
     </g>
-    <path class="e2" d="M820,292 L820,275 L960,275"/>
+    <!-- 本层输出来自第二个残差相加 line 325，而非第一个相加 line 319 -->
+    <path class="e2" d="M837,445 L940,445 L940,275 L960,275"/>
   </svg></body></html>

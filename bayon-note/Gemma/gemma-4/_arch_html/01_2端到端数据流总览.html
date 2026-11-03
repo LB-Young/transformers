@@ -163,23 +163,30 @@
     </g>
 
     <!-- ===== 融合 ===== -->
-    <g class="node dim" data-tip="序列融合 masked_scatter&#10;视觉/音频输出特征被填入 input_ids 中的占位 token 位置&#10;（image_token_id=258880, audio=258881, video=258884）&#10;与文本 embedding 拼接成统一 hidden 序列&#10;来源：modeling_gemma4.py:2249-2278">
+    <g class="node dim" data-tip="输入嵌入 Gemma4TextScaledWordEmbedding&#10;Embedding(262144, d_model)，输出 × √d_model（前向 1443-1444）&#10;构造 embed_scale = hidden_size**0.5（1564-1566）；与 lm_head 共享权重 tie（167, 2526）&#10;各变体 √d 数值取决于 checkpoint hidden_size，本地未硬编码、未经配置验证">
       <rect x="470" y="210" width="110" height="110" rx="12"/>
-      <text class="t" x="525" y="252" text-anchor="middle">masked_</text>
-      <text class="t" x="525" y="272" text-anchor="middle">scatter</text>
-      <text class="s" x="525" y="296" text-anchor="middle">统一序列</text>
+      <text class="t" x="525" y="246" text-anchor="middle">Embedding</text>
+      <text class="m" x="525" y="268" text-anchor="middle">262144 × d</text>
+      <text class="s" x="525" y="290" text-anchor="middle">× √d_model · tied</text>
     </g>
-    <path class="edge mm" d="M432,138 C452,138 452,260 470,262"/>
-    <path class="edge mm" d="M432,624 C452,624 452,270 470,268"/>
-    <path class="edge" d="M136,390 C300,390 330,300 470,288"/>
+    <!-- 原始模态 → 编码器塔 -->
+    <path class="edge mm" d="M136,94 L196,126"/>
+    <path class="edge mm" d="M136,178 L196,160"/>
+    <path class="edge mm" d="M136,648 L196,632"/>
+    <!-- 文本 token → Embedding：源码先做文本嵌入（2314），再 masked_scatter -->
+    <path class="edge" d="M136,390 C300,390 400,300 470,268"/>
+    <!-- 编码器塔输出 → masked_scatter -->
+    <path class="edge mm" d="M432,138 C520,138 600,210 618,244"/>
+    <path class="edge mm" d="M432,624 C520,624 600,330 618,292"/>
 
     <!-- ===== 主干 ===== -->
-    <g class="node dim" data-tip="输入嵌入 Gemma4TextScaledWordEmbedding&#10;Embedding(262144, d_model)，输出 × √d_model&#10;（E2B √1536≈39.19；26B √2816≈53.07）&#10;与 lm_head 共享权重（tie）&#10;来源：modeling_gemma4.py:1564-1566">
+    <g class="node dim" data-tip="序列融合 masked_scatter（位于文本 Embedding 之后）&#10;先对 llm_input_ids 做 embedding（2314），再把视觉/视频/音频特征&#10;masked_scatter 进占位 token 位置：image 2341-2343 / video 2364-2366 / audio 2387-2389&#10;统一 hidden 序列送入 language_model（2420-2425）&#10;来源：modeling_gemma4.py:2314, 2341-2389, 2420">
       <rect x="618" y="212" width="150" height="106" rx="12"/>
-      <text class="t" x="693" y="248" text-anchor="middle">Embedding</text>
-      <text class="m" x="693" y="270" text-anchor="middle">262144 × d_model</text>
-      <text class="s" x="693" y="292" text-anchor="middle">× √d_model · tied</text>
+      <text class="t" x="693" y="248" text-anchor="middle">masked_scatter</text>
+      <text class="s" x="693" y="272" text-anchor="middle">统一 hidden 序列</text>
+      <text class="s" x="693" y="294" text-anchor="middle">vision/video/audio 填入</text>
     </g>
+    <!-- Embedding → masked_scatter -->
     <path class="edge" d="M580,265 L618,265"/>
 
     <g class="node dim" data-tip="PLE 逐层嵌入（仅 E2B/E4B 启用：hidden_size_per_layer_input=256）&#10;12B/26B/31B 为 0（关闭）&#10;Embedding(262144, layers×256) 打包成 [B,T,N,256]&#10;每层 gate×GELU(嵌入) → 投影 → 残差叠加进对应层&#10;来源：config hidden_size_per_layer_input；modeling_gemma4.py:1575-1583, 1420-1427">
@@ -188,7 +195,7 @@
       <text class="s" x="693" y="390" text-anchor="middle">仅 E2B/E4B</text>
       <text class="m" x="693" y="408" text-anchor="middle">×256/层 · 残差注入</text>
     </g>
-    <path class="edge faint" d="M693,318 L693,340"/>
+    <path class="edge faint" d="M525,320 L525,332 L693,332 L693,340"/>
 
     <g class="node core" data-tip="解码层 × N（sliding 与 full 交错）&#10;E2B: 35 层 · full 在 5,10,…,35 · sliding 512&#10;26B: 30 层 · full 在 6,12,18,24,30 · sliding 1024&#10;每层 = 注意力（QKV Norm + per-layer 维度 + RoPE）&#10;      + FFN（E2B: 纯 dense；26B: dense MLP ‖ 128 专家）&#10;KV 共享：E2B 后 20 层 / E4B 后 18 层复用前层 KV&#10;来源：config text_config；modeling_gemma4.py:1344-1430">
       <rect x="812" y="150" width="250" height="560" rx="14"/>
@@ -206,7 +213,7 @@
         <text class="s" x="937" y="342" text-anchor="middle">RMSNorm → 注意力 → ⊕</text>
         <text class="s" x="937" y="366" text-anchor="middle">RMSNorm → FFN → ⊕</text>
         <text class="m" x="937" y="392" text-anchor="middle">QKV Norm · RoPE</text>
-        <text class="m" x="937" y="414" text-anchor="middle">GeGLU · softcap 30</text>
+        <text class="m" x="937" y="414" text-anchor="middle">GeGLU · FFN 无 softcap</text>
         <text class="m" x="937" y="438" text-anchor="middle">26B: + 128 专家</text>
         <text class="s" x="937" y="462" text-anchor="middle">× layer_scalar</text>
       </g>
@@ -221,7 +228,7 @@
     </g>
     <path class="edge" d="M768,265 L812,265"/>
 
-    <g class="node dim" data-tip="最终 RMSNorm（全部层后）&#10;Gemma4RMSNorm：fp32 计算，×(1+weight) 可选&#10;eps=1e-6&#10;来源：modeling_gemma4.py:205-223, 1570">
+    <g class="node dim" data-tip="最终 RMSNorm（全部解码层之后）&#10;Gemma4RMSNorm：fp32 计算，eps=1e-6&#10;构造 1570；在 TextModel.forward 末尾应用 1692；类定义 205-223">
       <rect x="1090" y="250" width="84" height="100" rx="12"/>
       <text class="t" x="1132" y="286" text-anchor="middle">最终</text>
       <text class="t" x="1132" y="306" text-anchor="middle">RMSNorm</text>
@@ -229,7 +236,7 @@
     </g>
     <path class="edge" d="M1062,300 L1090,300"/>
 
-    <g class="node dim" data-tip="LM Head（共享权重，无 bias）&#10;d_model → 262144&#10;logit soft-capping：logits × tanh(logits/30.0)×30.0&#10;（所有 Gemma 4 变体 final_logit_softcapping=30.0）&#10;来源：config final_logit_softcapping；modeling_gemma4.py:1570, 2552-2560">
+    <g class="node dim" data-tip="LM Head（共享权重，无 bias Linear）&#10;定义 2534；前向 logits = lm_head(hidden_states) 2617&#10;logit soft-capping：logits=logits/c；tanh；×c（2618-2621）&#10;c=config final_logit_softcapping；具体取值由 checkpoint 配置决定、本地未硬编码">
       <rect x="1196" y="230" width="70" height="140" rx="12"/>
       <text class="t" x="1231" y="266" text-anchor="middle">LM</text>
       <text class="t" x="1231" y="286" text-anchor="middle">Head</text>

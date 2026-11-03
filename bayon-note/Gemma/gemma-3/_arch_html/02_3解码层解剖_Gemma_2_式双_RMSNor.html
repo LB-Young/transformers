@@ -114,15 +114,17 @@
       <text class="t" x="75" y="270" text-anchor="middle">输入 x</text>
       <text class="m" x="75" y="290" text-anchor="middle">[B,T,d]</text>
     </g>
-    <path class="edge" d="M130,275 L160,275"/>
+    <!-- x 主路 → input_layernorm（:399） -->
+    <path class="edge" d="M130,288 C148,240 148,167 160,167"/>
 
     <!-- 注意力子层 -->
-    <g class="node dim" data-tip="input_layernorm&#10;Gemma3RMSNorm(d, eps 1e-6)&#10;fp32 归一 · ×(1+γ) · γ 零初始化&#10;来源：modeling_gemma3.py:383, 135-149">
+    <g class="node dim" data-tip="input_layernorm（:383 初始化，:399 调用）&#10;Gemma3RMSNorm(d, eps 1e-6)&#10;fp32 归一 · ×(1+γ) · γ 零初始化（:135-149）&#10;来源：modeling_gemma3.py:383, 399, 135-149">
       <rect x="160" y="150" width="160" height="34" rx="8"/>
       <text class="s" x="240" y="172" text-anchor="middle">input_layernorm (RMSNorm)</text>
     </g>
-    <path class="edge" d="M130,275 L240,184"/>
-    <g class="node" data-tip="自注意力 Gemma3Attention（296-372）&#10;q/k/v/o_proj 全部 bias=False&#10;q_proj: d→Q头×head_dim；k/v_proj: d→KV头×head_dim&#10;Q/K 各过 head_dim 维 RMSNorm（QK-Norm）&#10;再按层类型做 RoPE（global θ1e6 / local θ1e4）&#10;GQA: repeat_kv 把 KV 头复制到 Q 头数&#10;scaling = query_pre_attn_scalar^-0.5&#10;来源：modeling_gemma3.py:311-349, 370-371">
+    <!-- input_layernorm → Self-Attention（:399 → :401） -->
+    <path class="edge" d="M240,184 L240,200"/>
+    <g class="node" data-tip="自注意力 Gemma3Attention（297-372）&#10;q/k/v/o_proj 全部 bias=False（:311-322）&#10;q_proj: d→Q头×head_dim；k/v_proj: d→KV头×head_dim&#10;Q/K 各过 head_dim 维 RMSNorm（QK-Norm，:327-328,345-346）&#10;再按层类型做 RoPE（:348-349；global θ1e6 / local θ1e4）&#10;GQA: repeat_kv 把 KV 头复制到 Q 头数（:306）&#10;scaling = query_pre_attn_scalar^-0.5（:307,365）&#10;来源：modeling_gemma3.py:330-372">
       <rect x="160" y="200" width="300" height="130" rx="10"/>
       <text class="t" x="310" y="224" text-anchor="middle">Self-Attention（Q/K/V/O）</text>
       <text class="m" x="310" y="246" text-anchor="middle">q_proj → q_norm → RoPE</text>
@@ -132,41 +134,50 @@
       <text class="s" x="310" y="318" text-anchor="middle">270M: 4Q/1KV·head256；27B: 32Q/16KV·head128</text>
     </g>
     <g class="node core">
-      <circle cx="510" cy="265" r="16" data-tip="残差 ⊕：x + attn(x)&#10;来源：modeling_gemma3.py:397-410"/>
+      <circle cx="510" cy="265" r="16" data-tip="残差 ⊕A：h₁ = x + post_attn_norm(attn(input_norm(x)))&#10;残差 x 走旁路（:397）；主路 :399→:401→:409；相加 :410"/>
       <text class="s" x="510" y="269" text-anchor="middle" font-size="12">+</text>
     </g>
-    <g class="node dim" data-tip="post_attention_layernorm&#10;残差相加之前对子层输出再归一&#10;来源：modeling_gemma3.py:384, 409">
+    <!-- 残差 x 旁路 → ⊕A 顶（:397 → :410） -->
+    <path class="edge faint" d="M75,240 L75,104 L510,104 L510,249"/>
+    <!-- ⊕A 输出 h₁ → pre_ffn_norm（:410 → :413） -->
+    <path class="edge" d="M526,265 L560,265 L560,427 L320,427"/>
+    <g class="node dim" data-tip="post_attention_layernorm（:384 初始化，:409 调用）&#10;先对子层输出归一，再由 ⊕A 与残差相加（:409 → :410）&#10;来源：modeling_gemma3.py:384, 409-410">
       <rect x="160" y="360" width="160" height="34" rx="8"/>
       <text class="s" x="240" y="382" text-anchor="middle">post_attention_layernorm</text>
     </g>
-    <path class="edge" d="M526,265 L560,265 L560,377 L320,377"/>
+    <!-- attn 输出 → post_attn_norm（:401 → :409） -->
     <path class="edge" d="M310,330 L310,360"/>
-    <path class="edge faint" d="M75,275 L75,377 L160,377"/>
+    <!-- post_attn_norm → ⊕A 底（:409 → :410） -->
+    <path class="edge" d="M320,377 L510,377 L510,281"/>
 
     <!-- FFN 子层 -->
-    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一&#10;来源：modeling_gemma3.py:385, 413">
+    <g class="node dim" data-tip="pre_feedforward_layernorm（:385 初始化，:413 调用）&#10;对 h₁ 归一后进入 FFN（:413 → :414）&#10;来源：modeling_gemma3.py:385, 413">
       <rect x="160" y="410" width="160" height="34" rx="8"/>
       <text class="s" x="240" y="432" text-anchor="middle">pre_feedforward_layernorm</text>
     </g>
-    <path class="edge" d="M240,394 L240,410"/>
-    <g class="node" data-tip="Gemma3MLP（GeGLU，119-132）&#10;gate/up: d→intermediate；down: intermediate→d&#10;激活 = gelu_pytorch_tanh（tanh 近似 GELU）&#10;270M inter 2048；4B 10240；27B 21504&#10;全部 Linear bias=False&#10;来源：modeling_gemma3.py:125-132">
+    <!-- pre_ffn_norm → FFN（:413 → :414） -->
+    <path class="edge" d="M240,444 L240,450"/>
+    <g class="node" data-tip="Gemma3MLP（GeGLU，:119-132）&#10;gate/up: d→intermediate；down: intermediate→d（:125-127）&#10;激活 = gelu_pytorch_tanh（:128,131）&#10;270M inter 2048；4B 10240；27B 21504（convert_gemma3_weights.py:154,188,230）&#10;全部 Linear bias=False&#10;来源：modeling_gemma3.py:130-132">
       <rect x="160" y="450" width="300" height="86" rx="10"/>
       <text class="t" x="310" y="474" text-anchor="middle">FFN（GeGLU dense MLP）</text>
       <text class="m" x="310" y="494" text-anchor="middle">down( gelu_tanh(gate) ⊙ up )</text>
       <text class="s" x="310" y="512" text-anchor="middle">d → intermediate → d · 无 bias</text>
     </g>
-    <g class="node dim" data-tip="post_feedforward_layernorm&#10;FFN 输出归一后与残差相加&#10;来源：modeling_gemma3.py:386, 415-416">
+    <!-- FFN → post_ffn_norm（:414 → :415） -->
+    <path class="edge" d="M310,536 L310,548"/>
+    <g class="node dim" data-tip="post_feedforward_layernorm（:386 初始化，:415 调用）&#10;FFN 输出先归一，再由 ⊕F 与残差 h₁ 相加（:415 → :416）&#10;来源：modeling_gemma3.py:386, 415-416">
       <rect x="160" y="548" width="160" height="30" rx="8"/>
       <text class="s" x="240" y="568" text-anchor="middle">post_feedforward_layernorm</text>
     </g>
-    <path class="edge" d="M310,536 L310,548"/>
+    <!-- post_ffn_norm → ⊕F 底（:415 → :416） -->
+    <path class="edge" d="M320,563 L510,563 L510,509"/>
 
     <g class="node core">
-      <circle cx="510" cy="493" r="16" data-tip="残差 ⊕：h₁ + ffn(h₁)&#10;来源：modeling_gemma3.py:412-416"/>
+      <circle cx="510" cy="493" r="16" data-tip="残差 ⊕F：y = h₁ + post_ffn_norm(mlp(pre_ffn_norm(h₁)))&#10;残差 h₁ 走旁路（:412）；主路 :413→:414→:415；相加 :416"/>
       <text class="s" x="510" y="497" text-anchor="middle" font-size="12">+</text>
     </g>
-    <path class="edge" d="M560,377 L560,493 L526,493"/>
-    <path class="edge" d="M460,493 L494,493"/>
+    <!-- h₁ 残差旁路（⊕A 输出总线 :412）→ ⊕F 顶（:416） -->
+    <path class="edge faint" d="M560,427 L560,477 L510,477"/>
 
     <!-- 输出 -->
     <g class="node core" data-tip="输出 hidden_states → 下一层&#10;无 layer_scalar（区别于 Gemma 4）&#10;来源：modeling_gemma3.py:418">
@@ -175,7 +186,7 @@
       <text class="m" x="660" y="301" text-anchor="middle">[B,T,d]</text>
     </g>
     <path class="edge" d="M526,493 L580,493 L580,285 L600,285"/>
-    <text class="lg" x="588" y="400" transform="rotate(90 588 400)">残差流</text>
-    <text class="lgb" x="180" y="130">注意力子层</text>
-    <text class="lgb" x="180" y="400">FFN 子层</text>
+    <text class="lg" x="576" y="400" transform="rotate(90 576 400)">h₁ 残差旁路</text>
+    <text class="lgb" x="180" y="130">注意力子层（pre-norm 残差块）</text>
+    <text class="lgb" x="384" y="400">FFN 子层（pre-norm 残差块）</text>
   </svg></body></html>

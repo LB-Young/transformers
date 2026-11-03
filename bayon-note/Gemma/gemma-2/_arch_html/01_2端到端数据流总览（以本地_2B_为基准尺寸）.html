@@ -113,7 +113,7 @@
     <path class="edge" d="M132,273 L168,273"/>
 
     <!-- Embedding -->
-    <g class="node dim" data-tip="Gemma2TextScaledWordEmbedding&#10;嵌入矩阵 [256000, 2304]（2B）&#10;★ Gemma 特有：输出 × embed_scale = √hidden_size = √2304 = 48&#10;forward: super()(x) * self.embed_scale（line 340-341）&#10;embed_scale 在构造时取 hidden_size**0.5（line 379-381）&#10;权重与 lm_head 共享 tied（line 459, 468）&#10;9B: √3584≈59.87；27B: √4608≈67.88">
+    <g class="node dim" data-tip="Gemma2TextScaledWordEmbedding&#10;嵌入矩阵 [256000, 2304]（2B）&#10;★ Gemma 特有：输出 × embed_scale = √hidden_size = √2304 = 48&#10;forward: super()(x) * self.embed_scale（line 340-341）&#10;embed_scale 在构造时取 hidden_size**0.5（line 380）&#10;权重与 lm_head 共享 tied（line 459, 468）&#10;9B: √3584≈59.87；27B: √4608≈67.88">
       <rect x="168" y="220" width="172" height="106" rx="12"/>
       <text class="t" x="254" y="246" text-anchor="middle">Embedding</text>
       <text class="m" x="254" y="266" text-anchor="middle">256000 × 2304</text>
@@ -135,7 +135,7 @@
 
       <!-- 容器内：单层折叠示意 -->
       <g class="node" data-tip="Gemma2DecoderLayer.forward 主干（line 296-327）&#10;详见 §3 单层展开图&#10;每层 4 个 RMSNorm + 2 次残差相加">
-        <rect x="396" y="140" width="378" height="312" rx="10"/>
+        <rect x="396" y="140" width="378" height="330" rx="10"/>
         <text class="t" x="585" y="164" text-anchor="middle">Gemma2DecoderLayer（每层 4 个 RMSNorm）</text>
 
         <!-- 注意力子层 -->
@@ -173,14 +173,26 @@
         <circle cx="664" cy="406" r="14" fill="#eef8fa" stroke="#0e7490" stroke-width="1.4"/>
         <text class="t" x="664" y="411" text-anchor="middle">+</text>
 
+        <!-- a(pre-attn) -> attn：line 307 -> 310 -->
         <path class="edge" d="M514,208 L514,216"/>
+        <!-- attn -> b(post-attn)：line 318 -->
         <path class="edge" d="M514,290 L514,300"/>
-        <path class="edge" d="M514,326 L514,342" style="opacity:.4"/>
+        <!-- b -> +1：line 319（残差相加前再过 post-attn norm） -->
+        <path class="edge" d="M614,313 L650,264"/>
+        <!-- +1 -> c(pre-ffn)：line 321-322 -->
+        <path class="edge" d="M664,276 L664,355 L614,355"/>
+        <!-- c -> mlp：line 322 -> 323 -->
         <path class="edge" d="M514,368 L514,376"/>
-        <path class="edge" d="M614,253 L650,259"/>
-        <path class="edge rm" d="M664,248 L664,195 L614,195"/>
-        <path class="edge" d="M614,406 L650,406"/>
-        <path class="edge rm" d="M664,392 L664,360 L614,360"/>
+        <!-- mlp -> d(post-ffn)：line 324 -->
+        <path class="edge" d="M514,436 L514,446"/>
+        <!-- d -> +2：line 325 -->
+        <path class="edge" d="M614,456 L650,408"/>
+        <!-- residual1：hidden_states -> +1（line 305, 319），箭头指向加号 -->
+        <path class="edge rm" d="M614,195 L664,195 L664,248"/>
+        <!-- residual2：+1 输出 -> +2（line 321, 325），箭头指向加号 -->
+        <path class="edge rm" d="M656,276 L632,282 L632,392 L664,392"/>
+        <!-- +2 -> 本层输出：line 327 -->
+        <path class="edge" d="M678,406 L766,406"/>
       </g>
     </g>
     <path class="edge" d="M800,273 L830,273"/>
@@ -195,7 +207,7 @@
     <path class="edge" d="M954,273 L982,273"/>
 
     <!-- lm_head + softcap -->
-    <g class="node dim" data-tip="lm_head：Linear(2304 → 256000, bias=False)&#10;line 468；权重与 embed_tokens 共享（tied, line 459）&#10;★ 之后施加 final_logit_softcapping=30（line 519-522）：&#10;  logits = tanh(logits/30) * 30&#10;再计算交叉熵 loss（line 524-526）">
+    <g class="node dim" data-tip="lm_head：Linear(2304 → 256000, bias=False)&#10;line 468；权重与 embed_tokens 共享（tied, line 459）&#10;★ 之后施加 final_logit_softcapping=30（line 518-521）：&#10;  logits = tanh(logits/30) * 30&#10;再计算交叉熵 loss（line 525）">
       <rect x="982" y="212" width="196" height="122" rx="12"/>
       <text class="t" x="1080" y="240" text-anchor="middle">lm_head</text>
       <text class="m" x="1080" y="260" text-anchor="middle">2304 → 256000</text>

@@ -264,7 +264,11 @@
       <rect x="30" y="96" width="170" height="44" rx="10"/>
       <text class="s" x="115" y="115" text-anchor="middle">input_layernorm</text>
       <text class="m" x="115" y="131" text-anchor="middle">RMSNorm · eps 1e-6</text></g>
-    <path class="edge" d="M200,118 L258,118"/>
+    <path class="edge faint" d="M200,118 L268,118"/>
+    <path class="edge faint" d="M268,118 L268,292"/>
+    <path class="edge" d="M268,152 L278,152"/>
+    <path class="edge" d="M268,222 L278,222"/>
+    <path class="edge" d="M268,292 L278,292"/>
 
     <!-- Attention 大框 -->
     <g class="node core"><rect x="258" y="86" width="600" height="270" rx="14"/>
@@ -289,15 +293,16 @@
       <text class="m" x="368" y="304" text-anchor="middle">2048 → 1头×256</text></g>
 
     <!-- RoPE -->
-    <g class="node dim" data-tip="apply_rotary_pos_emb（:154-176, :259）&#10;只对 Q 和 K 旋转，V 不旋转！&#10;q' = q·cos + rotate_half(q)·sin（:174）&#10;rotate_half：前半/后半互换取负（:146-150）&#10;θ=10000，作用维度=head_dim=256（:127-132）。">
+    <g class="node dim" data-tip="apply_rotary_pos_emb（:154-176, :259）&#10;只对 Q 和 K 旋转，V 不旋转！&#10;q' = q·cos + rotate_half(q)·sin（:174）&#10;rotate_half：前半/后半互换取负（:146-150）&#10;cos/sin 由 GemmaModel.rotary_emb 在 :412 统一算出后传入本层&#10;θ=10000，作用维度=head_dim=256（:127-132）。">
       <rect x="490" y="126" width="160" height="122" rx="9"/>
       <text class="s" x="570" y="146" text-anchor="middle">RoPE（仅 Q、K）</text>
       <text class="m" x="570" y="166" text-anchor="middle">θ = 10000</text>
       <text class="m" x="570" y="184" text-anchor="middle">rotate_half 式</text>
       <text class="s" x="570" y="204" text-anchor="middle">V 不做旋转</text>
-      <text class="s" x="570" y="224" text-anchor="middle">位置编码在每层</text></g>
+      <text class="s" x="570" y="224" text-anchor="middle">cos/sin 模型 :412 算出</text></g>
     <path class="edge" d="M458,152 L490,152"/>
     <path class="edge kve" d="M458,222 L490,200"/>
+    <path class="edge" d="M540,248 L540,256"/>
 
     <!-- repeat_kv -->
     <g class="node kv" data-tip="repeat_kv（:179-188，调用 :201-202）&#10;num_key_value_groups = 8//1 = 8（:225）&#10;把 1 个 KV 头 expand 成 8 个，广播到 8 个 query 头&#10;形状：(b,1,s,256) → (b,8,s,256)。这就是 MQA。&#10;7B：groups=1，n_rep==1 时直接 return（:185-186），广播是空操作。">
@@ -307,9 +312,9 @@
       <text class="s" x="764" y="258" text-anchor="middle">MQA 广播（2B）</text>
       <text class="s" x="764" y="278" text-anchor="middle">expand 不复制显存</text>
       <text class="m" x="764" y="298" text-anchor="middle">(b,1,s,256)→(b,8,s,256)</text></g>
-    <path class="edge" d="M650,152 L686,152 L686,196"/>
     <path class="edge kve" d="M650,200 L686,200"/>
     <path class="edge kve" d="M458,292 L660,292 L660,257 L686,257"/>
+    <path class="edge kve" d="M686,286 L668,286 L668,306 L650,306"/>
 
     <!-- 注意力打分 -->
     <g class="node dim" data-tip="eager_attention_forward（:191-213）&#10;scores = Q·Kᵀ / √256（:204，scaling=head_dim⁻⁰·⁵ :226）&#10;+ 因果掩码（:206）&#10;softmax 在 fp32（:208）→ @ V（:210）&#10;eval 无 dropout（:274）、无 soft-capping。">
@@ -319,15 +324,16 @@
       <text class="s" x="570" y="312" text-anchor="middle">因果掩码·softmax(fp32)</text>
       <text class="m" x="570" y="328" text-anchor="middle">@ V</text></g>
 
-    <!-- o_proj 注释 -->
-    <text class="lbl" x="848" y="250">o_proj：Linear(2048→2048, 无 bias)</text>
-    <text class="lbl" x="848" y="266">多头拼回后投影（:239-241, :280）</text>
-    <path class="edge" d="M842,257 L860,257"/>
+    <!-- o_proj（:239-241, :279-280） -->
+    <path class="edge" d="M650,322 L668,322 L668,338 L686,338"/>
+    <g class="node dim" data-tip="o_proj = Linear(2048→2048, bias=False)（:239-241）&#10;attn_output reshape 拼回 (b,s,2048)（:279）后过 o_proj（:280）返回（:281）。&#10;Gemma-1 无 q/k norm、无 softcap、无 sliding window。">
+      <rect x="686" y="322" width="156" height="32" rx="9"/>
+      <text class="s" x="764" y="342" text-anchor="middle">o_proj（无 bias）2048→2048</text></g>
 
     <!-- 残差1 ⊕ -->
     <circle cx="200" cy="404" r="16" fill="#fffdf9" stroke="#b45309" stroke-width="1.8"/>
     <text x="200" y="409" text-anchor="middle" font-size="15" fill="#b45309" font-weight="700">+</text>
-    <path class="edge" d="M558,356 L558,404 L216,404"/>
+    <path class="edge" d="M764,354 L764,368 L558,368 L558,404 L216,404"/>
     <path class="edge rm" d="M40,43 L40,404 L184,404"/>
     <text class="lbl" x="52" y="230" fill="#b45309">残差捷径（:305,:317）</text>
 
@@ -337,7 +343,10 @@
       <rect x="115" y="448" width="170" height="44" rx="10"/>
       <text class="s" x="200" y="467" text-anchor="middle">post_attn_layernorm</text>
       <text class="m" x="200" y="483" text-anchor="middle">RMSNorm · eps 1e-6</text></g>
-    <path class="edge" d="M285,470 L330,470"/>
+    <path class="edge faint" d="M285,470 L340,470"/>
+    <path class="edge faint" d="M340,469 L340,539"/>
+    <path class="edge" d="M340,469 L350,469"/>
+    <path class="edge" d="M340,539 L350,539"/>
 
     <!-- MLP 大框 -->
     <g class="node core"><rect x="330" y="408" width="560" height="170" rx="14"/>
@@ -369,8 +378,8 @@
     <circle cx="200" cy="636" r="16" fill="#fffdf9" stroke="#b45309" stroke-width="1.8"/>
     <text x="200" y="641" text-anchor="middle" font-size="15" fill="#b45309" font-weight="700">+</text>
     <path class="edge" d="M775,534 L775,636 L216,636"/>
-    <path class="edge rm" d="M285,470 L300,470 L300,636 L184,636"/>
-    <text class="lbl" x="306" y="600" fill="#b45309">残差捷径（:320,:323）</text>
+    <path class="edge rm" d="M200,434 L64,434 L64,636 L184,636"/>
+    <text class="lbl" x="70" y="600" fill="#b45309">残差捷径（:320,:323）</text>
 
     <path class="edge" d="M200,652 L200,686"/>
     <g class="node core"><rect x="125" y="686" width="150" height="30" rx="9"/>

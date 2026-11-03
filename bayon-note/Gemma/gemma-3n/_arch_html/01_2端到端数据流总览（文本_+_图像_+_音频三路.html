@@ -112,24 +112,26 @@
     </defs>
 
     <!-- 左列输入 -->
-    <g class="node teal" data-tip="图像输入 pixel_values&#10;归一化像素；MobileNetV5 主干&#10;来源：modeling_gemma3n.py:1961（get_image_features）">
+    <g class="node teal" data-tip="图像输入 pixel_values&#10;归一化像素；送入 vision_tower（:1962）&#10;来源：modeling_gemma3n.py:1957-1973">
       <rect x="16" y="70" width="120" height="56" rx="10"/>
       <text class="t" x="76" y="94" text-anchor="middle">图像像素</text>
       <text class="s" x="76" y="112" text-anchor="middle">pixel_values</text>
     </g>
-    <g class="node core" data-tip="文本输入 input_ids&#10;与视觉/音频占位 token 交错成统一序列&#10;来源：modeling_gemma3n.py:2276-2291">
+    <g class="node core" data-tip="文本输入 input_ids&#10;序列中含视觉/音频占位 token（顺序由 processor 决定）&#10;先经 embed_tokens 查表得基础嵌入（:2082）&#10;来源：modeling_gemma3n.py:2082,1602-1604">
       <rect x="16" y="380" width="120" height="60" rx="12"/>
       <text class="t" x="76" y="406" text-anchor="middle">文本 token</text>
       <text class="s" x="76" y="424" text-anchor="middle">input_ids</text>
     </g>
-    <g class="node amber" data-tip="音频输入 input_features&#10;128 维 mel 频谱 + input_features_mask&#10;来源：config audio_config.input_feat_size=128；modeling:2167">
+    <g class="node amber" data-tip="音频输入 input_features&#10;128 维 mel 频谱 + input_features_mask&#10;送入 audio_tower（:2186-2187）&#10;来源：config audio_config.input_feat_size=128；modeling:2120-2123,2186-2187">
       <rect x="16" y="640" width="120" height="56" rx="10"/>
       <text class="t" x="76" y="664" text-anchor="middle">音频 mel</text>
       <text class="s" x="76" y="682" text-anchor="middle">input_features</text>
     </g>
+    <path class="edge teal" d="M136,98 L196,106"/>
+    <path class="edge amber" d="M136,668 L196,634"/>
 
     <!-- 编码塔列 -->
-    <g class="node teal" data-tip="视觉塔 vision_tower&#10;timm MobileNetV5-300M（约 300M）&#10;hidden=2048，do_pooling=false&#10;输出特征图 reshape [B,2048,16,16] → [B,256,2048]&#10;乘 √2048 后交 embed_vision&#10;来源：config vision_config；modeling:1945,1961-1972">
+    <g class="node teal" data-tip="视觉塔 vision_tower&#10;timm MobileNetV5-300M（约 300M）&#10;hidden=2048，do_pooling=false&#10;输出特征图 reshape [B,2048,16,16] → [B,256,2048]&#10;乘 √2048 后交 embed_vision&#10;来源：config vision_config；modeling:1946,1962-1973">
       <rect x="196" y="46" width="236" height="130" rx="12"/>
       <text class="t" x="314" y="72" text-anchor="middle">视觉塔 MobileNetV5-300M</text>
       <text class="m" x="314" y="96" text-anchor="middle">CNN 主干 · hidden 2048</text>
@@ -137,7 +139,7 @@
       <text class="s" x="314" y="136" text-anchor="middle">256 个视觉 soft token/图</text>
       <text class="s" x="314" y="154" text-anchor="middle">×√2048 缩放</text>
     </g>
-    <g class="node teal" data-tip="embed_vision（Gemma3nMultimodalEmbedder）&#10;soft_embedding_norm → Linear(2048→2048) → post_proj_norm&#10;（视觉塔 hidden 本身即 2048，故为同维投影）&#10;来源：modeling:1883-1930, 1950">
+    <g class="node teal" data-tip="embed_vision（Gemma3nMultimodalEmbedder）&#10;soft_embedding_norm → Linear(2048→2048) → post_proj_norm&#10;（视觉塔 hidden 本身即 2048，故为同维投影）&#10;来源：modeling:1884-1931, 1951">
       <rect x="196" y="196" width="236" height="66" rx="12"/>
       <text class="t" x="314" y="220" text-anchor="middle">embed_vision</text>
       <text class="m" x="314" y="240" text-anchor="middle">RMSNorm → Linear 2048→2048</text>
@@ -153,7 +155,7 @@
       <text class="s" x="314" y="650" text-anchor="middle">时间维 ÷4 → ≤188 帧</text>
       <text class="s" x="314" y="668" text-anchor="middle">[B, ≤188, 1536]</text>
     </g>
-    <g class="node amber" data-tip="embed_audio（Gemma3nMultimodalEmbedder）&#10;soft_embedding_norm → Linear(1536→2048) → post_proj_norm&#10;不足 188 帧用最后一条硬嵌入补齐&#10;来源：modeling:1883-1930, 1951, 2167">
+    <g class="node amber" data-tip="embed_audio（Gemma3nMultimodalEmbedder）&#10;soft_embedding_norm → Linear(1536→2048) → post_proj_norm（:2189）&#10;不足 188 帧用最后一条硬嵌入补齐并 pad（:2130-2138）&#10;来源：modeling:1884-1931, 1952, 2125-2143, 2186-2190">
       <rect x="196" y="710" width="236" height="60" rx="12"/>
       <text class="t" x="314" y="734" text-anchor="middle">embed_audio</text>
       <text class="m" x="314" y="754" text-anchor="middle">RMSNorm → Linear 1536→2048</text>
@@ -161,7 +163,7 @@
     <path class="edge amber" d="M314,690 L314,710"/>
 
     <!-- 融合 -->
-    <g class="node dim" data-tip="序列融合（masked_scatter）&#10;视觉/音频 soft token 填入 input_ids 中占位位&#10;image_token_id=262145 · audio_token_id=262273&#10;与文本 embedding 拼成统一 [B,T,2048]&#10;来源：modeling:1976-2012（placeholder mask）">
+    <g class="node dim" data-tip="序列融合（masked_scatter）&#10;基础词表嵌入序列（embed_tokens 输出）进入本节点；&#10;视觉/音频连续 soft 特征（已投影到 2048，不再过词表表）&#10;按占位 token 位 masked_scatter 覆盖：图像 :2117 · 音频 :2143&#10;占位掩码来自 input_ids（:2000-2001, :1977-2019）&#10;合并得统一 [B,T,2048] 进 AltUp 堆叠">
       <rect x="486" y="330" width="120" height="90" rx="12"/>
       <text class="t" x="546" y="366" text-anchor="middle">masked_</text>
       <text class="t" x="546" y="386" text-anchor="middle">scatter</text>
@@ -169,7 +171,8 @@
     </g>
     <path class="edge teal" d="M432,229 C460,229 460,360 486,368"/>
     <path class="edge amber" d="M432,740 C470,740 470,420 486,408"/>
-    <path class="edge" d="M136,410 C300,410 340,380 486,378"/>
+    <path class="edge" d="M136,404 C320,286 520,286 640,344"/>
+    <text class="lg" x="330" y="280" text-anchor="start">input_ids → embed_tokens（:2082）</text>
 
     <!-- 主嵌入 + PLE -->
     <g class="node dim" data-tip="输入嵌入 embed_tokens&#10;Gemma3nTextScaledWordEmbedding(262400, 2048)&#10;输出 × √2048≈45.25&#10;与 lm_head 共享权重（tied）&#10;来源：modeling:918-929, 1602-1604">
@@ -178,14 +181,16 @@
       <text class="m" x="715" y="370" text-anchor="middle">262400 × 2048</text>
       <text class="s" x="715" y="388" text-anchor="middle">×√2048 · tied</text>
     </g>
-    <path class="edge" d="M606,375 L640,375"/>
-    <g class="node amber" data-tip="PLE 逐层嵌入表 embed_tokens_per_layer&#10;Embedding(262144, 30×256=7680)，×√256&#10;reshape 成 [B,T,N,256]（N=层数）&#10;另有 per_layer_model_projection 分支与其相加 ×1/√2&#10;来源：modeling:1616-1621, 1678, 1767-1799">
+    <path class="edge" d="M640,388 L606,388"/>
+    <g class="node amber" data-tip="PLE 逐层嵌入表 embed_tokens_per_layer&#10;Embedding(262144, 30×256=7680)，×√256&#10;reshape 成 [B,T,N,256]（N=层数）&#10;另有 per_layer_model_projection 分支与其相加 ×1/√2&#10;来源：modeling:1616-1621, 1678, 1767-1801">
       <rect x="640" y="424" width="150" height="80" rx="12"/>
       <text class="t" x="715" y="450" text-anchor="middle">PLE 逐层嵌入</text>
       <text class="m" x="715" y="470" text-anchor="middle">262144 × N×256</text>
       <text class="s" x="715" y="488" text-anchor="middle">每层 256 维注入</text>
     </g>
     <path class="edge dash" d="M715,400 L715,424"/>
+    <path class="edge dash" d="M790,464 L986,464"/>
+    <text class="lg" x="888" y="458" text-anchor="middle">per_layer_input 逐层门控（:1337-1339）</text>
 
     <g class="node dim" data-tip="AltUp 四路线堆叠&#10;h0=嵌入；另 3 路由 altup_projections(2048→2048) 生成，&#10;幅值归一化对齐 h0 的 RMS，stack 成 [4,B,T,2048]&#10;来源：modeling:1631-1633, 1711-1721">
       <rect x="822" y="330" width="130" height="80" rx="12"/>
@@ -193,7 +198,8 @@
       <text class="m" x="887" y="378" text-anchor="middle">[4,B,T,2048]</text>
       <text class="s" x="887" y="396" text-anchor="middle">emb + 3 投影分支</text>
     </g>
-    <path class="edge" d="M790,361 L822,368"/>
+    <path class="edge" d="M606,368 C660,306 840,306 887,330"/>
+    <text class="lg" x="746" y="300" text-anchor="middle">merged inputs_embeds（:2117,:2143）</text>
 
     <!-- 主干解码层 -->
     <g class="node core" data-tip="解码层 × N&#10;E2B: 30 层（full 在 5/10/…/30）&#10;E4B: 35 层（full 在 5/10/…/35）&#10;每层 = AltUp.predict → RMSNorm → LAuReL 分支&#10;  → GQA 注意力（滑窗512/全局交错）→ ⊕/√2&#10;  → MLP（前10层高斯top-k稀疏）→ AltUp.correct + PLE&#10;末段共享 KV：E2B 第21-30层 / E4B 第21-35层&#10;来源：modeling:1273-1346">
@@ -210,7 +216,7 @@
         <text class="s" x="1114" y="350" text-anchor="middle">RMSNorm → 注意力 → ⊕/√2</text>
         <text class="s" x="1114" y="374" text-anchor="middle">RMSNorm → MLP → ⊕</text>
         <text class="m" x="1114" y="398" text-anchor="middle">Q8/KV2 · head_dim 256</text>
-        <text class="m" x="1114" y="418" text-anchor="middle">GeGLU · softcap 仅输出端30</text>
+        <text class="m" x="1114" y="418" text-anchor="middle">GeGLU · gate top-k 稀疏（前10层）</text>
         <text class="m" x="1114" y="438" text-anchor="middle">LAuReL rank64 · PLE 256</text>
       </g>
       <g class="node amber" data-tip="KV 共享区&#10;E2B 第21-30层 / E4B 第21-35层&#10;不建 k_proj/v_proj，复用前一同类层 KV&#10;shared_kv_states[type]&#10;来源：modeling:1177-1189, 1232-1250">
@@ -229,7 +235,7 @@
       <text class="s" x="1095" y="708" text-anchor="middle">final norm eps 1e-6</text>
     </g>
     <path class="edge" d="M1114,620 L1114,660"/>
-    <g class="node dim" data-tip="LM Head（共享权重，无 bias）&#10;2048 → 262400&#10;logit soft-capping：logits×tanh(logits/30)×30&#10;来源：config final_logit_softcapping=30；modeling:2296-2300">
+    <g class="node dim" data-tip="LM Head（共享权重，无 bias）&#10;2048 → 262400&#10;logit soft-capping：logits×tanh(logits/30)×30&#10;来源：config final_logit_softcapping=30；modeling:2308-2314">
       <rect x="1190" y="650" width="76" height="90" rx="12"/>
       <text class="t" x="1228" y="680" text-anchor="middle">LM</text>
       <text class="t" x="1228" y="700" text-anchor="middle">Head</text>
