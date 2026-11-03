@@ -1,0 +1,126 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#5c6672; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#5b21b6; --accent-soft:#ede4fc; --accent-line:#d5c5f6;
+    --teal:#0f766e; --teal-soft:#d7efec; --teal-line:#9ad4cd;
+    --amber:#b45309; --amber-soft:#fdeccd; --amber-line:#f2cf8f;
+    --node:#fffdf9; --edge:#b9b4a9; --mono:#6d28d9;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:#ffffff; font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#f3ecfd; stroke:var(--accent); stroke-width:1.7;}
+  .dg .node.teal rect{fill:var(--teal-soft); stroke:var(--teal-line);}
+  .dg .node.amber rect{fill:var(--amber-soft); stroke:var(--amber-line);}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:10.8px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.dash{stroke-dasharray:5 4;}
+  .dg .edge.teal{stroke:var(--teal); marker-end:url(#arrT);}
+  .dg .edge.amber{stroke:var(--amber); marker-end:url(#arrA);}
+  .dg text.lg{font-size:11px; fill:var(--sub);}
+  .dg text.lgt{font-size:11px; fill:var(--teal); font-weight:600;}
+  .dg text.lga{font-size:11px; fill:var(--amber); font-weight:600;}
+</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1320 740" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker>
+      <marker id="arrT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+
+    <text x="20" y="34" font-size="13" font-weight="700" fill="#5b21b6">DSA 稀疏注意力索引器机制（Glm5NextTextIndexer，mdl-S:773-1061）= GLM-5.3-Flash 落地实现；GLM-5 本体 DSA 同思路（k=2048，技术报告 §3.2）</text>
+
+    <!-- 输入投影 -->
+    <g class="node dim" data-tip="Q 侧投影（打分用 query）&#10;wq_b：1536 → 32×128（index_n_heads 32 · index_head_dim 128）&#10;输入来自 attention 的 q_resid（压缩路径输出）&#10;来源：mdl-S:798,834；cfg-S:135-136">
+      <rect x="20" y="80" width="190" height="80" rx="12"/>
+      <text class="t" x="115" y="106" text-anchor="middle">Q 投影 wq_b</text>
+      <text class="m" x="115" y="126" text-anchor="middle">1536 → 32 头 × 128</text>
+      <text class="s" x="115" y="146" text-anchor="middle">indexer 打分 query</text>
+    </g>
+    <g class="node dim" data-tip="KV 侧投影（被检索的 key）&#10;wk：4096 → 128 → k_norm（LayerNorm）&#10;另有 index_kpool_compress_ape[16,128] 与 gate[128,4096]&#10;packed = [k, gate, valid]&#10;来源：mdl-S:799-808,835,837-840">
+      <rect x="20" y="220" width="190" height="90" rx="12"/>
+      <text class="t" x="115" y="246" text-anchor="middle">K 投影 wk + k_norm</text>
+      <text class="m" x="115" y="266" text-anchor="middle">4096 → 128 (LayerNorm)</text>
+      <text class="s" x="115" y="286" text-anchor="middle">packed=[k, gate, valid]</text>
+    </g>
+
+    <!-- k-pool 池化 -->
+    <g class="node teal" data-tip="k-pool 池化（index_kpool=16）&#10;get_pooled_states：每 16 个连续 token 分一组&#10;softmax(gate + compress_ape) 加权平均&#10;→ 池向量 pool_key [n_pool, 128]&#10;index_kpool_always_select_tail=True：尾部池必选&#10;来源：mdl-S:861,936-1009,1011-1061；cfg-S:152-153">
+      <rect x="270" y="200" width="270" height="130" rx="12"/>
+      <text class="t" x="405" y="226" text-anchor="middle">k-pool 池化（每 16 token）</text>
+      <text class="m" x="405" y="248" text-anchor="middle">pool 大小 = index_kpool 16</text>
+      <text class="s" x="405" y="268" text-anchor="middle">softmax(gate + ape) 加权平均</text>
+      <text class="s" x="405" y="288" text-anchor="middle">→ pool_key [n_pool, 128]</text>
+      <text class="m" x="405" y="310" text-anchor="middle">尾池必选（always_select_tail）</text>
+    </g>
+    <path class="edge" d="M210,265 L270,265"/>
+
+    <!-- 打分 -->
+    <g class="node amber" data-tip="ReLU 打分 + 多头聚合&#10;scores = relu(q · pool_kᵀ · scale)（@torch.no_grad）&#10;weights_proj：32 头打分加权求和成单通道&#10;select_k = 2048 / 16 = 128 个池&#10;来源：mdl-S:810,862-867,884">
+      <rect x="600" y="170" width="280" height="150" rx="12"/>
+      <text class="t" x="740" y="196" text-anchor="middle">ReLU 打分 + 多头聚合</text>
+      <text class="m" x="740" y="218" text-anchor="middle">scores = relu(q·pool_kᵀ·scale)</text>
+      <text class="s" x="740" y="238" text-anchor="middle">weights_proj：32 头加权求和</text>
+      <text class="s" x="740" y="258" text-anchor="middle">select_k = 2048 / 16 = 128 池</text>
+      <text class="m" x="740" y="280" text-anchor="middle">@torch.no_grad（索引器无梯度）</text>
+      <text class="s" x="740" y="302" text-anchor="middle">与 GLM-5 报告一致：k=2048</text>
+    </g>
+    <path class="edge amber" d="M210,120 C380,120 480,190 600,205"/>
+    <path class="edge" d="M540,265 L600,265"/>
+
+    <!-- topk 选池展开 -->
+    <g class="node core" data-tip="topk 选池 → 展开回原始 token&#10;对池打分取 top-128 池&#10;展开回每池 16 个原始 token → 2048 个 token&#10;append_visible_tail 追加尾部可见池（≤+15）&#10;不足补 -1 padding，返回 int32 [B,S,2048]&#10;来源：mdl-S:889-914">
+      <rect x="940" y="170" width="300" height="150" rx="12"/>
+      <text class="t" x="1090" y="196" text-anchor="middle">topk 选池 → 展开</text>
+      <text class="m" x="1090" y="218" text-anchor="middle">top-128 池 × 16 token = 2048</text>
+      <text class="s" x="1090" y="238" text-anchor="middle">展开回原始 token 坐标</text>
+      <text class="s" x="1090" y="258" text-anchor="middle">append_visible_tail（≤+15）</text>
+      <text class="m" x="1090" y="278" text-anchor="middle">pad -1 → int32 [B,S,2048]</text>
+      <text class="s" x="1090" y="300" text-anchor="middle">block/pool（16）级稀疏，非逐 token</text>
+    </g>
+    <path class="edge" d="M880,245 L940,245"/>
+
+    <!-- mask 与注意力 -->
+    <g class="node teal" data-tip="稀疏 mask 构建与注意力&#10;build_attention_mask_from_topk：&#10;scatter_add 成 3D bool mask（per-query 依赖）&#10;SDPA 直接用 bool mask（:1269-1270）&#10;eager 转 additive 0/-inf（:1273-1276）&#10;不支持 FlashAttention（3D per-row 需自定义 kernel）&#10;_supports_flash_attn=False / _supports_sdpa=True&#10;来源：mdl-S:1247-1248,1269-1276,1359-1360">
+      <rect x="330" y="420" width="420" height="130" rx="12"/>
+      <text class="t" x="540" y="446" text-anchor="middle">稀疏 mask → 稀疏注意力</text>
+      <text class="m" x="540" y="468" text-anchor="middle">scatter_add → 3D bool mask（per-query）</text>
+      <text class="s" x="540" y="488" text-anchor="middle">SDPA 用 bool mask；eager 转 0/-inf</text>
+      <text class="s" x="540" y="508" text-anchor="middle">不支持 FA（3D per-row 依赖）</text>
+      <text class="m" x="540" y="530" text-anchor="middle">_supports_flash_attn=False · sdpa=True</text>
+    </g>
+    <path class="edge teal" d="M1090,320 C1090,380 660,380 600,420"/>
+
+    <!-- 跨层共享 -->
+    <g class="node amber" data-tip="跨层 indexer 共享（shared 层复用 top-k）&#10;indexer_types[layer]=="full" → 本层实例化 indexer&#10;"shared" 层 indexer=None：不重新打分，&#10;直接复用上一层传入的 top-k 索引&#10;next_skip_topk 把本层 topk 向上游传播&#10;即 GLM-5.2「IndexShare」思路在代码中的落地：&#10;GLM-5.2 每 4 层稀疏注意力共享同一 indexer，&#10;1M 上下文 per-token FLOPs 降 2.9×&#10;来源：mdl-S:1150-1154,1236；z.ai/blog/glm-5.2">
+      <rect x="820" y="420" width="460" height="160" rx="12"/>
+      <text class="t" x="1050" y="446" text-anchor="middle">跨层 indexer 共享（对应 IndexShare）</text>
+      <text class="s" x="1050" y="468" text-anchor="middle">full 层：本层实例化 indexer 打分</text>
+      <text class="s" x="1050" y="488" text-anchor="middle">shared 层：indexer=None，复用前层 top-k</text>
+      <text class="m" x="1050" y="508" text-anchor="middle">next_skip_topk 向上游传播（mdl-S:1152-1154,1236）</text>
+      <text class="s" x="1050" y="530" text-anchor="middle">GLM-5.2：每 4 层共享 indexer · 1M FLOPs ↓2.9×</text>
+      <text class="m" x="1050" y="552" text-anchor="middle">GLM-5.3-Flash：34 KDA + 11 DSA（每 4 层交错）</text>
+      <text class="s" x="1050" y="572" text-anchor="middle">IndexPool：索引器 4 个缓存向量压缩为 1 个</text>
+    </g>
+
+    <!-- 底部要点条 -->
+    <g class="node dim" data-tip="GLM-5 本体 DSA（技术报告 §2.1.1/§3.2）&#10;内容相关动态 token 子集：按内容决定哪些 token 重要&#10;从稠密 base 两阶段 continued pre-training：&#10;dense warm-up + sparse adaptation（20B tokens @200K）&#10;长序列注意力算力降 1.5-2×；90% 长上下文注意力冗余&#10;可全层使用「lossless by construction」&#10;昇腾侧优化：Lightning Indexer / Sparse FA / MLAPO&#10;5.9% sparsity 为 glm5.ai 官网口径，报告未给出">
+      <rect x="20" y="420" width="270" height="180" rx="12"/>
+      <text class="t" x="155" y="446" text-anchor="middle">GLM-5 本体 DSA</text>
+      <text class="s" x="155" y="468" text-anchor="middle">内容相关 top-k（DSA 引自 V3.2）</text>
+      <text class="s" x="155" y="488" text-anchor="middle">k=2048 · indexer 32 头 × 128</text>
+      <text class="s" x="155" y="508" text-anchor="middle">算力降 1.5-2×（长序列）</text>
+      <text class="s" x="155" y="528" text-anchor="middle">dense warm-up + sparse adaptation</text>
+      <text class="s" x="155" y="548" text-anchor="middle">报告：90% 长上下文注意力冗余</text>
+      <text class="m" x="155" y="570" text-anchor="middle">5.9% sparsity = glm5.ai 官网口径</text>
+      <text class="m" x="155" y="590" text-anchor="middle">Lightning Indexer / Sparse FA / MLAPO</text>
+    </g>
+
+    <text x="20" y="650" class="lg">稀疏布局性质：block/pool（16 token）级稀疏、per-query 3D 依赖——不是逐行独立的 token 稀疏；索引器本身 @no_grad，不回传梯度。</text>
+    <text x="20" y="674" class="lg">来源：cfg-S:134-136（index_topk 2048 / index_head_dim 128 / index_n_heads 32）；mdl-S:773-1061；技术报告 §2.1.1/§3.2；zhipuai.cn/zh/research/153</text>
+  </svg></body></html>

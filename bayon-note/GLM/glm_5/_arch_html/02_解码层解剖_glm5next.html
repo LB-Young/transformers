@@ -1,0 +1,144 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#5c6672; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#5b21b6; --accent-soft:#ede4fc; --accent-line:#d5c5f6;
+    --teal:#0f766e; --teal-soft:#d7efec; --teal-line:#9ad4cd;
+    --amber:#b45309; --amber-soft:#fdeccd; --amber-line:#f2cf8f;
+    --node:#fffdf9; --edge:#b9b4a9; --mono:#6d28d9;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:#ffffff; font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;}
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:var(--node); stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#f3ecfd; stroke:var(--accent); stroke-width:1.7;}
+  .dg .node.teal rect{fill:var(--teal-soft); stroke:var(--teal-line);}
+  .dg .node.amber rect{fill:var(--amber-soft); stroke:var(--amber-line);}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:10.8px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.dash{stroke-dasharray:5 4;}
+  .dg .edge.teal{stroke:var(--teal); marker-end:url(#arrT);}
+  .dg .edge.amber{stroke:var(--amber); marker-end:url(#arrA);}
+  .dg text.lg{font-size:11px; fill:var(--sub);}
+  .dg text.lgt{font-size:11px; fill:var(--teal); font-weight:600;}
+  .dg text.lga{font-size:11px; fill:var(--amber); font-weight:600;}
+</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1420 740" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker>
+      <marker id="arrT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+
+    <text x="20" y="34" font-size="13" font-weight="700" fill="#5b21b6">Glm5NextTextDecoderLayer 解剖（mdl-S:1279-1349）= GLM-5.3-Flash 落地实现 · mHC 4 流残差（非标准 pre-norm）</text>
+
+    <!-- 上行：注意力半 -->
+    <g class="node core" data-tip="输入 residual&#10;多流张量 [B,S,hc_mult=4,D]（D=4096）&#10;mHC HyperConnection 贯穿层内全部子层&#10;来源：mdl-S:1313；cfg-S:147（hc_mult=4）">
+      <rect x="20" y="290" width="140" height="64" rx="12"/>
+      <text class="t" x="90" y="316" text-anchor="middle">输入 residual</text>
+      <text class="m" x="90" y="336" text-anchor="middle">[B,S,4,4096]</text>
+    </g>
+    <path class="edge" d="M160,322 L190,322"/>
+
+    <g class="node dim" data-tip="attn_hc（HyperConnection 注意力前处理）&#10;把 mHC 4 流 collapse 成单流主链&#10;返回 (post, comb, hidden_states)：&#10;post=输出门控系数，comb=残差混合系数（Sinkhorn 归一化）&#10;来源：mdl-S:1314；cfg-S:147-149（hc_mult 4 / eps 1e-6 / sinkhorn 20）">
+      <rect x="190" y="280" width="170" height="84" rx="10"/>
+      <text class="t" x="275" y="306" text-anchor="middle">attn_hc</text>
+      <text class="m" x="275" y="326" text-anchor="middle">4 流 → 单流 collapse</text>
+      <text class="s" x="275" y="346" text-anchor="middle">输出 post, comb</text>
+    </g>
+    <path class="edge" d="M360,322 L390,322"/>
+
+    <g class="node dim" data-tip="input_layernorm（RMSNorm）&#10;对 collapse 后的单流 hidden_states 归一化&#10;rms_eps=1e-5&#10;来源：mdl-S:1316；cfg-S:124">
+      <rect x="390" y="300" width="150" height="44" rx="8"/>
+      <text class="s" x="465" y="326" text-anchor="middle">input_layernorm (RMSNorm)</text>
+    </g>
+    <path class="edge" d="M540,322 L570,322"/>
+
+    <g class="node core" data-tip="层号分流：idx % 4 == 3？&#10;layer_types 运行时决定（config 默认 None）&#10;idx%4==3 → indexed_attention（DSA，共 11 层）&#10;其余 → linear_attention（KDA，共 34 层）&#10;来源：cfg-S:164-169">
+      <rect x="570" y="285" width="130" height="74" rx="10"/>
+      <text class="t" x="635" y="312" text-anchor="middle">idx % 4 == 3 ?</text>
+      <text class="s" x="635" y="332" text-anchor="middle">层号分流</text>
+    </g>
+
+    <g class="node teal" data-tip="DSA 分支：indexed_attention&#10;Glm5NextTextAttention（MLA 主路径）&#10;q_a_proj 1536 → q_a_layernorm → q_b_proj；&#10;kv_a_proj_with_mqa → 512 → kv_b_proj expand_kv&#10;cache 写在压缩 latent（512）层&#10;按 indexer 给出的 topk=2048 做稀疏注意力&#10;返回 (out, attn_weights, topk_indices)&#10;来源：mdl-S:1127-1199, 1326-1335">
+      <rect x="760" y="130" width="320" height="116" rx="10"/>
+      <text class="t" x="920" y="156" text-anchor="middle">DSA 稀疏注意力 indexed_attention（11 层）</text>
+      <text class="m" x="920" y="178" text-anchor="middle">MLA：q_lora 1536 / kv_lora 512</text>
+      <text class="s" x="920" y="198" text-anchor="middle">KV cache 存压缩 latent（512 维）</text>
+      <text class="s" x="920" y="218" text-anchor="middle">按 indexer topk=2048 稀疏 attend（图 03）</text>
+      <text class="m" x="920" y="236" text-anchor="middle">return (out, w, topk) [mdl-S:1326-1335]</text>
+    </g>
+    <path class="edge teal" d="M700,300 C730,250 745,205 760,195"/>
+
+    <g class="node amber" data-tip="KDA 分支：linear_attention&#10;线性注意力（递归 + chunk 双路径）&#10;causal conv1d（kernel=4）+ forget gate&#10;+ 门控 RMSNorm（Glm5NextTextRMSNormGated）&#10;linear_head_dim=128 · linear_num_heads=64&#10;linear_lower_bound=-5.0&#10;来源：mdl-S:339,463,517,620,1318-1324；cfg-S:143-146">
+      <rect x="760" y="450" width="320" height="116" rx="10"/>
+      <text class="t" x="920" y="476" text-anchor="middle">KDA 线性注意力 linear_attention（34 层）</text>
+      <text class="m" x="920" y="498" text-anchor="middle">recurrent + chunk 双路径</text>
+      <text class="s" x="920" y="518" text-anchor="middle">causal conv1d k=4 · forget gate</text>
+      <text class="s" x="920" y="538" text-anchor="middle">linear_head_dim 128 × 64 头</text>
+      <text class="m" x="920" y="556" text-anchor="middle">门控 RMSNorm [mdl-S:1318-1324]</text>
+    </g>
+    <path class="edge amber" d="M700,340 C730,390 745,440 760,485"/>
+
+    <g class="node core" data-tip="4 流恢复 ①：hidden = post·out + combᵀ·residual&#10;把单流注意力输出按 mHC 系数扩展回 4 流并混合残差&#10;comb 为 Sinkhorn 归一化的 4×4 混合权重&#10;来源：mdl-S:1336-1338">
+      <rect x="1130" y="285" width="190" height="76" rx="10"/>
+      <text class="t" x="1225" y="312" text-anchor="middle">4 流恢复 ①</text>
+      <text class="m" x="1225" y="332" text-anchor="middle">hidden = post·out + combᵀ·res</text>
+      <text class="s" x="1225" y="349" text-anchor="middle">[mdl-S:1336-1338]</text>
+    </g>
+    <path class="edge teal" d="M1080,188 C1110,188 1120,260 1130,295"/>
+    <path class="edge amber" d="M1080,508 C1110,508 1120,380 1130,355"/>
+
+    <!-- 下行：FFN 半 -->
+    <path class="edge" d="M1225,361 C1225,480 275,470 275,605"/>
+    <text class="lg" x="700" y="490" text-anchor="middle">residual = hidden_states（mdl-S:1340）</text>
+
+    <g class="node dim" data-tip="ffn_hc（HyperConnection FFN 前处理）&#10;再次 4 流 collapse 成单流&#10;返回 (post, comb, hidden_states)&#10;来源：mdl-S:1341">
+      <rect x="190" y="605" width="170" height="70" rx="10"/>
+      <text class="t" x="275" y="631" text-anchor="middle">ffn_hc</text>
+      <text class="m" x="275" y="651" text-anchor="middle">4 流 → 单流 collapse</text>
+    </g>
+    <path class="edge" d="M360,640 L390,640"/>
+
+    <g class="node dim" data-tip="post_attention_layernorm（RMSNorm）&#10;FFN 前归一化&#10;来源：mdl-S:1343">
+      <rect x="390" y="618" width="170" height="44" rx="8"/>
+      <text class="s" x="475" y="644" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+    <path class="edge" d="M560,640 L590,640"/>
+
+    <g class="node" data-tip="MLP / MoE 子层（按层切换）&#10;前 3 层（idx 0-2）：dense MLP（intermediate 12288）&#10;后 42 层（idx 3-44）：MoE&#10;  · Router：sigmoid(logits)+bias → top-8（默认不分组）&#10;  · 288 路由专家（moe_inter 2048，SwiGLU clamp ±10）&#10;  · norm_topk_prob 归一 × routed_scaling 2.5&#10;  · shared_experts = MLP(inter 2048×1) 全 token 激活&#10;  · forward = experts(x) + shared_experts(residuals)&#10;来源：mdl-S:144-206；cfg-S:103,108-111,159-162">
+      <rect x="590" y="580" width="360" height="120" rx="10"/>
+      <text class="t" x="770" y="606" text-anchor="middle">MLP / MoE：前 3 dense · 后 42 MoE</text>
+      <text class="m" x="770" y="628" text-anchor="middle">Router：sigmoid → top-8（n_group=1）</text>
+      <text class="s" x="770" y="648" text-anchor="middle">288 路由专家（moe_inter 2048）+ 1 共享专家</text>
+      <text class="s" x="770" y="668" text-anchor="middle">norm_topk × 2.5 · experts(x) + shared(residuals)</text>
+      <text class="m" x="770" y="688" text-anchor="middle">aux_loss = 0.001 × load_balancing（mdl-S:2266-2275）</text>
+    </g>
+    <path class="edge" d="M950,640 L990,640"/>
+
+    <g class="node core" data-tip="4 流恢复 ②：hidden = post·out + combᵀ·residual&#10;与注意力侧同构的 mHC 恢复&#10;来源：mdl-S:1345-1347">
+      <rect x="990" y="605" width="170" height="70" rx="10"/>
+      <text class="t" x="1075" y="631" text-anchor="middle">4 流恢复 ②</text>
+      <text class="m" x="1075" y="651" text-anchor="middle">post·out + combᵀ·res</text>
+    </g>
+    <path class="edge" d="M1160,640 L1190,640"/>
+
+    <g class="node core" data-tip="层输出&#10;返回 hidden（4 流）+ topk_indices&#10;（DSA 层才有 topk；KDA 层为 None）&#10;来源：mdl-S:1349">
+      <rect x="1190" y="605" width="150" height="70" rx="12"/>
+      <text class="t" x="1265" y="631" text-anchor="middle">输出 hidden</text>
+      <text class="s" x="1265" y="651" text-anchor="middle">+ topk_indices</text>
+    </g>
+
+    <!-- 伪代码注记 -->
+    <g class="node dim" data-tip="forward 伪代码对照（mdl-S:1313-1349）&#10;residual=hidden_states; post,comb,hidden=attn_hc(...)&#10;x=input_layernorm(hidden)&#10;x=KDA 或 DSA(x)（按 idx%4 分流）&#10;hidden=post·x+combᵀ·residual&#10;residual=hidden; post,comb,hidden=ffn_hc(...)&#10;x=post_attn_layernorm(hidden)&#10;x=dense(前3层)/MoE(后42层)&#10;hidden=post·x+combᵀ·residual">
+      <rect x="20" y="100" width="330" height="120" rx="10"/>
+      <text class="t" x="185" y="126" text-anchor="middle">forward 对照（mdl-S:1313-1349）</text>
+      <text class="s" x="185" y="148" text-anchor="middle">输入输出均为 mHC 4 流 [B,S,4,4096]</text>
+      <text class="s" x="185" y="168" text-anchor="middle">非标准 pre-norm：两次 hc collapse + 两次恢复</text>
+      <text class="s" x="185" y="188" text-anchor="middle">Sinkhorn 归一化 comb 权重（20 迭代）</text>
+      <text class="m" x="185" y="208" text-anchor="middle">hc_mult=4 · hc_eps=1e-6</text>
+    </g>
+  </svg></body></html>

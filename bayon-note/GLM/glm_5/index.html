@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-5 家族架构详解 — GLM-5（744B-A40B DSA/MTP）· 5.2 · 5.3-Flash（glm5_next）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='22' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E5%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#ffffff; --ink:#23272f; --sub:#66707b; --line:#e5e4df;
+    --accent:#7c3aed; --accent-ink:#5b21b6; --accent-soft:#ede7fb; --accent-line:#d3c4f5;
+    --teal:#0f766e; --teal-soft:#d7efec; --teal-line:#9ad4cd;
+    --amber:#b45309; --amber-soft:#fdeccd; --amber-line:#f2cf8f;
+    --node:#fffdf9; --edge:#c9c4ba; --mono:#6d28d9;
+    --radius:12px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif; line-height:1.65; font-size:15px;}
+  .wrap{max-width:1220px; margin:0 auto; padding:0 16px;}
+  code,.num{font-family:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.92em;}
+  .num{color:var(--mono); background:var(--accent-soft); padding:0 4px; border-radius:4px; white-space:nowrap;}
+  a{color:var(--accent-ink);}
+  nav.top{position:sticky; top:0; z-index:50; background:rgba(250,249,246,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);}
+  nav.top .wrap{display:flex; align-items:center; gap:14px; padding-top:10px; padding-bottom:10px; overflow-x:auto; white-space:nowrap;}
+  nav.top .brand{display:flex; align-items:center; gap:8px; font-weight:700; color:var(--accent-ink);}
+  nav.top .brand svg{flex:none;}
+  nav.top a.link{color:var(--ink); text-decoration:none; font-size:.9rem; padding:6px 10px; border-radius:8px;}
+  nav.top a.link:hover{background:var(--accent-soft); color:var(--accent-ink);}
+  header.hero{padding:36px 0 8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .badge{font-size:.78rem; padding:3px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent-ink);}
+  .badge.teal{border-color:var(--teal-line); background:var(--teal-soft); color:var(--teal);}
+  .badge.amber{border-color:var(--amber-line); background:var(--amber-soft); color:var(--amber);}
+  h1{font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:.5px;}
+  .lead{color:var(--sub); max-width:1000px; margin-top:8px;}
+  .lead b{color:var(--ink);}
+  section{margin:36px 0;}
+  h2{font-size:1.35rem; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  h2 .secno{font-size:.85rem; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--accent-line); width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:none;}
+  h3{font-size:1.02rem; margin:12px 0 6px;}
+  .note{font-size:.85rem; color:var(--sub);}
+  .tip{font-size:.82rem; color:var(--sub); background:var(--accent-soft); border:1px dashed var(--accent-line); padding:8px 12px; border-radius:10px; margin-top:8px;}
+  .tip.teal{background:var(--teal-soft); border-color:var(--teal-line);}
+  .tip.amber{background:var(--amber-soft); border-color:var(--amber-line);}
+  .diagram-shell{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; overflow-x:auto; text-align:center;}
+  .diagram-shell svg{display:block; min-width:900px; width:100%; height:auto; margin:0 auto;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.cmp{width:100%; min-width:760px; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; table-layout:fixed;}
+  table.cmp th,table.cmp td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:.8rem; word-wrap:break-word;}
+  table.cmp thead th{background:var(--accent-soft); color:var(--accent-ink); font-weight:700; font-size:.84rem;}
+  table.cmp tbody tr:nth-child(even){background:#f6f2fd;}
+  table.cmp td.k{font-weight:600;}
+  table.cmp td small{color:var(--sub); display:block; margin-top:2px;}
+  .cards{display:grid; grid-template-columns:minmax(0,1fr); gap:14px;}
+  @media (min-width:820px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; min-width:0; overflow-wrap:anywhere;}
+  .card h3{display:flex; align-items:center; gap:8px; margin-top:0; font-size:.98rem;}
+  .card h3 .dot{width:10px; height:10px; border-radius:3px; background:var(--accent); flex:none;}
+  .card.teal h3 .dot{background:var(--teal);}
+  .card.amber h3 .dot{background:var(--amber);}
+  .card p{font-size:.88rem; margin-top:6px;}
+  .card .meta{margin-top:8px; font-size:.78rem; color:var(--sub);}
+  .formula{background:#1f2937; color:#e3d6fc; font-family:ui-monospace,Consolas,monospace; font-size:.82rem; padding:10px 14px; border-radius:8px; margin-top:8px; overflow-x:auto; white-space:pre; line-height:1.6; max-width:100%;}
+  ol.src{list-style:none; counter-reset:s; background:var(--panel); border-radius:var(--radius); border:1px solid var(--line); padding:16px 18px;}
+  ol.src li{counter-increment:s; padding:8px 0; border-bottom:1px dashed var(--line); font-size:.86rem;}
+  ol.src li:last-child{border-bottom:none;}
+  ol.src li::before{content:"[" counter(s) "] "; color:var(--accent-ink); font-weight:700; font-family:ui-monospace,Consolas,monospace;}
+  ol.src .u{display:block; color:var(--sub); word-break:break-all; font-size:.78rem;}
+  footer{margin:44px 0 24px; color:var(--sub); font-size:.8rem; text-align:center;}
+  #tip{position:fixed; z-index:99; display:none; max-width:380px; background:#23272f; color:#fff; padding:10px 12px; border-radius:10px; font-size:.82rem; line-height:1.5; white-space:pre-line; pointer-events:none; box-shadow:0 6px 20px rgba(0,0,0,.18);}
+  /* 内嵌 SVG 样式（与 _arch_html 源一致，保证同图同色） */
+  .dg{font-family:system-ui,"Microsoft YaHei",sans-serif;}
+  .dg .node rect{fill:#fffdf9; stroke:var(--edge); stroke-width:1.3;}
+  .dg .node.dim rect{fill:var(--accent-soft); stroke:var(--accent-line);}
+  .dg .node.core rect{fill:#f3ecfd; stroke:var(--accent); stroke-width:1.7;}
+  .dg .node.teal rect{fill:var(--teal-soft); stroke:var(--teal-line);}
+  .dg .node.amber rect{fill:var(--amber-soft); stroke:var(--amber-line);}
+  .dg .node text{font-size:12.5px; fill:var(--ink);}
+  .dg .node text.t{font-weight:700; font-size:13px;}
+  .dg .node text.s{fill:var(--sub); font-size:11px;}
+  .dg .node text.m{fill:var(--mono); font-family:ui-monospace,Consolas,monospace; font-size:10.8px;}
+  .dg .edge{stroke:var(--edge); stroke-width:1.6; fill:none; marker-end:url(#arr);}
+  .dg .edge.dash{stroke-dasharray:5 4;}
+  .dg .edge.teal{stroke:var(--teal); marker-end:url(#arrT);}
+  .dg .edge.amber{stroke:var(--amber); marker-end:url(#arrA);}
+  .dg text.lg{font-size:11px; fill:var(--sub);}
+  .dg text.lgt{font-size:11px; fill:var(--teal); font-weight:600;}
+  .dg text.lga{font-size:11px; fill:var(--amber); font-weight:600;}
+  @media print{
+    nav.top{display:none;}
+    body{background:#fff; font-size:12px;}
+    .diagram-shell{overflow:visible; border:none; padding:0;}
+    .diagram-shell svg{min-width:0;}
+    section{page-break-inside:avoid;}
+    .cards{display:block;}
+    .card{margin-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5" fill="#7c3aed"/><text x="12" y="16" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">5</text></svg>GLM-5</div>
+  <a class="link" href="#family">家族全景</a>
+  <a class="link" href="#overview">数据流</a>
+  <a class="link" href="#layer">解码层</a>
+  <a class="link" href="#mech">核心机制</a>
+  <a class="link" href="#train">RL 训练</a>
+  <a class="link" href="#tokens">Token</a>
+  <a class="link" href="#evo">演进</a>
+  <a class="link" href="#sources">来源</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <h1>GLM-5 家族架构详解 — GLM-5（744B-A40B DSA/MTP）· 5.2 · 5.3-Flash（glm5_next）</h1>
+  <div class="badges">
+    <span class="badge">GLM-5.3-Flash 落地：Glm5NextForConditionalGeneration（model_type=glm5_next）</span>
+    <span class="badge">GLM-5 本体：744B/40B · 256 专家 top-8 · 78 层 · 202,752 · MLA+DSA+MTP</span>
+    <span class="badge amber">官网口径 745B/44B/5.9% sparsity（glm5.ai，差异口径）</span>
+    <span class="badge teal">GLM-5.2：1M · IndexShare（FLOPs↓2.9×）· MTP +20%</span>
+    <span class="badge">5.3-Flash：320B/18B · 45 层 · 288 专家 · KDA×34+DSA×11 · mHC · 原生多模态</span>
+  </div>
+  <p class="lead">本页以 <b>GLM-5 技术报告（arXiv:2602.15763）+ glm5.ai + docs.bigmodel.cn + z.ai/blog/glm-5.2 + NVIDIA NIM + 本地 transformers 源码 <span class="num">models\glm5_next\</span></b> 为唯一数据源。<b>口径声明</b>：本地无 GLM-5 checkpoint/config 留档，GLM-5 本体规格以技术报告/官方文档/官网为准；<b>glm5_next 源码 = GLM-5.x 家族在 transformers 的落地实现（对应 GLM-5.3-Flash 架构），不是 GLM-5 本体的实现</b>；本地无法核实处标注「待核实，以官方发布为准」。</p>
+</header>
+
+<!-- 1 家族全景 -->
+<section id="family">
+  <h2><span class="secno">1</span>家族全景：GLM-4.5 / GLM-5 / GLM-5.2 / GLM-5.3-Flash 规格对照</h2>
+  <p class="note">GLM-5（2026-02-12）相对 GLM-4.5（355B/32B）总参翻倍；GLM-5.2（2026-06-16）扩到 1M；GLM-5.3-Flash（2026-08-25/26）是系列首个原生多模态模型。</p>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:17%"><col style="width:21%"><col style="width:24%"><col style="width:19%"><col style="width:19%"></colgroup>
+    <thead><tr><th>字段</th><th>GLM-4.5</th><th>GLM-5（主口径）</th><th>GLM-5.2</th><th>GLM-5.3-Flash（glm5_next）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">总参 / 激活</td><td>≈355B / 32B</td><td><b>744B / 40B</b></td><td>744B / 40B（沿用）</td><td><b>320B / 18B</b></td></tr>
+      <tr><td class="k">hidden_size</td><td>5120</td><td><b>6144</b></td><td>—（未公开）</td><td>4096 [cfg-S:101]</td></tr>
+      <tr><td class="k">层数</td><td>92</td><td><b>78</b>（3 dense+75 MoE）</td><td>—（未公开）</td><td>45（3 dense+42 MoE）</td></tr>
+      <tr><td class="k">路由专家 / top-k</td><td>160 + 1 共享 / 8</td><td><b>256 + 1</b> / 8</td><td>— / 8</td><td><b>288 + 1</b> / 8</td></tr>
+      <tr><td class="k">注意力</td><td>GQA 96/8 + QK-Norm</td><td><b>MLA 基座 + DSA</b>（Q LoRA 2048 / KV LoRA 512）</td><td>MLA+DSA（IndexShare）</td><td><b>KDA×34 + DSA×11</b>（idx%4==3），q_lora 1536 / kv_lora 512</td></tr>
+      <tr><td class="k">残差 / 归一化</td><td>2×RMSNorm 前置</td><td>—（未公开逐字段）</td><td>—</td><td><b>mHC 4 流残差</b>（HyperConnection）</td></tr>
+      <tr><td class="k">上下文</td><td>131072</td><td><b>202,752</b>（官网口径 202,000）</td><td><b>1,048,576（1M）</b></td><td>1,048,576（1M）</td></tr>
+      <tr><td class="k">MTP</td><td>num_nextn=1</td><td>训练共享 3 层 / 部署 1 层（接受 2.76）</td><td>接受长度 <b>+20%</b>（4.56→5.47）</td><td>1 层（transformers 未实现，mdl-S:1379）</td></tr>
+      <tr><td class="k">词表</td><td>151552</td><td><b>154880</b></td><td>—（未公开）</td><td>154880 [cfg-S:100]</td></tr>
+      <tr><td class="k">多模态</td><td>纯文本（4.5V 另立）</td><td>文本/Agentic（报告无多模态章节）</td><td>纯文本</td><td><b>原生多模态（系列首个）</b></td></tr>
+      <tr><td class="k">开源</td><td>MIT</td><td>MIT（zai-org/GLM-5 + FP8）</td><td>MIT（zai-org/GLM-5.2 + FP8）</td><td>MIT（zai-org/GLM-5.3-Flash）</td></tr>
+      <tr><td class="k">发布</td><td>2025-07</td><td>2026-02-12（API）</td><td>2026-06-16</td><td>2026-08-25/26</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>1.2 口径差异说明（随主口径一并阅读）</h3>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:18%"><col style="width:41%"><col style="width:41%"></colgroup>
+    <thead><tr><th>项</th><th>主口径（本文采用）</th><th>差异口径（仅引述）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">总参</td><td><b>744B</b>（报告 Table 10 / docs.bigmodel.cn / 智谱研究页）</td><td>745B（glm5.ai）；753.86B（ModelScope 标签，口径不明，待核实）</td></tr>
+      <tr><td class="k">激活参数</td><td><b>40B</b></td><td>44B（glm5.ai）</td></tr>
+      <tr><td class="k">层数</td><td><b>78</b>（Table 10：3 dense+75 MoE；glm5.ai 同）</td><td>80（报告 §2.1 文字 + 智谱研究页文字）</td></tr>
+      <tr><td class="k">上下文</td><td><b>202,752</b>（报告 SFT 最大）</td><td>202,000（glm5.ai）；200K（文档约数）</td></tr>
+      <tr><td class="k">稀疏度</td><td>报告无此数字（仅 k=2048、算力降 1.5–2×）</td><td><b>5.9%</b>（glm5.ai 原文，营销口径）</td></tr>
+      <tr><td class="k">多模态</td><td>报告无多模态章节；文本 API 输入=文本</td><td>「统一处理图像/文档/文本」（glm5.ai 营销表述）</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- 2 数据流 -->
+<section id="overview">
+  <h2><span class="secno">2</span>端到端数据流总览</h2>
+  <p class="note">文本 token + 图像/视频 → vision encoder（Glm5NextVisionModel：24 层/1024/patch14·336/merge2/out1536，≈144 token/图）→ soft 特征按 image_token(154854)/video_token(154855) masked_scatter 进序列 → 文本解码栈 → HyperHead 4 流均值 → RMSNorm → LM Head；另有 MTP 头。多模态细节全部来自 glm5_next（=5.3-Flash 落地实现）；GLM-5 本体以文本/Agentic 为主线。</p>
+  <div class="diagram-shell"><svg viewBox="0 0 1340 820" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker>
+      <marker id="arrT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+
+    <!-- 顶部口径横幅 -->
+    <text x="20" y="34" font-size="13" font-weight="700" fill="#5b21b6">GLM-5 家族端到端数据流（多模态路径以本地 glm5_next 源码 = GLM-5.3-Flash 落地实现为准）</text>
+    <text x="20" y="56" class="lg">上下文：GLM-5 = 202,752 tokens（glm5.ai 口径 202,000）；GLM-5.2 / GLM-5.3-Flash = 1,048,576（1M）· 词表 154880</text>
+
+    <!-- 左列三路输入 -->
+    <g class="node teal" data-tip="图像输入 pixel_values&#10;336×336 归一化图像&#10;送入 Glm5NextVisionModel&#10;来源：cfg-S:243（image_size 336 / patch 14）">
+      <rect x="20" y="110" width="128" height="58" rx="10"/>
+      <text class="t" x="84" y="134" text-anchor="middle">图像像素</text>
+      <text class="s" x="84" y="152" text-anchor="middle">pixel_values</text>
+    </g>
+    <g class="node teal" data-tip="视频输入 pixel_values（视频帧序列）&#10;temporal_patch_size=2 时间维打包&#10;送入同一视觉塔&#10;来源：cfg-S:243（temporal_patch_size 2）">
+      <rect x="20" y="200" width="128" height="58" rx="10"/>
+      <text class="t" x="84" y="224" text-anchor="middle">视频帧序列</text>
+      <text class="s" x="84" y="242" text-anchor="middle">pixel_values</text>
+    </g>
+    <g class="node core" data-tip="文本输入 input_ids&#10;序列中含 image_token(154854)/video_token(154855) 占位位&#10;先经 embed_tokens 查表得基础嵌入&#10;来源：cfg-S:299-304；mdl-S:2145">
+      <rect x="20" y="430" width="128" height="60" rx="12"/>
+      <text class="t" x="84" y="456" text-anchor="middle">文本 token</text>
+      <text class="s" x="84" y="474" text-anchor="middle">input_ids</text>
+    </g>
+    <path class="edge teal" d="M148,139 L200,150"/>
+    <path class="edge teal" d="M148,229 L200,215"/>
+
+    <!-- 视觉塔 -->
+    <g class="node teal" data-tip="Glm5NextVisionModel（视觉编码器）&#10;Conv3d patch embed：patch 14×14 / image 336 / temporal 2&#10;24 层 · hidden 1024 · 16 头 · axial 2D RoPE&#10;spatial_merge_size=2 → out_proj 1024→1536&#10;约 (336/14)²/2² ≈ 144 个视觉 soft token/图&#10;来源：cfg-S:241-243；mdl-S:1725-1799">
+      <rect x="200" y="90" width="270" height="180" rx="12"/>
+      <text class="t" x="335" y="116" text-anchor="middle">Glm5NextVisionModel</text>
+      <text class="m" x="335" y="140" text-anchor="middle">Conv3d patch embed · patch 14 / 336px</text>
+      <text class="m" x="335" y="160" text-anchor="middle">24 层 · hidden 1024 · 16 头</text>
+      <text class="s" x="335" y="182" text-anchor="middle">spatial_merge 2 · temporal_patch 2</text>
+      <text class="s" x="335" y="202" text-anchor="middle">out_proj 1024 → 1536</text>
+      <text class="s" x="335" y="222" text-anchor="middle">≈144 个视觉 soft token / 图</text>
+      <text class="s" x="335" y="246" text-anchor="middle">axial 2D RoPE（视觉侧）</text>
+    </g>
+
+    <!-- 文本嵌入 -->
+    <g class="node dim" data-tip="输入嵌入 embed_tokens&#10;Embedding(154880, 4096)&#10;tie_word_embeddings=False（不绑定 LM Head）&#10;来源：cfg-S:100-101,130">
+      <rect x="560" y="430" width="150" height="80" rx="12"/>
+      <text class="t" x="635" y="458" text-anchor="middle">Embedding</text>
+      <text class="m" x="635" y="478" text-anchor="middle">154880 × 4096</text>
+      <text class="s" x="635" y="496" text-anchor="middle">tie = False</text>
+    </g>
+    <path class="edge" d="M148,460 C340,460 460,465 560,468"/>
+    <text class="lg" x="300" y="448" text-anchor="start">input_ids → embed_tokens</text>
+
+    <!-- 序列融合 -->
+    <g class="node dim" data-tip="序列融合（masked_scatter）&#10;视觉/视频 soft 特征（1536→4096 投影后）&#10;按占位 token 位覆盖基础词表嵌入：&#10;image_token_id=154854 · video_token_id=154855&#10;image/video start-end = 154830-154833&#10;合并为统一 [B,T,4096] 进文本主干&#10;来源：cfg-S:290,299-304；mdl-S:1888-1891">
+      <rect x="760" y="420" width="140" height="100" rx="12"/>
+      <text class="t" x="830" y="448" text-anchor="middle">序列融合</text>
+      <text class="s" x="830" y="468" text-anchor="middle">masked_scatter</text>
+      <text class="m" x="830" y="488" text-anchor="middle">img 154854 / vid 154855</text>
+      <text class="s" x="830" y="508" text-anchor="middle">统一 [B,T,4096]</text>
+    </g>
+    <path class="edge teal" d="M470,200 C560,200 640,380 760,445"/>
+    <path class="edge" d="M710,470 L760,470"/>
+
+    <!-- 文本主干解码栈 -->
+    <g class="node core" data-tip="Glm5NextTextModel 解码层 × 45&#10;= GLM-5.3-Flash 架构的 transformers 落地实现&#10;（注意：不是 GLM-5 本体）&#10;hidden 4096 · mHC 4 流残差贯穿 · 文本 NoPE&#10;每层双注意力分支按 idx 分流，详见图 02&#10;来源：cfg-S:101,105,147,164-169">
+      <rect x="960" y="110" width="350" height="560" rx="14"/>
+      <text class="t" x="1135" y="138" text-anchor="middle">Glm5NextTextModel 解码层 × 45</text>
+      <text class="s" x="1135" y="158" text-anchor="middle">= GLM-5.3-Flash 落地实现（glm5_next 源码）</text>
+
+      <g class="node dim" data-tip="注意力双分支（运行时按 idx%4 分流）&#10;idx%4==3 → DSA 稀疏注意力（11 层）&#10;idx%4!=3 → KDA 线性注意力（34 层）&#10;MLA 压缩 KV：q_lora_rank 1536 / kv_lora_rank 512&#10;qk_rope_head_dim=0：文本侧 NoPE&#10;来源：cfg-S:112-116,164-169；mdl-S:1318-1335">
+        <rect x="980" y="180" width="310" height="150" rx="10"/>
+        <text class="t" x="1135" y="206" text-anchor="middle">注意力双分支</text>
+        <rect x="996" y="222" width="9" height="13" rx="2" fill="#d7efec" stroke="#0f766e"/>
+        <text class="lgt" x="1012" y="233" text-anchor="start">idx%4==3 → DSA 稀疏注意力 ×11</text>
+        <rect x="996" y="244" width="9" height="13" rx="2" fill="#fdeccd" stroke="#b45309"/>
+        <text class="lga" x="1012" y="255" text-anchor="start">idx%4!=3 → KDA 线性注意力 ×34</text>
+        <text class="m" x="1135" y="282" text-anchor="middle">MLA：q_lora 1536 · kv_lora 512</text>
+        <text class="s" x="1135" y="302" text-anchor="middle">文本 NoPE（qk_rope_head_dim=0）</text>
+        <text class="s" x="1135" y="320" text-anchor="middle">mHC 4 流残差贯穿（HyperConnection）</text>
+      </g>
+
+      <g class="node dim" data-tip="FFN 子层：前 3 层 dense / 后 42 层 MoE&#10;mlp_layer_types 默认 [dense]×3 + [sparse]×42&#10;MoE：288 路由专家 top-8 + 1 共享专家&#10;moe_intermediate=2048 · sigmoid 路由 ×2.5&#10;来源：cfg-S:103,109,119,159-162；mdl-S:144-206">
+        <rect x="980" y="350" width="310" height="110" rx="10"/>
+        <text class="t" x="1135" y="376" text-anchor="middle">FFN 子层</text>
+        <text class="s" x="1135" y="398" text-anchor="middle">前 3 层 dense MLP</text>
+        <text class="s" x="1135" y="418" text-anchor="middle">后 42 层 MoE：288 路由专家 top-8</text>
+        <text class="m" x="1135" y="438" text-anchor="middle">+1 共享专家 · norm_topk · ×2.5</text>
+      </g>
+
+      <g class="node amber" data-tip="GLM-5 本体对照（技术报告 arXiv:2602.15763）&#10;GLM-5 以文本 / Agentic 为主线，报告无多模态章节&#10;744B/40B · 78 层（3 dense+75 MoE）· hidden 6144&#10;256 专家 top-8 + 1 共享 · MLA 基座（Q LoRA 2048 / KV LoRA 512）&#10;DSA 稀疏注意力（k=2048）+ MTP；202,752 上下文&#10;官网营销口径 745B/44B/5.9% sparsity 为差异口径">
+        <rect x="980" y="480" width="310" height="170" rx="10"/>
+        <text class="t" x="1135" y="506" text-anchor="middle">GLM-5 本体对照（技术报告）</text>
+        <text class="s" x="1135" y="528" text-anchor="middle">744B/40B · 78 层 · hidden 6144</text>
+        <text class="s" x="1135" y="548" text-anchor="middle">256 专家 top-8 + 1 共享</text>
+        <text class="s" x="1135" y="568" text-anchor="middle">MLA base：Q LoRA 2048 / KV LoRA 512</text>
+        <text class="s" x="1135" y="588" text-anchor="middle">DSA（k=2048）+ MTP · 202,752</text>
+        <text class="s" x="1135" y="612" text-anchor="middle">报告无多模态章节；文本 API 输入=文本</text>
+        <text class="s" x="1135" y="632" text-anchor="middle">「统一处理图像/文档/文本」为官网营销口径</text>
+      </g>
+    </g>
+    <path class="edge" d="M900,470 L960,470"/>
+
+    <!-- 输出 -->
+    <g class="node dim" data-tip="HyperHead 4 流求均值 → 最终 RMSNorm&#10;Glm5NextTextHyperHead：mHC 4 流 mean 折叠&#10;在最终 norm 前调用（mdl-S:1510, 332-336）&#10;来源：mdl-S:218-336">
+      <rect x="960" y="710" width="180" height="60" rx="12"/>
+      <text class="t" x="1050" y="736" text-anchor="middle">HyperHead → RMSNorm</text>
+      <text class="s" x="1050" y="756" text-anchor="middle">4 流 mean 折叠</text>
+    </g>
+    <path class="edge" d="M1135,670 L1135,710"/>
+    <g class="node dim" data-tip="LM Head（主输出，无文本专用 ForCausalLM 类）&#10;4096 → 154880 logits&#10;来源：mdl-S:2150,2258">
+      <rect x="1180" y="710" width="90" height="60" rx="12"/>
+      <text class="t" x="1225" y="736" text-anchor="middle">LM Head</text>
+      <text class="m" x="1225" y="756" text-anchor="middle">→154880</text>
+    </g>
+    <path class="edge" d="M1140,740 L1180,740"/>
+    <text class="lg" x="1180" y="792">下一 token 分布</text>
+
+    <!-- MTP 说明 -->
+    <g class="node amber" data-tip="MTP（多 token 预测）&#10;技术报告：训练参数共享 3 个 MTP 层 / 部署 1 层&#10;接受长度 2.76 vs DeepSeek-V3.2 的 2.55&#10;⚠ transformers glm5_next 模块未实现 MTP：&#10;_keys_to_ignore_on_load_unexpected 显式忽略&#10;layers.45.* 与 layers.*.shared_head.* 权重（mdl-S:1379）&#10;checkpoint 中 MTP 权重被跳过，主输出仅 lm_head">
+      <rect x="20" y="640" width="880" height="130" rx="12"/>
+      <text class="t" x="460" y="668" text-anchor="middle">MTP（多 token 预测）——训练侧 3 层共享 / 部署 1 层</text>
+      <text class="s" x="460" y="692" text-anchor="middle">接受长度 2.76 vs DeepSeek-V3.2 的 2.55（同 4 步投机）；GLM-5.2 进一步 +20%（消融 4.56 → 5.47）</text>
+      <text class="m" x="460" y="716" text-anchor="middle">⚠ transformers 未实现 MTP：mdl-S:1379 显式忽略 layers.45. / shared_head 权重，主输出仅 lm_head（mdl-S:2150,2258）</text>
+      <text class="s" x="460" y="740" text-anchor="middle">Glm5NextForConditionalGeneration 为唯一多模态入口（mdl-S:2135），无文本专用 ForCausalLM 类</text>
+    </g>
+  </svg></div>
+</section>
+
+<!-- 3 解码层 -->
+<section id="layer">
+  <h2><span class="secno">3</span>解码层解剖：以 glm5_next 源码为准（GLM-5.3-Flash 架构落地实现）</h2>
+  <p class="note"><b>本节解剖对象 = GLM-5.x 家族在 transformers 的落地实现（对应 GLM-5.3-Flash 架构），不是 GLM-5 本体。</b><span class="num">Glm5NextTextDecoderLayer</span>（mdl-S:1279-1349）用 <b>mHC 4 流残差</b>：attn/ffn 两侧各做「4 流 collapse → 子层 → post·out + combᵀ·residual 恢复」；注意力按 idx 分流（%4==3 → DSA，其余 → KDA）；FFN 前 3 层 dense、后 42 层 MoE。</p>
+  <div class="diagram-shell"><svg viewBox="0 0 1420 740" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker>
+      <marker id="arrT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+
+    <text x="20" y="34" font-size="13" font-weight="700" fill="#5b21b6">Glm5NextTextDecoderLayer 解剖（mdl-S:1279-1349）= GLM-5.3-Flash 落地实现 · mHC 4 流残差（非标准 pre-norm）</text>
+
+    <!-- 上行：注意力半 -->
+    <g class="node core" data-tip="输入 residual&#10;多流张量 [B,S,hc_mult=4,D]（D=4096）&#10;mHC HyperConnection 贯穿层内全部子层&#10;来源：mdl-S:1313；cfg-S:147（hc_mult=4）">
+      <rect x="20" y="290" width="140" height="64" rx="12"/>
+      <text class="t" x="90" y="316" text-anchor="middle">输入 residual</text>
+      <text class="m" x="90" y="336" text-anchor="middle">[B,S,4,4096]</text>
+    </g>
+    <path class="edge" d="M160,322 L190,322"/>
+
+    <g class="node dim" data-tip="attn_hc（HyperConnection 注意力前处理）&#10;把 mHC 4 流 collapse 成单流主链&#10;返回 (post, comb, hidden_states)：&#10;post=输出门控系数，comb=残差混合系数（Sinkhorn 归一化）&#10;来源：mdl-S:1314；cfg-S:147-149（hc_mult 4 / eps 1e-6 / sinkhorn 20）">
+      <rect x="190" y="280" width="170" height="84" rx="10"/>
+      <text class="t" x="275" y="306" text-anchor="middle">attn_hc</text>
+      <text class="m" x="275" y="326" text-anchor="middle">4 流 → 单流 collapse</text>
+      <text class="s" x="275" y="346" text-anchor="middle">输出 post, comb</text>
+    </g>
+    <path class="edge" d="M360,322 L390,322"/>
+
+    <g class="node dim" data-tip="input_layernorm（RMSNorm）&#10;对 collapse 后的单流 hidden_states 归一化&#10;rms_eps=1e-5&#10;来源：mdl-S:1316；cfg-S:124">
+      <rect x="390" y="300" width="150" height="44" rx="8"/>
+      <text class="s" x="465" y="326" text-anchor="middle">input_layernorm (RMSNorm)</text>
+    </g>
+    <path class="edge" d="M540,322 L570,322"/>
+
+    <g class="node core" data-tip="层号分流：idx % 4 == 3？&#10;layer_types 运行时决定（config 默认 None）&#10;idx%4==3 → indexed_attention（DSA，共 11 层）&#10;其余 → linear_attention（KDA，共 34 层）&#10;来源：cfg-S:164-169">
+      <rect x="570" y="285" width="130" height="74" rx="10"/>
+      <text class="t" x="635" y="312" text-anchor="middle">idx % 4 == 3 ?</text>
+      <text class="s" x="635" y="332" text-anchor="middle">层号分流</text>
+    </g>
+
+    <g class="node teal" data-tip="DSA 分支：indexed_attention&#10;Glm5NextTextAttention（MLA 主路径）&#10;q_a_proj 1536 → q_a_layernorm → q_b_proj；&#10;kv_a_proj_with_mqa → 512 → kv_b_proj expand_kv&#10;cache 写在压缩 latent（512）层&#10;按 indexer 给出的 topk=2048 做稀疏注意力&#10;返回 (out, attn_weights, topk_indices)&#10;来源：mdl-S:1127-1199, 1326-1335">
+      <rect x="760" y="130" width="320" height="116" rx="10"/>
+      <text class="t" x="920" y="156" text-anchor="middle">DSA 稀疏注意力 indexed_attention（11 层）</text>
+      <text class="m" x="920" y="178" text-anchor="middle">MLA：q_lora 1536 / kv_lora 512</text>
+      <text class="s" x="920" y="198" text-anchor="middle">KV cache 存压缩 latent（512 维）</text>
+      <text class="s" x="920" y="218" text-anchor="middle">按 indexer topk=2048 稀疏 attend（图 03）</text>
+      <text class="m" x="920" y="236" text-anchor="middle">return (out, w, topk) [mdl-S:1326-1335]</text>
+    </g>
+    <path class="edge teal" d="M700,300 C730,250 745,205 760,195"/>
+
+    <g class="node amber" data-tip="KDA 分支：linear_attention&#10;线性注意力（递归 + chunk 双路径）&#10;causal conv1d（kernel=4）+ forget gate&#10;+ 门控 RMSNorm（Glm5NextTextRMSNormGated）&#10;linear_head_dim=128 · linear_num_heads=64&#10;linear_lower_bound=-5.0&#10;来源：mdl-S:339,463,517,620,1318-1324；cfg-S:143-146">
+      <rect x="760" y="450" width="320" height="116" rx="10"/>
+      <text class="t" x="920" y="476" text-anchor="middle">KDA 线性注意力 linear_attention（34 层）</text>
+      <text class="m" x="920" y="498" text-anchor="middle">recurrent + chunk 双路径</text>
+      <text class="s" x="920" y="518" text-anchor="middle">causal conv1d k=4 · forget gate</text>
+      <text class="s" x="920" y="538" text-anchor="middle">linear_head_dim 128 × 64 头</text>
+      <text class="m" x="920" y="556" text-anchor="middle">门控 RMSNorm [mdl-S:1318-1324]</text>
+    </g>
+    <path class="edge amber" d="M700,340 C730,390 745,440 760,485"/>
+
+    <g class="node core" data-tip="4 流恢复 ①：hidden = post·out + combᵀ·residual&#10;把单流注意力输出按 mHC 系数扩展回 4 流并混合残差&#10;comb 为 Sinkhorn 归一化的 4×4 混合权重&#10;来源：mdl-S:1336-1338">
+      <rect x="1130" y="285" width="190" height="76" rx="10"/>
+      <text class="t" x="1225" y="312" text-anchor="middle">4 流恢复 ①</text>
+      <text class="m" x="1225" y="332" text-anchor="middle">hidden = post·out + combᵀ·res</text>
+      <text class="s" x="1225" y="349" text-anchor="middle">[mdl-S:1336-1338]</text>
+    </g>
+    <path class="edge teal" d="M1080,188 C1110,188 1120,260 1130,295"/>
+    <path class="edge amber" d="M1080,508 C1110,508 1120,380 1130,355"/>
+
+    <!-- 下行：FFN 半 -->
+    <path class="edge" d="M1225,361 C1225,480 275,470 275,605"/>
+    <text class="lg" x="700" y="490" text-anchor="middle">residual = hidden_states（mdl-S:1340）</text>
+
+    <g class="node dim" data-tip="ffn_hc（HyperConnection FFN 前处理）&#10;再次 4 流 collapse 成单流&#10;返回 (post, comb, hidden_states)&#10;来源：mdl-S:1341">
+      <rect x="190" y="605" width="170" height="70" rx="10"/>
+      <text class="t" x="275" y="631" text-anchor="middle">ffn_hc</text>
+      <text class="m" x="275" y="651" text-anchor="middle">4 流 → 单流 collapse</text>
+    </g>
+    <path class="edge" d="M360,640 L390,640"/>
+
+    <g class="node dim" data-tip="post_attention_layernorm（RMSNorm）&#10;FFN 前归一化&#10;来源：mdl-S:1343">
+      <rect x="390" y="618" width="170" height="44" rx="8"/>
+      <text class="s" x="475" y="644" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+    <path class="edge" d="M560,640 L590,640"/>
+
+    <g class="node" data-tip="MLP / MoE 子层（按层切换）&#10;前 3 层（idx 0-2）：dense MLP（intermediate 12288）&#10;后 42 层（idx 3-44）：MoE&#10;  · Router：sigmoid(logits)+bias → top-8（默认不分组）&#10;  · 288 路由专家（moe_inter 2048，SwiGLU clamp ±10）&#10;  · norm_topk_prob 归一 × routed_scaling 2.5&#10;  · shared_experts = MLP(inter 2048×1) 全 token 激活&#10;  · forward = experts(x) + shared_experts(residuals)&#10;来源：mdl-S:144-206；cfg-S:103,108-111,159-162">
+      <rect x="590" y="580" width="360" height="120" rx="10"/>
+      <text class="t" x="770" y="606" text-anchor="middle">MLP / MoE：前 3 dense · 后 42 MoE</text>
+      <text class="m" x="770" y="628" text-anchor="middle">Router：sigmoid → top-8（n_group=1）</text>
+      <text class="s" x="770" y="648" text-anchor="middle">288 路由专家（moe_inter 2048）+ 1 共享专家</text>
+      <text class="s" x="770" y="668" text-anchor="middle">norm_topk × 2.5 · experts(x) + shared(residuals)</text>
+      <text class="m" x="770" y="688" text-anchor="middle">aux_loss = 0.001 × load_balancing（mdl-S:2266-2275）</text>
+    </g>
+    <path class="edge" d="M950,640 L990,640"/>
+
+    <g class="node core" data-tip="4 流恢复 ②：hidden = post·out + combᵀ·residual&#10;与注意力侧同构的 mHC 恢复&#10;来源：mdl-S:1345-1347">
+      <rect x="990" y="605" width="170" height="70" rx="10"/>
+      <text class="t" x="1075" y="631" text-anchor="middle">4 流恢复 ②</text>
+      <text class="m" x="1075" y="651" text-anchor="middle">post·out + combᵀ·res</text>
+    </g>
+    <path class="edge" d="M1160,640 L1190,640"/>
+
+    <g class="node core" data-tip="层输出&#10;返回 hidden（4 流）+ topk_indices&#10;（DSA 层才有 topk；KDA 层为 None）&#10;来源：mdl-S:1349">
+      <rect x="1190" y="605" width="150" height="70" rx="12"/>
+      <text class="t" x="1265" y="631" text-anchor="middle">输出 hidden</text>
+      <text class="s" x="1265" y="651" text-anchor="middle">+ topk_indices</text>
+    </g>
+
+    <!-- 伪代码注记 -->
+    <g class="node dim" data-tip="forward 伪代码对照（mdl-S:1313-1349）&#10;residual=hidden_states; post,comb,hidden=attn_hc(...)&#10;x=input_layernorm(hidden)&#10;x=KDA 或 DSA(x)（按 idx%4 分流）&#10;hidden=post·x+combᵀ·residual&#10;residual=hidden; post,comb,hidden=ffn_hc(...)&#10;x=post_attn_layernorm(hidden)&#10;x=dense(前3层)/MoE(后42层)&#10;hidden=post·x+combᵀ·residual">
+      <rect x="20" y="100" width="330" height="120" rx="10"/>
+      <text class="t" x="185" y="126" text-anchor="middle">forward 对照（mdl-S:1313-1349）</text>
+      <text class="s" x="185" y="148" text-anchor="middle">输入输出均为 mHC 4 流 [B,S,4,4096]</text>
+      <text class="s" x="185" y="168" text-anchor="middle">非标准 pre-norm：两次 hc collapse + 两次恢复</text>
+      <text class="s" x="185" y="188" text-anchor="middle">Sinkhorn 归一化 comb 权重（20 迭代）</text>
+      <text class="m" x="185" y="208" text-anchor="middle">hc_mult=4 · hc_eps=1e-6</text>
+    </g>
+  </svg></div>
+  <div class="formula">Glm5NextTextDecoderLayer.forward（mdl-S:1313-1349）:
+residual = hidden_states                  # mHC 4 流 [B,S,4,4096] [S:1313]
+post, comb, hidden = attn_hc(...)         # 4 流→单流 collapse [S:1314]
+hidden = input_layernorm(hidden)          # RMSNorm [S:1316]
+if idx % 4 == 3:  out,w,topk = indexed_attention(...)   # DSA [S:1326-1335]
+else:             out = linear_attention(...)         # KDA [S:1318-1324]
+hidden = post*out + combᵀ @ residual      # 恢复 4 流 [S:1336-1338]
+residual = hidden_states
+post, comb, hidden = ffn_hc(...)          # 再次 collapse [S:1341]
+hidden = post_attention_layernorm(hidden) # [S:1343]
+out = mlp(hidden)                         # dense(前3层)/MoE(后42层) [S:1344]
+hidden = post*out + combᵀ @ residual      # [S:1345-1347]
+return hidden, topk_indices               # [S:1349]</div>
+</section>
+
+<!-- 4 核心机制 -->
+<section id="mech">
+  <h2><span class="secno">4</span>核心机制专节：DSA · MTP · MoE 路由 · MLA/mHC</h2>
+  <div class="cards">
+    <div class="card teal">
+      <h3><span class="dot"></span>① DSA 稀疏注意力</h3>
+      <p>GLM-5 从稠密 base 两阶段 continued pre-training（dense warm-up + sparse adaptation，20B@200K）适配 DSA：<b>内容相关 top-k</b>，indexer 检索 <b>k=2048</b>（32 头×128）；长序列算力降 <b>1.5–2×</b>，报告称 90% 长上下文注意力冗余。本地落地为 pool=16 的 block 级稀疏（ReLU 打分 → top-128 池 → 2048 token → 3D mask → SDPA，不支持 FA）。</p>
+      <p><b>跨层共享 indexer</b>（shared 层 indexer=None 复用前层 top-k，mdl-S:1150-1154）= GLM-5.2 <b>IndexShare</b> 的代码对应（每 4 层共享，1M FLOPs ↓2.9×）。昇腾侧：Lightning Indexer / Sparse Flash Attention / MLAPO。<b>5.9% sparsity 仅 glm5.ai 官网口径，报告未给出。</b></p>
+      <div class="formula">scores = relu(q · pool_kᵀ · scale)     # @no_grad [mdl-S:862-863]
+select_k = index_topk / index_kpool
+        = 2048 / 16 = 128 池           # [mdl-S:884]
+展开 → 2048 token + tail(≤+15) → pad -1</div>
+    </div>
+    <div class="card amber">
+      <h3><span class="dot"></span>② MTP（多 token 预测）</h3>
+      <p>GLM-5 训练<b>参数共享 3 个 MTP 层</b>，部署 <b>1 层</b>（Table 10）；同 4 步投机<b>接受长度 2.76 vs DeepSeek-V3.2 的 2.55</b>。GLM-5.2 再 +20%：base 4.56 → +IndexShare+KV Share 5.10 → +Rejection Sampling 5.29 → +E2E TV Loss 5.47。</p>
+      <p><b>旁证：transformers 未实现 MTP</b>——<span class="num">_keys_to_ignore_on_load_unexpected</span> 显式忽略 <span class="num">layers.45.* / layers.*.shared_head.*</span>（mdl-S:1379），主输出仅 lm_head（mdl-S:2150,2258）。</p>
+      <div class="formula">接受长度：GLM-5 = 2.76  vs  DSv3.2 = 2.55
+GLM-5.2：2.76 → +20%（消融 4.56 → 5.47）
+训练：共享 3 层 · 部署：1 层</div>
+    </div>
+    <div class="card">
+      <h3><span class="dot"></span>③ MoE 路由：sigmoid + norm_topk + scaling 2.5</h3>
+      <p><span class="num">Glm5NextTextTopkRouter</span>（mdl-S:144）与 GLM-4.5 血统一致：<b>sigmoid 打分（非 softmax）</b> → 组内 top-k → 按行归一 → 乘 <span class="num">routed_scaling_factor=2.5</span>。MoE 容器 = 288 路由专家 top-8 + 1 共享专家（全 token 激活）；aux_loss 权重 0.001。</p>
+      <div class="formula">w_i = sigmoid(router(x)_i) + b_i,  i ∈ top_8(x)
+w̃_i = w_i / Σ_top8 w_j  × λ     λ = 2.5
+FFN_MoE(x) = Σ_top8 w̃_i·E_i(x)  +  Shared(residuals)</div>
+    </div>
+    <div class="card">
+      <h3><span class="dot"></span>④ MLA 与 mHC</h3>
+      <p><b>MLA</b>：GLM-5 以 MLA 为注意力基座（Q LoRA 2048 / KV LoRA 512 / 64 头 / QK dim 192 / V dim 256），配 Muon Split 与 MLA-256 变体；glm5_next 落地 q_lora 1536 / kv_lora 512，KV cache 写在压缩 latent 层。<b>mHC</b>：hc_mult=4 流残差贯穿每层 attn/ffn 两侧，Sinkhorn 归一化 comb（20 迭代），HyperHead 4 流 mean 折叠；文本侧 NoPE。</p>
+      <div class="formula">MLA：q_a_proj(1536) → q_b_proj
+     kv_a_proj_mqa(→512) → kv_b_proj
+mHC：hidden = post·out + combᵀ·residual
+     comb ~ Sinkhorn(4×4) · hc_mult = 4</div>
+    </div>
+  </div>
+  <h3>4.2 架构图：DSA 索引器机制</h3>
+  <div class="diagram-shell"><svg viewBox="0 0 1320 740" class="dg" role="img">
+    <defs>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker>
+      <marker id="arrT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker>
+      <marker id="arrA" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b45309"/></marker>
+    </defs>
+
+    <text x="20" y="34" font-size="13" font-weight="700" fill="#5b21b6">DSA 稀疏注意力索引器机制（Glm5NextTextIndexer，mdl-S:773-1061）= GLM-5.3-Flash 落地实现；GLM-5 本体 DSA 同思路（k=2048，技术报告 §3.2）</text>
+
+    <!-- 输入投影 -->
+    <g class="node dim" data-tip="Q 侧投影（打分用 query）&#10;wq_b：1536 → 32×128（index_n_heads 32 · index_head_dim 128）&#10;输入来自 attention 的 q_resid（压缩路径输出）&#10;来源：mdl-S:798,834；cfg-S:135-136">
+      <rect x="20" y="80" width="190" height="80" rx="12"/>
+      <text class="t" x="115" y="106" text-anchor="middle">Q 投影 wq_b</text>
+      <text class="m" x="115" y="126" text-anchor="middle">1536 → 32 头 × 128</text>
+      <text class="s" x="115" y="146" text-anchor="middle">indexer 打分 query</text>
+    </g>
+    <g class="node dim" data-tip="KV 侧投影（被检索的 key）&#10;wk：4096 → 128 → k_norm（LayerNorm）&#10;另有 index_kpool_compress_ape[16,128] 与 gate[128,4096]&#10;packed = [k, gate, valid]&#10;来源：mdl-S:799-808,835,837-840">
+      <rect x="20" y="220" width="190" height="90" rx="12"/>
+      <text class="t" x="115" y="246" text-anchor="middle">K 投影 wk + k_norm</text>
+      <text class="m" x="115" y="266" text-anchor="middle">4096 → 128 (LayerNorm)</text>
+      <text class="s" x="115" y="286" text-anchor="middle">packed=[k, gate, valid]</text>
+    </g>
+
+    <!-- k-pool 池化 -->
+    <g class="node teal" data-tip="k-pool 池化（index_kpool=16）&#10;get_pooled_states：每 16 个连续 token 分一组&#10;softmax(gate + compress_ape) 加权平均&#10;→ 池向量 pool_key [n_pool, 128]&#10;index_kpool_always_select_tail=True：尾部池必选&#10;来源：mdl-S:861,936-1009,1011-1061；cfg-S:152-153">
+      <rect x="270" y="200" width="270" height="130" rx="12"/>
+      <text class="t" x="405" y="226" text-anchor="middle">k-pool 池化（每 16 token）</text>
+      <text class="m" x="405" y="248" text-anchor="middle">pool 大小 = index_kpool 16</text>
+      <text class="s" x="405" y="268" text-anchor="middle">softmax(gate + ape) 加权平均</text>
+      <text class="s" x="405" y="288" text-anchor="middle">→ pool_key [n_pool, 128]</text>
+      <text class="m" x="405" y="310" text-anchor="middle">尾池必选（always_select_tail）</text>
+    </g>
+    <path class="edge" d="M210,265 L270,265"/>
+
+    <!-- 打分 -->
+    <g class="node amber" data-tip="ReLU 打分 + 多头聚合&#10;scores = relu(q · pool_kᵀ · scale)（@torch.no_grad）&#10;weights_proj：32 头打分加权求和成单通道&#10;select_k = 2048 / 16 = 128 个池&#10;来源：mdl-S:810,862-867,884">
+      <rect x="600" y="170" width="280" height="150" rx="12"/>
+      <text class="t" x="740" y="196" text-anchor="middle">ReLU 打分 + 多头聚合</text>
+      <text class="m" x="740" y="218" text-anchor="middle">scores = relu(q·pool_kᵀ·scale)</text>
+      <text class="s" x="740" y="238" text-anchor="middle">weights_proj：32 头加权求和</text>
+      <text class="s" x="740" y="258" text-anchor="middle">select_k = 2048 / 16 = 128 池</text>
+      <text class="m" x="740" y="280" text-anchor="middle">@torch.no_grad（索引器无梯度）</text>
+      <text class="s" x="740" y="302" text-anchor="middle">与 GLM-5 报告一致：k=2048</text>
+    </g>
+    <path class="edge amber" d="M210,120 C380,120 480,190 600,205"/>
+    <path class="edge" d="M540,265 L600,265"/>
+
+    <!-- topk 选池展开 -->
+    <g class="node core" data-tip="topk 选池 → 展开回原始 token&#10;对池打分取 top-128 池&#10;展开回每池 16 个原始 token → 2048 个 token&#10;append_visible_tail 追加尾部可见池（≤+15）&#10;不足补 -1 padding，返回 int32 [B,S,2048]&#10;来源：mdl-S:889-914">
+      <rect x="940" y="170" width="300" height="150" rx="12"/>
+      <text class="t" x="1090" y="196" text-anchor="middle">topk 选池 → 展开</text>
+      <text class="m" x="1090" y="218" text-anchor="middle">top-128 池 × 16 token = 2048</text>
+      <text class="s" x="1090" y="238" text-anchor="middle">展开回原始 token 坐标</text>
+      <text class="s" x="1090" y="258" text-anchor="middle">append_visible_tail（≤+15）</text>
+      <text class="m" x="1090" y="278" text-anchor="middle">pad -1 → int32 [B,S,2048]</text>
+      <text class="s" x="1090" y="300" text-anchor="middle">block/pool（16）级稀疏，非逐 token</text>
+    </g>
+    <path class="edge" d="M880,245 L940,245"/>
+
+    <!-- mask 与注意力 -->
+    <g class="node teal" data-tip="稀疏 mask 构建与注意力&#10;build_attention_mask_from_topk：&#10;scatter_add 成 3D bool mask（per-query 依赖）&#10;SDPA 直接用 bool mask（:1269-1270）&#10;eager 转 additive 0/-inf（:1273-1276）&#10;不支持 FlashAttention（3D per-row 需自定义 kernel）&#10;_supports_flash_attn=False / _supports_sdpa=True&#10;来源：mdl-S:1247-1248,1269-1276,1359-1360">
+      <rect x="330" y="420" width="420" height="130" rx="12"/>
+      <text class="t" x="540" y="446" text-anchor="middle">稀疏 mask → 稀疏注意力</text>
+      <text class="m" x="540" y="468" text-anchor="middle">scatter_add → 3D bool mask（per-query）</text>
+      <text class="s" x="540" y="488" text-anchor="middle">SDPA 用 bool mask；eager 转 0/-inf</text>
+      <text class="s" x="540" y="508" text-anchor="middle">不支持 FA（3D per-row 依赖）</text>
+      <text class="m" x="540" y="530" text-anchor="middle">_supports_flash_attn=False · sdpa=True</text>
+    </g>
+    <path class="edge teal" d="M1090,320 C1090,380 660,380 600,420"/>
+
+    <!-- 跨层共享 -->
+    <g class="node amber" data-tip="跨层 indexer 共享（shared 层复用 top-k）&#10;indexer_types[layer]=="full" → 本层实例化 indexer&#10;"shared" 层 indexer=None：不重新打分，&#10;直接复用上一层传入的 top-k 索引&#10;next_skip_topk 把本层 topk 向上游传播&#10;即 GLM-5.2「IndexShare」思路在代码中的落地：&#10;GLM-5.2 每 4 层稀疏注意力共享同一 indexer，&#10;1M 上下文 per-token FLOPs 降 2.9×&#10;来源：mdl-S:1150-1154,1236；z.ai/blog/glm-5.2">
+      <rect x="820" y="420" width="460" height="160" rx="12"/>
+      <text class="t" x="1050" y="446" text-anchor="middle">跨层 indexer 共享（对应 IndexShare）</text>
+      <text class="s" x="1050" y="468" text-anchor="middle">full 层：本层实例化 indexer 打分</text>
+      <text class="s" x="1050" y="488" text-anchor="middle">shared 层：indexer=None，复用前层 top-k</text>
+      <text class="m" x="1050" y="508" text-anchor="middle">next_skip_topk 向上游传播（mdl-S:1152-1154,1236）</text>
+      <text class="s" x="1050" y="530" text-anchor="middle">GLM-5.2：每 4 层共享 indexer · 1M FLOPs ↓2.9×</text>
+      <text class="m" x="1050" y="552" text-anchor="middle">GLM-5.3-Flash：34 KDA + 11 DSA（每 4 层交错）</text>
+      <text class="s" x="1050" y="572" text-anchor="middle">IndexPool：索引器 4 个缓存向量压缩为 1 个</text>
+    </g>
+
+    <!-- 底部要点条 -->
+    <g class="node dim" data-tip="GLM-5 本体 DSA（技术报告 §2.1.1/§3.2）&#10;内容相关动态 token 子集：按内容决定哪些 token 重要&#10;从稠密 base 两阶段 continued pre-training：&#10;dense warm-up + sparse adaptation（20B tokens @200K）&#10;长序列注意力算力降 1.5-2×；90% 长上下文注意力冗余&#10;可全层使用「lossless by construction」&#10;昇腾侧优化：Lightning Indexer / Sparse FA / MLAPO&#10;5.9% sparsity 为 glm5.ai 官网口径，报告未给出">
+      <rect x="20" y="420" width="270" height="180" rx="12"/>
+      <text class="t" x="155" y="446" text-anchor="middle">GLM-5 本体 DSA</text>
+      <text class="s" x="155" y="468" text-anchor="middle">内容相关 top-k（DSA 引自 V3.2）</text>
+      <text class="s" x="155" y="488" text-anchor="middle">k=2048 · indexer 32 头 × 128</text>
+      <text class="s" x="155" y="508" text-anchor="middle">算力降 1.5-2×（长序列）</text>
+      <text class="s" x="155" y="528" text-anchor="middle">dense warm-up + sparse adaptation</text>
+      <text class="s" x="155" y="548" text-anchor="middle">报告：90% 长上下文注意力冗余</text>
+      <text class="m" x="155" y="570" text-anchor="middle">5.9% sparsity = glm5.ai 官网口径</text>
+      <text class="m" x="155" y="590" text-anchor="middle">Lightning Indexer / Sparse FA / MLAPO</text>
+    </g>
+
+    <text x="20" y="650" class="lg">稀疏布局性质：block/pool（16 token）级稀疏、per-query 3D 依赖——不是逐行独立的 token 稀疏；索引器本身 @no_grad，不回传梯度。</text>
+    <text x="20" y="674" class="lg">来源：cfg-S:134-136（index_topk 2048 / index_head_dim 128 / index_n_heads 32）；mdl-S:773-1061；技术报告 §2.1.1/§3.2；zhipuai.cn/zh/research/153</text>
+  </svg></div>
+</section>
+
+<!-- 5 RL 训练 -->
+<section id="train">
+  <h2><span class="secno">5</span>异步 RL 训练（Slime）与 Agentic Engineering</h2>
+  <div class="cards">
+    <div class="card">
+      <h3><span class="dot"></span>28.5T tokens 训练预算配比</h3>
+      <p>通用语料 18T + 代码&推理 9T（=27T 预训练）→ 长代码&推理 1T（32K）→ 长上下文&Agent 500B/50B（128K/200K）→ DSA 适配 20B（200K）。Post-training：Overall SFT → Reasoning RL → Agentic RL → General RL + On-Policy Cross-Stage Distillation。</p>
+      <div class="formula">28.5T = 18T 通用 + 9T 代码推理 + 1T 长代码
+      + 500B/50B 长上下文 + 20B DSA 适配</div>
+    </div>
+    <div class="card teal">
+      <h3><span class="dot"></span>slime 异步 RL 框架</h3>
+      <p>全异步解耦 rollout/训练；Multi-Task Rollout Orchestrator 1k+ 并发 rollout；TITO Gateway；Direct Double-sided Importance Sampling；DP-aware routing；FP8 rollout + PD 分离。GLM-5.2 用 slime 并行 OPD 约两天合并十余专家模型。</p>
+    </div>
+    <div class="card amber">
+      <h3><span class="dot"></span>Agentic Engineering（§4）</h3>
+      <p><b>10,000+</b> 可验证 SWE 环境（9 种语言）；<b>Harbor</b> terminal 环境（Docker 准确率 >90%）；搜索任务基于 200 万+ 网页 <b>Web Knowledge Graph</b>。另：INT4 QAT；首日适配 7 国产 GPU 平台（昇腾/摩尔线程/海光/寒武纪/昆仑芯/沐曦/燧原）。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 token -->
+<section id="tokens">
+  <h2><span class="secno">6</span>特殊 Token 与词表布局</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:24%"><col style="width:22%"><col style="width:34%"><col style="width:20%"></colgroup>
+    <thead><tr><th>token</th><th>ID</th><th>含义</th><th>来源</th></tr></thead>
+    <tbody>
+      <tr><td class="k">vocab_size</td><td><b>154880</b></td><td>词表（GLM-4.5 为 151552）</td><td>报告 Table 10 / cfg-S:100</td></tr>
+      <tr><td class="k">pad_token_id</td><td>154820</td><td>填充</td><td>cfg-S:126</td></tr>
+      <tr><td class="k">image_token_id</td><td><b>154854</b></td><td>图像占位 token（soft 特征 scatter 位）</td><td>cfg-S:299-304（glm5_next）</td></tr>
+      <tr><td class="k">video_token_id</td><td><b>154855</b></td><td>视频占位 token</td><td>cfg-S:299-304（glm5_next）</td></tr>
+      <tr><td class="k">image/video start-end</td><td>154830–154833</td><td>图文/视频特殊边界 token</td><td>cfg-S:299-304</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip">image_token / video_token 的具体 ID 来自 <b>glm5_next 源码（GLM-5.3-Flash 落地实现）</b>；GLM-5 本体技术报告未单列多模态 token。视觉侧 ≈144 soft token/图（(336/14)²/2²）。</p>
+</section>
+
+<!-- 7 演进 -->
+<section id="evo">
+  <h2><span class="secno">7</span>演进对比：GLM-4.5 → GLM-5 → 5.2 → 5.3-Flash</h2>
+  <div class="table-scroll">
+  <table class="cmp">
+    <colgroup><col style="width:16%"><col style="width:21%"><col style="width:23%"><col style="width:18%"><col style="width:22%"></colgroup>
+    <thead><tr><th>维度</th><th>GLM-4.5（glm4_moe）</th><th>GLM-5</th><th>GLM-5.2</th><th>GLM-5.3-Flash（glm5_next）</th></tr></thead>
+    <tbody>
+      <tr><td class="k">总参/激活</td><td>355B/32B</td><td>744B/40B（官网 745B/44B）</td><td>744B/40B</td><td>320B/18B</td></tr>
+      <tr><td class="k">hidden/层数</td><td>5120 / 92</td><td>6144 / 78</td><td>同 5（口径未公开）</td><td>4096 / 45</td></tr>
+      <tr><td class="k">专家</td><td>160 路由+1 共享 top-8</td><td>256+1 top-8</td><td>同 5</td><td>288+1 top-8</td></tr>
+      <tr><td class="k">注意力</td><td>GQA + QK-Norm</td><td>MLA base + DSA</td><td>DSA + IndexShare</td><td>KDA×34 + DSA×11 混合</td></tr>
+      <tr><td class="k">残差</td><td>2×RMSNorm 前置</td><td>—（未公开）</td><td>—</td><td>mHC 4 流</td></tr>
+      <tr><td class="k">上下文</td><td>131072</td><td>202,752</td><td>1M</td><td>1M</td></tr>
+      <tr><td class="k">MTP</td><td>num_nextn=1</td><td>训练 3 层共享/部署 1 层（2.76）</td><td>+20%（4.56→5.47）</td><td>1 层（transformers 未实现）</td></tr>
+      <tr><td class="k">多模态</td><td>纯文本（4.5V 另立）</td><td>文本/Agentic（报告无多模态）</td><td>纯文本</td><td>原生多模态（首个）</td></tr>
+      <tr><td class="k">词表</td><td>151552</td><td>154880</td><td>154880</td><td>154880</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">主线：① 规模翻倍（355B→744B）但层数 92→78、专家 160→256；② GQA → MLA 基座 + DSA 稀疏，长序列算力降 1.5–2×；③ 5.2 用 IndexShare 把 1M 上下文 per-token FLOPs 再降 2.9×；④ 5.3-Flash 换赛道：KDA+DSA 混合、mHC、288 专家、首个原生多模态（注意力计算量/KV 缓存较 GLM-5.3 降 3.01×/4.44×）；⑤ MTP 持续提升接受率；⑥ 词表扩到 154880。</p>
+</section>
+
+<!-- 8 来源 -->
+<section id="sources">
+  <h2><span class="secno">8</span>来源</h2>
+  <ol class="src">
+    <li>GLM-5 技术报告《GLM-5: from Vibe Coding to Agentic Engineering》（Zhipu AI & Tsinghua University）<span class="u">https://arxiv.org/pdf/2602.15763（§2.1 744B/40B · §2.1.1 DSA · §3.2 k=2048 · Table 2 MTP · Table 10 架构 · §2.4 28.5T · §3.3/§4.1 slime · §4 Harbor/Web KG · §2.6 INT4 QAT）</span></li>
+    <li>GLM-5 官网（口径差异来源）<span class="u">https://glm5.ai/（745B/44B/256专家/5.9% sparsity/78 层/202,000/DSA/MTP/统一管线营销表述）</span></li>
+    <li>GLM-5 模型卡（ModelScope）<span class="u">https://modelscope.cn/models/ZhipuAI/GLM-5（仓库标签 753.86B，口径不明——待核实）</span></li>
+    <li>智谱文档 GLM-5<span class="u">https://docs.bigmodel.cn/cn/guide/models/text/glm-5（744B/40B 主口径）</span></li>
+    <li>智谱版本发布动态<span class="u">https://docs.bigmodel.cn/cn/update/new-releases（5.2 / 5.3-Flash 时间线与规格）</span></li>
+    <li>智谱研究页（昇腾推理优化）<span class="u">https://www.zhipuai.cn/zh/research/153（Lightning Indexer / Sparse Flash Attention / MLAPO；「减少至 80 层」文字口径）</span></li>
+    <li>GLM-4.7 HF 模型卡<span class="u">https://huggingface.co/zai-org/GLM-4.7</span></li>
+    <li>GLM 开源状态说明<span class="u">https://glm-ai.chat/docs/is-glm-open-source/（各版本开源许可与时间线）</span></li>
+    <li>GLM-5.2 博客<span class="u">https://z.ai/blog/glm-5.2（1M / IndexShare FLOPs↓2.9× / MTP +20% 消融 4.56→5.47 / slime OPD）</span></li>
+    <li>GLM-5.3-Flash 智谱文档<span class="u">https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash（320B/18B / 混合注意力 / mHC / IndexPool / 首个原生多模态 / 1M）</span></li>
+    <li>NVIDIA NIM 文档（GLM-5.3-Flash）<span class="u">https://docs.api.nvidia.com/nim/reference/z-ai-glm-5-3-flash（45 层：34 KDA + 11 DSA 每 4 层交错 / 288 专家 top-8 / vision encoder / 1 MTP 层 / Glm5NextForConditionalGeneration / 30T 多模态语料）</span></li>
+    <li>本地 transformers 源码（GLM-5.3-Flash 落地实现）<span class="u">E:\transformers\src\transformers\models\glm5_next\configuration_glm5_next.py（cfg-S）/ modeling_glm5_next.py（mdl-S）/ processing / image_processing / video_processing_glm5_next.py</span></li>
+    <li>GLM-5 开源仓库<span class="u">https://github.com/zai-org/GLM-5</span></li>
+  </ol>
+  <p class="note">[S:n] / cfg-S:n / mdl-S:n = glm5_next 源码行号；「744B/40B」为技术报告+智谱文档+研究页三方主口径，「745B/44B/5.9%」仅 glm5.ai 营销口径；glm5_next 源码一律表述为「GLM-5.x 家族在 transformers 的落地实现（对应 GLM-5.3-Flash）」。访问与核验日期：2026-11-03。</p>
+</section>
+
+<footer>GLM-5 家族架构详解 · 数据来源：技术报告 arXiv:2602.15763 + glm5.ai + docs.bigmodel.cn + z.ai/blog/glm-5.2 + NVIDIA NIM + transformers 源码（E:\transformers\src\transformers\models\glm5_next\）· 仅供技术学习与论文研究</footer>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  "use strict";
+  var TIP = document.getElementById("tip");
+  function showTip(el,x,y){
+    TIP.innerHTML="";
+    var txt=el.getAttribute("data-tip")||"";
+    txt.split("\n").forEach(function(line,i){ if(i>0) TIP.appendChild(document.createElement("br")); TIP.appendChild(document.createTextNode(line)); });
+    TIP.style.display="block";
+    var w=TIP.offsetWidth,h=TIP.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    TIP.style.left=Math.min(Math.max(x+14,8),vw-w-8)+"px";
+    TIP.style.top=(y+16+h>vh?y-h-10:y+16)+"px";
+  }
+  function hideTip(){ TIP.style.display="none"; }
+  var els=document.querySelectorAll("[data-tip]");
+  for(var i=0;i<els.length;i++){(function(el){
+    el.addEventListener("pointerenter",function(e){ showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointermove",function(e){ showTip(el,e.clientX,e.clientY);});
+    el.addEventListener("pointerleave",function(){ hideTip();});
+  })(els[i]);}
+})();
+</script>
+</body>
+</html>
