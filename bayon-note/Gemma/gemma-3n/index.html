@@ -473,6 +473,40 @@ out = mean_i( unembed_i(corrected_i) )  # :1747-1759</div>
     </div>
 
     <div class="card">
+      <h3><span class="dot"></span>AltUp 计算流程详解（五步，从输入到输出）</h3>
+      <p class="note">本节 2026-11-03 补充，逐行核对 <span class="num">modeling_gemma3n.py</span>；config 实测补充 <span class="num">altup_correct_scale=True</span>（可学习输出缩放，初始 0）。</p>
+      <p><b>第 0 步 · 构建 4 路 stack（仅输入时一次）</b> <span class="num">:1705-1721</span>：<span class="num">h0 = inputs_embeds</span>（ScaledEmbedding 已乘 √2048，<span class="num">:1602-1604</span>）。以第 0 路 RMS 幅值为基准 <span class="num">target = mean(h0²)^0.5</span>；对 i=1,2,3 用 3 个 <span class="num">altup_projections[i]</span>（2048→2048 Linear，<span class="num">:1631-1633</span>）投影 h0，并做<b>幅值归一化</b>，防止投影改变激活尺度。堆叠为 <span class="num">stack=[h0,h1,h2,h3]</span>，形状 <span class="num">[4,B,T,2048]</span>。此后<b>每一层输入输出都是这个 4D stack</b>。</p>
+      <div class="formula">h_i = P_i(h0) · target / max( sqrt(mean(P_i(h0)²)), 1e-5 )   # 幅值对齐, :1716-1719</div>
+      <p><b>第 1 步 · predict：可学习混合猜测本层输出</b> <span class="num">:1015-1041, :1306</span>：① 路由 <span class="num">m = tanh(W_router(RMSNorm(h0)/2048))</span> → <span class="num">[B,T,4]</span>（每 token 一个 4 维路由权重，<span class="num">:1010-1013</span>）；② 系数 <span class="num">A = W_pred(m)</span> → reshape <span class="num">[B,T,4,4]</span>（每 token 一张 4×4 混合矩阵）；③ 预测 <span class="num">P_j = Σ_i A[j,i]·h_i + h_j</span>（4 路加权和 + 自身残差）；④ 取 active 路 <span class="num">active = P[0]</span>（altup_active_idx=0）。训练时 <span class="num">W_pred</span> clamp ±120（altup_coef_clip）。</p>
+      <p><b>第 2 步 · 贵算子只跑第 0 路</b> <span class="num">:1309-1329</span>：注意力 / LAuReL / FFN 全部只作用在 <span class="num">P[0]</span> 上（其余 3 路旁观不参与）：</p>
+      <div class="formula">z    = input_layernorm(active)                          # :1309
+lrl  = z + post_laurel_norm(W2·W1·z)                    # :1310 LAuReL 2048→64→2048
+attn = post_attn_norm(self_attn(z))                     # :1312-1321
+attn_laurel = (active + attn + lrl) / √2               # :1323-1324
+y    = attn_laurel + post_ffn_norm(mlp(pre_ffn_norm(attn_laurel)))   # :1326-1329</div>
+      <p><span class="num">y</span> 即本层<b>真实输出</b>（源码中称 activated）。</p>
+      <p><b>第 3 步 · correct：残差修正分发回 4 路</b> <span class="num">:1043-1072, :1330-1344</span>：① 预测误差 <span class="num">ε = y − P[0]</span>，复制 4 份（<span class="num">:1056-1057</span>）；② 修正系数：用真实输出 y 重算路由 m′，<span class="num">c = W_corr(m′) + 1.0</span> → <span class="num">[B,T,4]</span>（+1 保证初始≈纯残差传播；训练时 clamp ±120）；③ <span class="num">Q_i = P_i + c_i·ε</span>（每路 = 预测 + 自己系数的修正量）；④ PLE 注入：<span class="num">first = Q[0]</span> 乘可学习 <span class="num">correct_output_scale</span>（初始 0，altup_correct_scale=True 时启用，<span class="num">:1332-1334</span>）→ gate 2048→256 ⊙ 逐层查表向量 → 投回 2048 → post norm → <b>只加到 Q[1:]</b>（第 0 路不加，<span class="num">:1336-1344</span>）。返回 <span class="num">Q</span>（<span class="num">[4,B,T,2048]</span>）进下一层。</p>
+      <p><b>第 4 步 · 输出合并：四路求均值</b> <span class="num">:1747-1759</span>：以 <span class="num">Q[0]</span> RMS 幅值为基准；i=1..3 过 <span class="num">altup_unembed_projections[i]</span>（2048→2048，<span class="num">:1635-1637</span>）+ 幅值对齐；<span class="num">out = mean([Q0,Q1′,Q2′,Q3′], dim=0)</span> → <span class="num">[B,T,2048]</span> → 最终 RMSNorm → 共享 LM Head → softcap(30)。</p>
+      <div class="meta">本子节 2026-11-03 补充；源码行号与上方卡片一致；config 实测 altup_correct_scale=True（E2B 本地 config.json）</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>AltUp 的作用</h3>
+      <div class="table-scroll"><table class="cmp">
+        <colgroup><col class="c1"><col><col></colgroup>
+        <thead><tr><th>作用</th><th>机制</th><th>收益</th></tr></thead>
+        <tbody>
+          <tr><td class="k">计算效率（端侧核心动机）</td><td>注意力/FFN/LAuReL 每层只跑第 0 路预测，其余 3 路用便宜 Linear+系数混合同步更新</td><td>4 路表征 ≈ 1 份贵计算</td></tr>
+          <tr><td class="k">可学习稀疏更新（论文核心）</td><td>predict 先猜、correct 用真实残差 ε 修正；训练让预测越准 → 修正越稀疏</td><td>层间更新低秩化/稀疏化（NeurIPS 2023）</td></tr>
+          <tr><td class="k">多路表征集成</td><td>4 路独立投影 + per-token 动态路由 + 末层均值</td><td>轻量集成，输出质量与稳定性提升</td></tr>
+          <tr><td class="k">数值稳定</td><td>两端 RMS 幅值对齐；predict/correct 均带残差；c 初始 +1；correct_output_scale 初始 0</td><td>初始行为≈标准残差 Transformer，训练平稳</td></tr>
+        </tbody>
+      </table></div>
+      <p class="tip">与激活稀疏的边界：激活稀疏（前 10 层高斯 top-k）作用于 <b>FFN 门控中间维</b>；AltUp 稀疏的是<b>层间更新本身</b>，二者可叠加。</p>
+      <div class="meta">config altup_num_inputs=4 / active_idx=0 / coef_clip=120 / correct_scale=True；本子节 2026-11-03 补充</div>
+    </div>
+
+    <div class="card">
       <h3><span class="dot"></span>PLE：Per-Layer Embeddings（逐层嵌入）</h3>
       <p>一张大查表 <span class="num">embed_tokens_per_layer = Embedding(262144, N×256)</span>（×√256），reshape 成每层一条 256 维向量；另有一条从主嵌入投影而来的分支，二者相加 ×1/√2。层内把主隐态经 gate 压到 256 维、与该层查表向量逐元素相乘，再投回 2048 维注入。可整体预计算并卸载到 CPU。</p>
       <div class="formula">ple_lookup = Emb(262144, N·256) → [B,T,N,256]   # :1616-1621,1767-1772
