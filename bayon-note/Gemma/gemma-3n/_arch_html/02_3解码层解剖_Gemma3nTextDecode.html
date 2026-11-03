@@ -104,92 +104,111 @@
     .cards{display:block;}
     .card{margin-bottom:10px;}
   }
-</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1240 660" class="dg" role="img">
+</style></head><body style="margin:0;padding:0;background:#ffffff;"><svg viewBox="0 0 1420 700" class="dg" role="img">
     <defs><marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#b9b4a9"/></marker></defs>
 
     <g class="node core" data-tip="输入 hidden_states&#10;[4,B,T,2048]（AltUp 四路线）&#10;来源：modeling:1721">
-      <rect x="30" y="300" width="150" height="60" rx="12"/>
-      <text class="t" x="105" y="326" text-anchor="middle">输入 h（4 路）</text>
-      <text class="m" x="105" y="346" text-anchor="middle">[4,B,T,2048]</text>
+      <rect x="20" y="300" width="150" height="60" rx="12"/>
+      <text class="t" x="95" y="326" text-anchor="middle">输入 h（4 路）</text>
+      <text class="m" x="95" y="346" text-anchor="middle">[4,B,T,2048]</text>
     </g>
-    <path class="edge" d="M180,330 L220,330"/>
+    <path class="edge" d="M170,330 L200,330"/>
 
-    <g class="node dim" data-tip="AltUp.predict&#10;modality_router(tanh) 预测 4×4 系数矩阵，&#10;对 4 路线做可学习混合；coef_clip=120（仅训练时）&#10;取 active_idx=0 路进入主计算&#10;来源：modeling:988-1041, 1306-1307">
-      <rect x="220" y="290" width="190" height="80" rx="10"/>
-      <text class="t" x="315" y="316" text-anchor="middle">AltUp.predict</text>
-      <text class="m" x="315" y="336" text-anchor="middle">router(tanh)·4×4 系数</text>
-      <text class="s" x="315" y="354" text-anchor="middle">predictions[active_idx]</text>
+    <g class="node dim" data-tip="AltUp.predict&#10;modality_router(tanh) 预测 4×4 系数矩阵，对 4 路线做可学习混合；&#10;coef_clip=120（仅训练时）&#10;输出 predictions[4,B,T,2048]：&#10;  · active_prediction=predictions[0] 进主链（LN→Attn→FFN）&#10;  · predictions 全量并行传给 AltUp.correct（顶部虚线）&#10;来源：modeling:988-1041, 1306-1307, 1330">
+      <rect x="200" y="285" width="210" height="90" rx="10"/>
+      <text class="t" x="305" y="310" text-anchor="middle">AltUp.predict</text>
+      <text class="m" x="305" y="330" text-anchor="middle">router(tanh)·4×4 系数</text>
+      <text class="s" x="305" y="350" text-anchor="middle">→ predictions[4,B,T,2048]</text>
+      <text class="s" x="305" y="367" text-anchor="middle">active = predictions[0]</text>
     </g>
     <path class="edge" d="M410,330 L450,330"/>
 
-    <g class="node dim" data-tip="input_layernorm&#10;Gemma3nRMSNorm(2048, eps 1e-6)&#10;来源：modeling:1281,1309">
+    <g class="node dim" data-tip="input_layernorm&#10;Gemma3nRMSNorm(2048, eps 1e-6)&#10;输入 active_prediction（3D）&#10;输出 z 并联两路：主链 → Self-Attention；上方 → LAuReL&#10;来源：modeling:1281,1309-1310">
       <rect x="450" y="308" width="160" height="44" rx="8"/>
       <text class="s" x="530" y="334" text-anchor="middle">input_layernorm (RMSNorm)</text>
     </g>
     <path class="edge" d="M610,330 L650,330"/>
 
-    <!-- LAuReL 分支 -->
-    <g class="node amber" data-tip="LAuReL（Learned Augmented Residual Layer）&#10;对归一化输入走低秩瓶颈：&#10;Linear 2048→64 → Linear 64→2048 → post RMSNorm&#10;作为增强残差加回主路（见下式）&#10;来源：modeling:932-947, 1310">
-      <rect x="430" y="150" width="240" height="100" rx="10"/>
-      <text class="t" x="550" y="176" text-anchor="middle">LAuReL 分支（rank 64）</text>
-      <text class="m" x="550" y="198" text-anchor="middle">2048 → 64 → 2048</text>
-      <text class="s" x="550" y="218" text-anchor="middle">→ post_laurel RMSNorm</text>
-      <text class="s" x="550" y="236" text-anchor="middle">约 0.26M 参数/层</text>
+    <!-- LAuReL 分支：输入来自 LN 输出 z，输出并入加号 B -->
+    <g class="node amber" data-tip="LAuReL（Learned Augmented Residual Layer）&#10;对归一化输入 z 走低秩瓶颈：&#10;Linear 2048→64 → Linear 64→2048 → post RMSNorm&#10;laurel_output = z + post_laurel_norm(W2·W1·z)&#10;输出并入加号 B（1/√2 合并）&#10;来源：modeling:932-947, 1310, 1324">
+      <rect x="400" y="120" width="250" height="100" rx="10"/>
+      <text class="t" x="525" y="146" text-anchor="middle">LAuReL 分支（rank 64）</text>
+      <text class="m" x="525" y="168" text-anchor="middle">2048 → 64 → 2048</text>
+      <text class="s" x="525" y="188" text-anchor="middle">→ post_laurel RMSNorm</text>
+      <text class="s" x="525" y="206" text-anchor="middle">约 0.26M 参数/层</text>
     </g>
-    <path class="edge dash" d="M530,308 L530,250"/>
+    <path class="edge" d="M620,330 L620,220"/>
+    <path class="edge dash" d="M650,220 C800,220 1000,290 1228,322"/>
 
     <!-- 注意力 -->
-    <g class="node" data-tip="Gemma3nTextAttention（GQA）&#10;q_proj 2048→8×256；q_norm → RoPE&#10;k/v_proj 2048→2×256；k_norm / v_norm&#10;滑窗层窗口512 θ=1e4；全局层 θ=1e6&#10;scaling=1.0（Q/K 各自 RMSNorm，不再 1/√d）&#10;末段共享层无 k/v 权重&#10;来源：modeling:1162-1270">
+    <g class="node" data-tip="Gemma3nTextAttention（GQA）&#10;输入 z（LN 输出）&#10;q_proj 2048→8×256；q_norm → RoPE&#10;k/v_proj 2048→2×256；k_norm / v_norm&#10;滑窗层窗口512 θ=1e4；全局层 θ=1e6&#10;scaling=1.0（Q/K 各自 RMSNorm，不再 1/√d）&#10;末段共享层无 k/v 权重&#10;输出 attn → post_attention_layernorm&#10;来源：modeling:1162-1270, 1312-1321">
       <rect x="650" y="280" width="280" height="100" rx="10"/>
       <text class="t" x="790" y="306" text-anchor="middle">Self-Attention（GQA 8Q / 2KV）</text>
       <text class="m" x="790" y="328" text-anchor="middle">q_norm · k_norm · v_norm · RoPE</text>
       <text class="m" x="790" y="348" text-anchor="middle">sliding 512 / full 全局交错</text>
       <text class="s" x="790" y="368" text-anchor="middle">o_proj → 2048</text>
     </g>
+    <path class="edge" d="M930,330 L970,330"/>
 
-    <g class="node core"><circle cx="980" cy="330" r="17" data-tip="注意力残差合并&#10;attn_gated = active_prediction + attn&#10;attn_laurel = (attn_gated + laurel_output)/√2&#10;来源：modeling:1323-1324"/>
-      <text class="s" x="980" y="335" text-anchor="middle" font-size="13">+</text></g>
-    <path class="edge" d="M930,330 L963,330"/>
-    <path class="edge dash" d="M670,250 C700,250 760,300 963,322"/>
+    <g class="node dim" data-tip="post_attention_layernorm&#10;attn = post_attention_layernorm(attn)&#10;先对注意力输出归一化，再与 active_prediction 相加（加号 A）&#10;来源：modeling:1282,1321,1323">
+      <rect x="970" y="308" width="170" height="44" rx="8"/>
+      <text class="s" x="1055" y="334" text-anchor="middle">post_attention_layernorm</text>
+    </g>
+    <path class="edge" d="M1140,330 L1170,330"/>
 
-    <g class="node dim" data-tip="post_attention_layernorm&#10;对 attn 输出再归一化后加残差&#10;来源：modeling:1282,1321">
-      <rect x="1010" y="250" width="180" height="40" rx="8"/>
-      <text class="s" x="1100" y="274" text-anchor="middle">post_attention_layernorm</text>
-    </g>
+    <g class="node core"><circle cx="1185" cy="330" r="17" data-tip="加号 A：注意力残差&#10;attn_gated = active_prediction + attn（post_norm 后）&#10;active_prediction 来自下方旁路（LN 之前主链分叉）&#10;来源：modeling:1323"/>
+      <text class="s" x="1185" y="335" text-anchor="middle" font-size="13">+</text></g>
+    <path class="edge" d="M1202,330 L1230,330"/>
 
-    <!-- FFN -->
-    <path class="edge" d="M980,347 L980,430 L560,430 L560,470"/>
-    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一化&#10;来源：modeling:1283,1326">
-      <rect x="480" y="470" width="160" height="40" rx="8"/>
-      <text class="s" x="560" y="494" text-anchor="middle">pre_feedforward_layernorm</text>
-    </g>
-    <path class="edge" d="M560,510 L560,540"/>
+    <g class="node core"><circle cx="1245" cy="330" r="17" data-tip="加号 B：LAuReL 合并&#10;attn_laurel = (attn_gated + laurel_output)/√2&#10;laurel_output 来自上方 LAuReL 虚线&#10;来源：modeling:1324"/>
+      <text class="s" x="1245" y="335" text-anchor="middle" font-size="13">+</text></g>
 
-    <g class="node" data-tip="Gemma3nTextMLP（GeGLU）&#10;gate/up: 2048→intermediate[layer]&#10;  E2B: 8192 · E4B: 16384&#10;down: intermediate→2048；act=gelu_pytorch_tanh&#10;前 10 层 gate 输出经高斯 top-k 稀疏&#10;来源：modeling:950-969">
-      <rect x="430" y="540" width="270" height="90" rx="10"/>
-      <text class="t" x="565" y="566" text-anchor="middle">FFN（GeGLU dense MLP）</text>
-      <text class="m" x="565" y="588" text-anchor="middle">gate×GELU ⊙ up → down</text>
-      <text class="m" x="565" y="608" text-anchor="middle">E2B 8192 / E4B 16384</text>
-    </g>
-    <g class="node amber" data-tip="高斯 top-k 激活稀疏（仅前 10 层）&#10;cutoff = mean(gate) + std(gate)·Φ⁻¹(0.95)&#10;gate ← ReLU(gate − cutoff)，约 95% 维置零&#10;第 11 层起 sparsity=0，稠密&#10;来源：modeling:962-985">
-      <rect x="60" y="520" width="300" height="100" rx="10"/>
-      <text class="t" x="210" y="546" text-anchor="middle">高斯 top-k 稀疏（前 10 层）</text>
-      <text class="s" x="210" y="568" text-anchor="middle">cutoff=mean+std·Φ⁻¹(0.95)</text>
-      <text class="s" x="210" y="588" text-anchor="middle">gate ← ReLU(gate−cutoff)</text>
-      <text class="m" x="210" y="608" text-anchor="middle">modeling:971-985</text>
-    </g>
-    <path class="edge dash" d="M360,570 L430,580"/>
+    <!-- active_prediction 残差旁路（实线）：predict 输出 → 加号 A -->
+    <path class="edge" d="M420,330 L420,410 C420,425 1185,425 1185,347"/>
+    <text class="lg" x="428" y="400" text-anchor="start">active_prediction（残差旁路, :1323）</text>
 
-    <!-- 输出 -->
-    <path class="edge" d="M700,585 L760,585 L760,430 L980,430"/>
-    <g class="node core" data-tip="AltUp.correct + PLE 门控&#10;corrected = altup.correct(predictions, 残差输出)&#10;first = corrected[active_idx]·correct_output_scale&#10;first = act(gate 2048→256) ⊙ per_layer_input&#10;first = proj 256→2048 → RMSNorm → 加到 corrected[1:]&#10;来源：modeling:1330-1344">
-      <rect x="820" y="470" width="330" height="110" rx="12"/>
-      <text class="t" x="985" y="498" text-anchor="middle">AltUp.correct + PLE 门控注入</text>
-      <text class="m" x="985" y="520" text-anchor="middle">gate 2048→256 → ⊙ 逐层查表</text>
-      <text class="m" x="985" y="540" text-anchor="middle">proj 256→2048 → norm → 累加到路[1:]</text>
-      <text class="s" x="985" y="560" text-anchor="middle">返回 corrected（4 路）</text>
+    <!-- predictions 全量 → AltUp.correct（顶部虚线） -->
+    <path class="edge dash" d="M305,285 L305,90 L1150,90 L1150,500"/>
+    <text class="lg" x="700" y="82" text-anchor="middle">predictions（4 路）→ AltUp.correct :1330</text>
+
+    <!-- FFN 子层 -->
+    <path class="edge" d="M1262,330 L1262,450 L525,450 L525,540"/>
+    <g class="node dim" data-tip="pre_feedforward_layernorm&#10;FFN 输入前归一化（输入 attn_laurel）&#10;来源：modeling:1283,1326">
+      <rect x="440" y="540" width="170" height="40" rx="8"/>
+      <text class="s" x="525" y="564" text-anchor="middle">pre_feedforward_layernorm</text>
     </g>
-    <path class="edge" d="M980,430 L980,470"/>
-    <text class="lg" x="60" y="120">注意力子层</text>
-    <text class="lg" x="60" y="140">（post_attn_norm 在右侧标注）</text>
-  </svg></body></html>
+    <path class="edge" d="M610,560 L620,560"/>
+
+    <g class="node" data-tip="Gemma3nTextMLP（GeGLU）&#10;gate/up: 2048→intermediate[layer]&#10;  E2B: 8192 · E4B: 16384&#10;down: intermediate→2048；act=gelu_pytorch_tanh&#10;前 10 层 gate 输出经高斯 top-k 稀疏&#10;输出 attn_ffw_norm → 加号 C 残差合并&#10;来源：modeling:950-969, 1327-1329">
+      <rect x="620" y="515" width="280" height="90" rx="10"/>
+      <text class="t" x="760" y="541" text-anchor="middle">FFN（GeGLU dense MLP）</text>
+      <text class="m" x="760" y="563" text-anchor="middle">gate×GELU ⊙ up → down</text>
+      <text class="m" x="760" y="583" text-anchor="middle">E2B 8192 / E4B 16384</text>
+    </g>
+    <g class="node amber" data-tip="高斯 top-k 激活稀疏（仅前 10 层）&#10;cutoff = mean(gate) + std(gate)·Φ⁻¹(0.95)&#10;gate ← ReLU(gate − cutoff)，约 95% 维置零&#10;第 11 层起 sparsity=0，稠密&#10;作用于 FFN 的 gate_proj 输出（虚线示意）&#10;来源：modeling:962-985">
+      <rect x="30" y="500" width="300" height="100" rx="10"/>
+      <text class="t" x="180" y="526" text-anchor="middle">高斯 top-k 稀疏（前 10 层）</text>
+      <text class="s" x="180" y="548" text-anchor="middle">cutoff=mean+std·Φ⁻¹(0.95)</text>
+      <text class="s" x="180" y="568" text-anchor="middle">gate ← ReLU(gate−cutoff)</text>
+      <text class="m" x="180" y="588" text-anchor="middle">modeling:971-985</text>
+    </g>
+    <path class="edge dash" d="M330,570 L620,570"/>
+
+    <g class="node core"><circle cx="1080" cy="560" r="17" data-tip="加号 C：FFN 残差&#10;resid = attn_laurel + attn_ffw_norm&#10;attn_laurel 来自下行线在 y=450 的分叉（:1329）&#10;resid 作为 activated 传给 AltUp.correct&#10;来源：modeling:1329-1330"/>
+      <text class="s" x="1080" y="565" text-anchor="middle" font-size="13">+</text></g>
+    <path class="edge" d="M900,560 L1063,560"/>
+    <path class="edge" d="M1080,450 L1080,543"/>
+    <text class="lg" x="1088" y="490" text-anchor="start">attn_laurel（残差, :1329）</text>
+
+    <g class="node core" data-tip="AltUp.correct + PLE 门控&#10;输入：predictions（4 路，顶部虚线）+ resid（3D，加号 C）&#10;corrected = altup.correct(predictions, resid)&#10;first = corrected[0]·correct_output_scale（可学习，初始 0）&#10;first = act(gate 2048→256) ⊙ per_layer_input&#10;first = proj 256→2048 → RMSNorm → 加到 corrected[1:]&#10;返回 corrected（4 路）进下一层&#10;来源：modeling:1330-1344">
+      <rect x="1140" y="500" width="210" height="120" rx="12"/>
+      <text class="t" x="1245" y="524" text-anchor="middle">AltUp.correct + PLE</text>
+      <text class="m" x="1245" y="544" text-anchor="middle">predictions(4路)+resid(3D)</text>
+      <text class="m" x="1245" y="564" text-anchor="middle">gate→256 ⊙ 逐层查表→proj</text>
+      <text class="s" x="1245" y="584" text-anchor="middle">corrected[1:]+=PLE</text>
+      <text class="s" x="1245" y="602" text-anchor="middle">返回 corrected（4 路）</text>
+    </g>
+    <path class="edge" d="M1097,560 L1140,560"/>
+    <path class="edge" d="M1350,560 L1390,560"/>
+    <text class="lg" x="1395" y="555" text-anchor="start">下一层</text>
+</svg></body></html>

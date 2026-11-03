@@ -87,6 +87,37 @@ corrected[1:]     += post_per_layer_norm(first)          # :1344  PLE 注入
 return corrected
 ```
 
+### 3.2 前向源码逐行解释（做什么 · 张量变化 · 为什么）
+
+> 逐行对照 `modeling_gemma3n.py` `Gemma3nTextDecoderLayer.forward`（:1295-1346）。每一步都给出：操作、每步后张量变化、为什么要有这个处理。
+
+| 行号 | 操作 | 每步后张量 | 为什么 |
+|---|---|---|---|
+| :1306 | `predictions = altup.predict(h)`：modality_router(tanh) 预测 4×4 系数矩阵，对 4 路线做可学习混合 | `[4,B,T,2048] → [4,B,T,2048]`（值变为 4 路"预测值"） | AltUp 核心：先用轻量可学习映射**猜**本层输出，真正的解码层只需计算"猜错多少"（残差），即稀疏更新 |
+| :1307 | `active_prediction = predictions[active_idx]`（active_idx=0） | `[4,B,T,2048] → [B,T,2048]`（只取第 0 路，3D） | 贵算子（注意力/FFN）只跑在 active 这一路上，其余 3 路不重算 → 省算力 |
+| :1309 | `z = input_layernorm(active_prediction)`：RMSNorm(2048, eps=1e-6) | `[B,T,2048] → [B,T,2048]`（按 RMS 缩放，无偏置平移） | pre-norm：把激活稳定到单位均方根量级，为注意力/FFN 提供分布稳定的输入 |
+| :1310 | `laurel_output = laurel(z)`：`z + post_laurel_norm(W2·W1·z)`，W1 2048→64、W2 64→2048 | `[B,T,2048] → [B,T,2048]`（内部经 64 维瓶颈） | LAuReL 低秩增强残差：每层仅约 0.26M 参数注入新信息，残差流更"宽"，且不改主维度 |
+| :1312-1320 | `self_attn(z, ...)`：GQA 8Q/2KV；q/k/v 各自 head-wise RMSNorm + RoPE；滑窗 512 / 全局交错；末段共享 KV 层 | `[B,T,2048] → [B,T,2048]`（Q 2048→2048；K/V 2048→512） | 混合注意力在长上下文下省显存省算；q/k/v 各自归一化后无需 1/√d 缩放（scaling=1.0）；共享 KV 免去末段层重复算 K/V |
+| :1321 | `attn = post_attention_layernorm(attn)` | `[B,T,2048] → [B,T,2048]` | post-norm：注意力原始输出先归一化，再与残差相加，训练更稳 |
+| :1323 | `attn_gated = active_prediction + attn` | `[B,T,2048] ⊕ [B,T,2048] → [B,T,2048]` | 残差连接。注意加的是**归一化前**的 active_prediction（pre-norm 残差流），信息直通、梯度通畅 |
+| :1324 | `attn_laurel = (attn_gated + laurel_output) / √2` | `[B,T,2048] → [B,T,2048]` | 注意力残差与 LAuReL 分支两条同量级残差按 1/√2 合并，保持激活方差稳定（DeepNorm 风格） |
+| :1326 | `attn_norm = pre_feedforward_layernorm(attn_laurel)` | `[B,T,2048] → [B,T,2048]` | FFN 输入前 pre-norm，与注意力子层同一模式 |
+| :1327 | `attn_ffw = mlp(attn_norm)`：GeGLU（gate×GELU ⊙ up → down）；前 10 层 gate 输出经高斯 top-k 稀疏 | `[B,T,2048] → [B,T,8192/16384] → [B,T,2048]` | GeGLU 门控增强表达力；top-k 用高斯分位数阈值把约 95% 中间维置零（端侧省算），第 11 层起稠密 |
+| :1328 | `attn_ffw_norm = post_feedforward_layernorm(attn_ffw)` | `[B,T,2048] → [B,T,2048]` | FFN 输出 post-norm，随后残差相加 |
+| :1329 | `resid = attn_laurel + attn_ffw_norm`（变量名 attn_ffw_laurel_gated） | `[B,T,2048] ⊕ → [B,T,2048]` | FFN 子层残差。此值即"本层真实输出"（activated），传给 AltUp.correct 作为修正基准 |
+| :1330 | `corrected = altup.correct(predictions, resid)`：ε = resid − predictions[0]；c = W_corr(m′) + 1.0（m′ 为 router 输出，coef_clip=120 仅训练期）；corrected_i = predictions_i + c_i·ε | `[4,B,T,2048] ⊕ [B,T,2048] → [4,B,T,2048]` | 把"预测误差"按每路系数分发回 4 路，让所有路都逼近真实输出；预测越准、修正越稀疏 |
+| :1332 | `first = corrected[0].clone()` | `[4,B,T,2048] → [B,T,2048]` | 取 active 路（第 0 路）作为 PLE 注入载体；clone 保证后续 in-place 操作不破坏 corrected 引用 |
+| :1333-1334 | `first = first · correct_output_scale`（可学习标量，初始 0，`altup_correct_scale=True`） | `[B,T,2048] → [B,T,2048]` | 训练初始注入强度为 0（等价标准 Transformer），由梯度逐步打开 → 平滑 warmup，避免破坏预训练稳定性 |
+| :1337 | `first = per_layer_input_gate(first)`：2048→256 | `[B,T,2048] → [B,T,256]` | 压到 256 维，与逐层查表向量 per_layer_input 对齐维度 |
+| :1338 | `first = act_fn(first)`（gelu_pytorch_tanh） | `[B,T,256] → [B,T,256]` | 非线性门控，增强调制表达 |
+| :1339 | `first = first ⊙ per_layer_input`（逐层查表，[B,T,256]） | `[B,T,256] ⊙ [B,T,256] → [B,T,256]` | PLE 核心：用该层专属的词汇表嵌入调制激活，把"逐层记忆"注入辅助路 |
+| :1342 | `first = per_layer_projection(first)`：256→2048 | `[B,T,256] → [B,T,2048]` | 投影回主维度，才能注入主隐态 |
+| :1343 | `first = post_per_layer_input_norm(first)` | `[B,T,2048] → [B,T,2048]` | 注入前 RMSNorm，稳定数值 |
+| :1344 | `corrected_predictions[1:] += first`（in-place） | `[4,B,T,2048] → [4,B,T,2048]`（路 1-3 被更新） | PLE 只注入辅助路：第 0 路是 active 主干，不被污染；辅助路携带逐层词汇信息进下一层 |
+| :1346 | `return corrected_predictions` | `[4,B,T,2048]`（作为下一层输入） | 层间接口保持 4 路，与 :1705-1721 的 stack 构建闭环 |
+
+**一句话总结**：`predict` 猜 → 仅 active 路跑注意力+FFN → `correct` 用真实残差修正 4 路 → 第 0 路再经 PLE 逐层词汇调制注入辅助路 → 4 路输出进下一层。整个设计把"每层全量重算"换成"预测 + 稀疏修正"。
+
 ## 4 核心机制专节（本代独有）
 
 ### MatFormer 嵌套：intermediate_size 逐层数组
