@@ -184,3 +184,5 @@ test-results/
 # AI agent local setup artifacts
 /.agents/skills
 /.claude/skills
+# bayon-note 图片体检汇总报告（检查过程产物，不入库）
+bayon-note图片检查汇总报告_*.md
