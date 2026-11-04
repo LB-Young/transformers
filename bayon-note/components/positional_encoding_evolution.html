@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<!--
+  位置编码（Positional Encoding）演进对比 · Transformers 架构演进系列笔记
+  骨架与样式逐字复用系列风格基线（series-style-baseline.html），仅替换正文内容。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>位置编码（Positional Encoding）演进对比 · Transformers 架构演进系列</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
+<style>
+/* ===== 设计令牌 ===== */
+:root{
+  --c-primary:#2563eb; --c-primary-dark:#1e40af; --c-primary-soft:#eff6ff;
+  --c-teal:#0d9488;   --c-teal-soft:#f0fdfa;
+  --c-amber:#d97706;  --c-amber-soft:#fffbeb;
+  --c-rose:#e11d48;   --c-rose-soft:#fff1f2;
+  --c-bg:#f6f8fb; --c-card:#ffffff; --c-text:#1e293b; --c-muted:#64748b;
+  --c-border:#e2e8f0; --c-heading:#0f172a; --c-code-bg:#f1f5f9;
+  --font-body:"PingFang SC","Microsoft YaHei","Noto Sans SC","Source Han Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font-family:var(--font-body);background:var(--c-bg);color:var(--c-text);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--c-primary);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{color:var(--c-heading);line-height:1.35;margin:0}
+h2{font-size:22px;margin:44px 0 14px;padding-top:10px}
+h2::before{content:"";display:inline-block;width:5px;height:20px;background:var(--c-primary);border-radius:3px;margin-right:10px;vertical-align:-3px}
+h3{font-size:17px;margin:28px 0 10px}
+p{margin:10px 0}
+code{font-family:var(--font-mono);font-size:.9em;background:var(--c-code-bg);border-radius:4px;padding:1px 5px;word-break:break-all}
+/* ===== 顶栏 ===== */
+.doc-header{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);color:#fff;padding:30px 16px 26px}
+.doc-header-inner{max-width:1120px;margin:0 auto}
+.doc-series{font-size:13px;letter-spacing:.12em;color:#93c5fd;text-transform:uppercase;margin-bottom:6px}
+.doc-title{font-size:26px;font-weight:700;color:#fff;margin:0 0 8px}
+.doc-subtitle{font-size:14.5px;color:#cbd5e1;margin:0;max-width:880px}
+/* ===== 布局 ===== */
+.layout{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:0;padding:0 16px}
+main{min-width:0;max-width:920px;padding:24px 0 40px}
+/* ===== 目录（移动端：折叠面板；桌面：左侧固定） ===== */
+#tocToggle{display:flex;align-items:center;gap:8px;margin:14px 0 0;padding:9px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;font-size:14px;color:var(--c-primary);cursor:pointer}
+#tocToggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+#toc{display:none;margin:10px 0 0;padding:10px 12px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.06)}
+#toc.open{display:block}
+#toc .toc-title{font-size:13px;color:var(--c-muted);letter-spacing:.08em;margin:2px 4px 8px;font-weight:600}
+#toc a{display:block;padding:5px 10px;border-left:2px solid var(--c-border);color:var(--c-text);font-size:14px;border-radius:0 6px 6px 0}
+#toc a:hover{background:var(--c-primary-soft);text-decoration:none}
+#toc a.on{border-left-color:var(--c-primary);background:var(--c-primary-soft);color:var(--c-primary-dark);font-weight:600}
+#toc a.lvl2{padding-left:22px;font-size:13px;color:var(--c-muted)}
+/* ===== 正文组件 ===== */
+.section-lead{font-size:15px;color:var(--c-muted);border-left:3px solid var(--c-border);padding:2px 0 2px 12px;margin:6px 0 18px}
+.card{background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px 18px;margin:14px 0}
+.chart{width:100%;height:360px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:6px}
+.chart-note{font-size:12.5px;color:var(--c-muted);text-align:center;margin:6px 0 0}
+/* 时间轴：grid 三列（时间/轴/内容），圆点中心与轴线像素级对齐 */
+.timeline{margin:22px 0 10px}
+.tl-item{display:grid;grid-template-columns:86px 30px 1fr;padding-bottom:20px}
+.tl-item:last-child{padding-bottom:4px}
+.tl-year{padding-top:5px;text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--c-primary-dark);font-weight:700}
+.tl-axis{position:relative;display:flex;justify-content:center}
+.tl-axis::before{content:"";position:absolute;top:6px;bottom:-20px;width:2px;background:var(--c-border);border-radius:1px}
+.tl-item:last-child .tl-axis::before{bottom:6px}
+.tl-dot{position:relative;z-index:1;width:12px;height:12px;border-radius:50%;background:var(--c-primary);box-shadow:0 0 0 2px var(--c-primary-soft);margin-top:0}
+.tl-dot.teal{background:var(--c-teal);box-shadow:0 0 0 2px var(--c-teal-soft)}
+.tl-dot.amber{background:var(--c-amber);box-shadow:0 0 0 2px var(--c-amber-soft)}
+.tl-dot.rose{background:var(--c-rose);box-shadow:0 0 0 2px var(--c-rose-soft)}
+.tl-card{background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;padding:11px 14px;min-width:0}
+.tl-card .tl-head{font-weight:600;font-size:14.5px;color:var(--c-heading)}
+.tl-card .tl-body{font-size:13.5px;color:var(--c-muted);margin-top:3px}
+.tl-card .tl-body code{font-size:.9em}
+/* 表格 */
+.table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--c-border);border-radius:12px;background:var(--c-card)}
+table.cmp{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px;min-width:720px}
+table.cmp th{background:#eef2f7;color:var(--c-heading);font-weight:600;text-align:left;padding:9px 10px;border-bottom:1px solid var(--c-border);position:sticky;top:0}
+table.cmp td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top;word-break:break-word}
+table.cmp tr:last-child td{border-bottom:none}
+table.cmp tbody tr:nth-child(even){background:#fafbfd}
+table.cmp td code{background:none;padding:0}
+.cmp-note{font-size:12.5px;color:var(--c-muted);margin:-8px 0 18px}
+/* 公式 */
+.fml{font-family:var(--font-mono);font-size:13.5px;background:var(--c-code-bg);border:1px solid var(--c-border);border-radius:8px;padding:8px 12px;display:inline-block;max-width:100%;overflow-x:auto;margin:4px 0}
+/* 状态标签：已查证 / 一方称 / 未公开 / 未核实 */
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:1px 9px;margin-left:6px;vertical-align:2px}
+.tag.v{background:var(--c-teal-soft);color:var(--c-teal)}
+.tag.u{background:var(--c-amber-soft);color:var(--c-amber)}
+.tag.n{background:var(--c-rose-soft);color:var(--c-rose)}
+/* 来源上标 */
+sup.src{font-family:var(--font-mono);font-size:.72em;color:var(--c-primary);margin-left:1px}
+/* 图例说明块 */
+.legend-box{display:flex;flex-wrap:wrap;gap:8px 18px;margin:10px 0 4px;font-size:12.5px;color:var(--c-muted)}
+/* 参考文献 */
+.refs ol{padding-left:22px;margin:10px 0}
+.refs li{font-size:13px;color:var(--c-muted);margin:6px 0;word-break:break-all}
+.refs li a{color:var(--c-primary);word-break:break-all}
+/* ===== 页脚 ===== */
+.doc-footer{background:#0f172a;color:#94a3b8;padding:34px 16px 46px;margin-top:40px;font-size:13.5px}
+.footer-inner{max-width:1120px;margin:0 auto}
+.footer-series{color:#e2e8f0;font-weight:600;margin-bottom:10px;font-size:14px}
+.footer-nav a{color:#93c5fd;margin:0 6px}
+.footer-nav a:hover{color:#fff;text-decoration:none}
+.footer-nav a.current{color:#64748b;cursor:default;text-decoration:none}
+.footer-nav .sep{color:#475569;margin:0 2px}
+.footer-meta{margin-top:12px;color:#64748b;font-size:12.5px}
+/* ===== 回到顶部 ===== */
+#backTop{position:fixed;right:22px;bottom:26px;width:44px;height:44px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);color:var(--c-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(15,23,42,.12);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#backTop.show{opacity:1;pointer-events:auto}
+#backTop svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2}
+/* ===== 桌面端 ===== */
+@media (min-width:1024px){
+  .doc-header{padding:42px 24px 34px}
+  .doc-title{font-size:31px}
+  .layout{grid-template-columns:250px 1fr;gap:36px;padding:0 24px}
+  #tocToggle{display:none}
+  #toc{display:block;position:sticky;top:24px;height:calc(100vh - 48px);overflow-y:auto;margin:24px 0 0;padding:14px 12px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{#toc,#tocToggle,#backTop{display:none!important}}
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <div class="doc-header-inner">
+    <div class="doc-series">Transformers 架构演进系列笔记</div>
+    <h1 class="doc-title">位置编码（Positional Encoding）演进对比</h1>
+    <p class="doc-subtitle">从 Sinusoidal 到 RoPE、部分旋转与 iRoPE：让 Transformer 理解“顺序”的 9 年演进（2017–2026）</p>
+  </div>
+</header>
+
+<button id="tocToggle" aria-expanded="false">
+  <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  文档目录
+</button>
+
+<div class="layout">
+  <nav id="toc" aria-label="文档目录">
+    <div class="toc-title">本页目录</div>
+    <a href="#overview">1 总览与技术脉络</a>
+    <a href="#timeline">2 演进时间线</a>
+    <a href="#charts">3 关键对比图表</a>
+    <a href="#tables">4 位置编码类型对比表</a>
+    <a href="#matrix">5 模型系列 × 版本总表</a>
+    <a href="#refs">6 参考资料</a>
+  </nav>
+
+  <main>
+    <!-- ===== 1 总览与技术脉络 ===== -->
+    <section id="overview">
+      <h2>总览与技术脉络</h2>
+      <p class="section-lead">自注意力本身对位置是“盲”的：打乱 token 顺序不会改变逐对注意力分数。位置编码（Positional Encoding, PE）就是把“第几个 token”这一信息以某种方式注入模型的设计。2017–2026 年，这条线从固定正弦函数、可学习绝对向量，一路演进到旋转位置编码（Rotary Position Embedding, RoPE）主导、再到部分旋转（Partial RoPE）、层间交替免位置（iRoPE / NoPE）与多维（2D / M-RoPE）编码。</p>
+
+      <p>理解位置编码的演进，抓住两条主线即可。第一条是<strong>“显式编码 → 相对编码 → 隐式/乘法式编码”</strong>：早期方案把位置作为一个额外向量加在输入上（绝对式），随后 T5、Transformer-XL 把相对距离做成注意力分数上的偏置（相对式），RoPE 则不再加任何向量，而是用旋转矩阵把位置揉进 Query/Key 的内积里——位置信息只以“相对角度差”的形式隐式存在。第二条是<strong>“训练长度 → 推理长度”的外推战争</strong>：固定训练上下文之后，如何不靠重训（或少重训）把可用上下文从 4K、8K 拉到 128K、1M 甚至 10M，催生了位置插值（Position Interpolation, PI）、NTK-aware、YaRN、LongRoPE 等一整套 RoPE 重缩放技术，也直接决定了每个主流模型的 θ（基频）取值。</p>
+
+      <div class="legend-box">
+        <span><span class="tag v">已查证</span> 有官方/arXiv 来源</span>
+        <span><span class="tag u">一方称/未公开</span> 仅厂商口径或未公开细节</span>
+        <span><span class="tag n">未核实</span> 未能找到可靠来源</span>
+      </div>
+
+      <h3>1.1 绝对式：Sinusoidal（2017）与 Learned Absolute（2018）</h3>
+      <p>原始 Transformer（“Attention Is All You Need”, 2017）使用固定正弦位置编码：对位置 <code>pos</code> 与维度 <code>i</code>，用不同频率的 sin/cos 生成向量并直接加到 token embedding 上<sup class="src">[1]</sup>。它无需训练参数，但表达能力有限，且对超出训练长度的序列没有自然外推能力。</p>
+      <div class="fml">PE(pos, 2i) = sin(pos / 10000^(2i/d))　　PE(pos, 2i+1) = cos(pos / 10000^(2i/d))</div>
+      <p>同一时期的 GPT-1（2018）与 BERT（2018）<sup class="src">[2]</sup><sup class="src">[3]</sup> 改用<strong>可学习绝对位置嵌入</strong>（Learned Absolute Positional Embedding）：为每个位置分配一个可训练向量，从 0 编到最大序列长度。BERT 最大位置 512，GPT-1/2 为 1024。这种方案简单有效，但“序列一长就得从头扩位置表”，是 2019 年后相对式与旋转式兴起的直接动因。<span class="tag v">已查证</span></p>
+
+      <h3>1.2 相对式：Transformer-XL、T5 Relative Bias、DeBERTa</h3>
+      <p><strong>Transformer-XL（2019, arXiv:1901.02860）</strong><sup class="src">[4]</sup> 做了两件影响深远的事：一是<strong>段级状态复用</strong>（segment-level recurrence），把上一段隐状态缓存下来作为下一段的上下文；二是把绝对位置向量换成<strong>相对位置编码</strong>，注意力分数中显式使用 i 与 j 的相对距离。它把 RNN 式的长程记忆嫁接到 Transformer 上，但相对位置仍以加性项存在。</p>
+      <p><strong>T5 Relative Bias（2019/2020, arXiv:1910.10683）</strong><sup class="src">[5]</sup> 把“相对距离”做成注意力 logits 上的可学习偏置，并用<strong>桶化</strong>（bucketed）压缩距离空间：对小于某个阈值的近距离用精确桶、对远距离用对数间隔桶，T5 官方实现使用 32 个桶。桶化是把“无限远的距离”压成有限参数表的经典工程折中。</p>
+      <p><strong>DeBERTa（2021, arXiv:2006.03654）</strong><sup class="src">[6]</sup> 更进一步提出<strong>解耦注意力</strong>（Disentangled Attention）：把注意力拆成内容对内容、内容对位置、位置对内容三部分，位置与内容不再捆绑在同一个向量里。它证明“位置信息可以从内容向量里拆出来单独算”，这一思想在 2024 年后的部分旋转设计中以另一种形式回潮。</p>
+
+      <h3>1.3 免参数外推：ALiBi（2022）</h3>
+      <p>ALiBi（Attention with Linear Biases, 2022, arXiv:2108.12409）<sup class="src">[7]</sup> 干脆不加任何位置向量：注意力分数在 softmax 之前直接减去一个与<strong>距离成正比</strong>的惩罚项，每个注意力头有一个固定斜率 m（按 2^(-8/n_heads) 几何取），惩罚项为 <code>-m · |i - j|</code>。优点是零参数、零额外存储，且对超出训练长度的序列有自然外推能力——它当年在 BLOOM（2022）上以 1024 训练长度外推到 2048 以上<sup class="src">[8]</sup>。Falcon-7B/40B/180B 也采用了 ALiBi<sup class="src">[9]</sup>。ALiBi 的局限是：线性惩罚对“远距离该注意什么”表达力弱，且实测其下游长任务外推并不优于显式相对位置（NoPE 论文中 ALiBi、RoPE、APE 三者长度泛化均不佳）<sup class="src">[10]</sup>。</p>
+
+      <h3>1.4 RoPE（2021）及其统治地位</h3>
+      <p>RoPE（Rotary Position Embedding, 2021, arXiv:2104.09864）<sup class="src">[11]</sup> 不向 embedding 加位置向量，而是对 Query 和 Key 在每一层做<strong>复数旋转</strong>：把每两个维度视为一个复数，按位置 pos 与维度频率 θ_i = 10000^(-2i/d) 旋转角度 <code>pos · θ_i</code>。旋转后 <code>q_i · k_j</code> 的内积只依赖 i 与 j 的相对差，因而天然携带相对位置信息。高频维度（小 θ）编码近距离细节，低频维度（大 θ，即序列末端）编码长程依赖——这一“频段分工”正是后来所有外扩技术的操作对象。</p>
+      <div class="fml">f(x_m, m) = (R_m ⊗ W_q)x_m · (R_n ⊗ W_k)x_n  ⇒  q_m^T k_n = g(x_m, x_n, m - n)</div>
+      <p>自 Llama 1/2（2023）将 RoPE 作为默认实现<sup class="src">[12]</sup>后，它迅速统治开源圈：Llama 3/3.1、Qwen2/2.5/3、Mistral、Yi、Baichuan2-7B、GLM-4.5、Phi-3/4、Gemma 2/3、Kimi K2、DeepSeek-V3 等均采用 RoPE 家族方案<sup class="src">[13]</sup><sup class="src">[14]</sup><sup class="src">[15]</sup><sup class="src">[16]</sup>。可以说 2023 年后的“位置编码”几乎等价于“RoPE 及其重缩放变体”。</p>
+
+      <h3>1.5 上下文外扩：PI、NTK、YaRN、LongRoPE 与官方扩展</h3>
+      <p>RoPE 的旋转角度与位置成正比，训练长度之外角度“卷过头”，性能崩塌。社区与学术界为此发展出一整套重缩放技术：</p>
+      <p><strong>位置插值 PI（2023, arXiv:2306.15595）</strong><sup class="src">[17]</sup> 直接把位置坐标线性压缩 s 倍（s = 目标长度/训练长度），让 8K 位置映射回 4K 的刻度；问题是近距离分辨率被等比例牺牲。<strong>NTK-aware</strong>（2023 年 6 月，Reddit r/LocalLLaMA 用户 bloc97 提出）<sup class="src">[18]</sup> 不压缩坐标，而是按 NTK 理论<strong>只抬升基频 θ</strong>：高频维度基本不动、只重排低频维度，从而保住近距离精度；其推理时按实际序列长度动态调整倍率的版本称为 <strong>Dynamic NTK</strong>（emozilla, 2023）<sup class="src">[19]</sup>；把高频段完全不缩放、只对低频段按线性插值缩放的折中称为 <strong>Part NTK / 部分线性缩放</strong>。</p>
+      <p><strong>YaRN（2023, arXiv:2309.00071, ICLR 2024）</strong><sup class="src">[20]</sup> 系统化上述思路：分频段分别处理高频（保留）、中频（截断）、低频（外推），并用温度修正补偿注意力分布，比此前方法少用 10 倍 token、少 2.5 倍训练步即可完成上下文扩展，Llama 系列被 YaRN 微调后可外推至 128K。<strong>LongRoPE（2024, arXiv:2402.13753）</strong><sup class="src">[21]</sup> 则按维度搜索非均匀的重缩放因子，Phi-3 用它把 4K 扩到 128K<sup class="src">[22]</sup>。厂商侧的“官方扩展”也多是这套组合拳：Llama 3.1 对 405B 继续预训练把上下文从 8K 提到 128K<sup class="src">[13]</sup>；Qwen3 在 32K 原生长度基础上用 YaRN + Dual Chunk Attention 再扩 4 倍到 128K<sup class="src">[14]</sup>；Kimi K2 用 YaRN 把 4K 训练段推到 128K<sup class="src">[15]</sup>。</p>
+
+      <h3>1.6 NoPE 的发现与“Llama-3 仅少数层使用 RoPE”的核验</h3>
+      <p><strong>NoPE（No Positional Encoding）</strong>最有代表性的实证研究是 Kazemnejad 等人的 NeurIPS 2023 论文<sup class="src">[10]</sup>：他们在合成任务上系统比较 APE、T5 Relative Bias、ALiBi、RoPE 与完全无位置编码的解码器，发现 NoPE 的长度泛化反而优于所有显式 PE——因果掩码本身（位置 i 看不到 j&gt;i）就打破了 token 顺序的对称性，模型能从“谁能看到谁”反推出顺序。需要澄清：任务书中提到的 arXiv:2410.01131 经联网核验<strong>并不是 NoPE 论文</strong>，而是 nGPT（归一化 Transformer）论文<sup class="src">[23]</sup>，此处予以更正。</p>
+      <p>关于网传说法“<strong>Llama-3 仅首层（或少数层）使用 RoPE</strong>”，本次核验结论为：<span class="tag n">未核实</span>。Meta 官方 Llama 3 技术报告与公开实现（HF transformers、模型 config）均为<strong>全部注意力层统一应用 RoPE（θ=500000）</strong>，没有“只有首层加位置”的设计<sup class="src">[13]</sup>。该说法更可能是对两类后续工作的误读：其一，机制分析论文发现 RoPE 的角度对齐信号在浅层（通常前几层）最强、深层衰减<sup class="src">[24]</sup>；其二，2025 年后的真实设计确实走向了“部分层/部分维度免旋转”——Llama 4 的 iRoPE 让 48 层中每第 4 层（共 12 层）不使用旋转<sup class="src">[25]</sup>，Qwen3-Next 只对前 25% 位置维度施加旋转<sup class="src">[26]</sup>，GLM-4.5、Phi-4-mini 采用部分旋转（25% 维度保持与位置无关）<sup class="src">[16]</sup><sup class="src">[27]</sup>。Kimi Linear（2025）更进一步，在全部 MLA 全注意力层上使用 NoPE，把位置与近因偏差完全交给 KDA 线性层承担<sup class="src">[28]</sup>。即：“Llama-3 本体只有少数层用 RoPE”没有官方依据，但“2025–2026 的新架构确实在系统性减少 RoPE 作用范围”是已查证事实。</p>
+
+      <h3>1.7 多模态：2D 位置编码</h3>
+      <p>图像是二维结构，一维位置编码无法表达“同行相邻 patch”与“隔列远 patch”的差别。ViT（2020, arXiv:2010.11929）<sup class="src">[29]</sup> 对 patch 使用可学习 2D 绝对位置嵌入（或等价的 2D 正弦）。Qwen2-VL（2024, arXiv:2409.12191）<sup class="src">[30]</sup> 把 ViT 的绝对位置嵌入移除，引入 <strong>2D-RoPE（M-RoPE）</strong>：把旋转角度拆成高度、宽度两个分量，让视觉 token 的相对位置沿两个轴分别编码，并把该方案保留给语言侧注意力（文本 token 只走 1D 角度）；Qwen3-VL 进一步用 Interleaved-MRoPE 把时间、宽、高三个维度交错分配频率<sup class="src">[31]</sup>。GLM-4.5V 的 ViT 同样集成了 2D-RoPE 以支持极端宽高比与超分图像<sup class="src">[32]</sup>。这一路线本质是 RoPE“按维度分配旋转频率”思想从 1D 序列向 2D/3D 时空的自然推广。</p>
+    </section>
+
+    <!-- ===== 2 演进时间线 ===== -->
+    <section id="timeline">
+      <h2>演进时间线</h2>
+      <p class="section-lead">2017–2026：从固定正弦到 RoPE 统治，再到部分旋转与层间免位置。蓝色＝绝对/相对加性方案，青色＝RoPE 及其变体，琥珀色＝上下文外扩技术，玫红＝NoPE 思想与多维编码。</p>
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-year">2017</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Sinusoidal 位置编码<sup class="src">[1]</sup></div>
+            <div class="tl-body">原始 Transformer 用不同频率 sin/cos 生成固定位置向量，加在 embedding 上；最大长度 512。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2018</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">可学习绝对位置嵌入：GPT-1 与 BERT<sup class="src">[2]</sup><sup class="src">[3]</sup></div>
+            <div class="tl-body">位置表直接参与训练，BERT 位置上限 512，GPT-1 为 512；简单但无法外推。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2019</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Transformer-XL：相对位置编码 + 段级状态复用<sup class="src">[4]</sup></div>
+            <div class="tl-body">arXiv:1901.02860。首次把显式相对距离写进注意力，并缓存上一段隐状态。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2019</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">T5：桶化相对偏置（32 buckets）<sup class="src">[5]</sup></div>
+            <div class="tl-body">arXiv:1910.10683。远距离按对数分桶，把无限距离压进有限参数表。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2020</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeBERTa：内容/位置解耦注意力<sup class="src">[6]</sup></div>
+            <div class="tl-body">arXiv:2006.03654。注意力拆成内容-内容、内容-位置、位置-内容三部分。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2021</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">RoPE 提出<sup class="src">[11]</sup></div>
+            <div class="tl-body">arXiv:2104.09864。旋转 Query/Key，内积只依赖相对位置；高频维度管近、低频维度管远。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2022</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">ALiBi：线性距离惩罚<sup class="src">[7]</sup></div>
+            <div class="tl-body">arXiv:2108.12409。零参数、零存储；BLOOM、Falcon 采用<sup class="src">[8]</sup><sup class="src">[9]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2023.05</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">NoPE 实证：无位置编码也能泛化<sup class="src">[10]</sup></div>
+            <div class="tl-body">Kazemnejad 等（NeurIPS 2023）在合成任务上发现 NoPE 长度泛化优于 APE/T5 Bias/ALiBi/RoPE。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2023.06</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">位置插值 PI 与 NTK-aware<sup class="src">[17]</sup><sup class="src">[18]</sup></div>
+            <div class="tl-body">PI 压缩位置坐标；社区 bloc97 提出按基频重排的 NTK-aware，保住高频近距离精度。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2023.09</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">YaRN：分频段重缩放<sup class="src">[20]</sup></div>
+            <div class="tl-body">arXiv:2309.00071。比此前方法少 10 倍 token、2.5 倍训练步完成上下文扩展。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2023.10</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Llama 2 普及 RoPE：θ=10000，4K 上下文<sup class="src">[12]</sup></div>
+            <div class="tl-body">RoPE 成为开源事实标准；Yi 同期按 YaRN 思路把 θ 抬到 5×10^6 并从 4K 基训练外推到 200K<sup class="src">[33]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.02</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">LongRoPE：逐维搜索非均匀缩放<sup class="src">[21]</sup></div>
+            <div class="tl-body">arXiv:2402.13753。Phi-3 用其把 4K 扩展到 128K<sup class="src">[22]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.04</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Llama 3 抬 θ：500000，8K；Qwen2 θ=10^6，32K<sup class="src">[13]</sup><sup class="src">[34]</sup></div>
+            <div class="tl-body">“提高基频”成为长上下文预训练标配（ABF）；同年 Mistral-7B v0.3 把 θ 从 10^4 抬到 10^6、上下文 32K<sup class="src">[35]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.09</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen2-VL：2D-RoPE（M-RoPE）<sup class="src">[30]</sup></div>
+            <div class="tl-body">arXiv:2409.12191。移除 ViT 绝对位置嵌入，高度/宽度两个旋转分量；后延续到 Qwen3-VL<sup class="src">[31]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.07</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Llama 3.1：继续预训练到 128K<sup class="src">[13]</sup></div>
+            <div class="tl-body">arXiv:2407.21783。8K 基训练 + 续训扩展，θ 维持 500000。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.12</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeepSeek-V3：两段式扩 32K→128K<sup class="src">[36]</sup></div>
+            <div class="tl-body">arXiv:2412.19437。θ 维持 10000，以续训方式拉长上下文；R1 沿用同架构。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.04</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Llama 4：iRoPE 层间交替免旋转<sup class="src">[25]</sup></div>
+            <div class="tl-body">Scout 48 层中每第 4 层（12 层）不使用 RoPE；θ=500000 + llama3 缩放因子 16，推理上下文标称 10M（Instruct）。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.04</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3：ABF θ=10^6 + YaRN + DCA，32K→128K<sup class="src">[14]</sup></div>
+            <div class="tl-body">arXiv:2505.09388。同年 GLM-4.5 部分旋转（Partial RoPE），θ 随中段训练从 10^4 抬到 10^6、上下文 128K<sup class="src">[16]</sup>；Kimi K2 θ=5×10^4、YaRN 扩到 128K<sup class="src">[15]</sup><sup class="src">[37]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.09</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3-Next：只对前 25% 位置维度旋转<sup class="src">[26]</sup></div>
+            <div class="tl-body">gated deltanet + 注意力混合架构，部分旋转提升外推；同期 Kimi Linear 在 MLA 层全面 NoPE<sup class="src">[28]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.02</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3.5 发布（原生多模态混合架构）<sup class="src">[38]</sup></div>
+            <div class="tl-body">旗舰 Qwen3.5-397B-A17B；Qwen3.5-Omni 报告披露 256K 上下文<sup class="src">[39]</sup>；Qwen3.6 模型卡显示旋转维度 64/256（部分旋转）<sup class="src">[40]</sup>。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.04</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeepSeek V4：1M 上下文成默认<sup class="src">[41]</sup></div>
+            <div class="tl-body">混合压缩稀疏注意力（CSA/HCA）；具体 θ 与旋转细节未公开<sup class="src">[41]</sup><span class="tag u">未公开</span>。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 3 关键对比图表 ===== -->
+    <section id="charts">
+      <h2>关键对比图表</h2>
+      <p class="section-lead">图 1 是各里程碑模型上下文长度（对数刻度）；图 2 是各模型 RoPE 基频 θ 的取值（对数刻度）；图 3 为 ALiBi 与 RoPE 相对距离得分的机理示意（非实测数据）。</p>
+
+      <h3>图 1：主流模型上下文长度演进（2017–2026，对数刻度）</h3>
+      <div id="chart-ctx" class="chart"></div>
+      <p class="chart-note">图 1：口径＝官方技术报告/模型卡声明的最大可用上下文（部分为续训或 YaRN 扩展后的长度），单位 token；来源见正文与总表上标。</p>
+
+      <h3>图 2：RoPE 基频 θ 随模型版本的抬升（对数刻度）</h3>
+      <div id="chart-theta" class="chart"></div>
+      <p class="chart-note">图 2：口径＝HF/导出 config 中的 rope_theta（Llama 系列为 rope.freq_base），未披露 θ 的模型（如 GPT-5、Gemini、DeepSeek V4）不列入；来源见总表依据列。</p>
+
+      <h3>图 3：ALiBi 线性惩罚 vs RoPE 相对距离得分（机理示意）</h3>
+      <div id="chart-mech" class="chart" style="height:340px"></div>
+      <p class="chart-note">图 3：示意数据，非实测；仅表达 ALiBi 随距离线性衰减、RoPE 的相对内积随距离振荡这一机理差异。</p>
+    </section>
+
+    <!-- ===== 4 位置编码类型对比表 ===== -->
+    <section id="tables">
+      <h2>位置编码类型对比表</h2>
+      <p class="section-lead">七个维度横向对比九类位置编码方案。“外推”指超出训练长度后的保持能力；“开销”以相对标准注意力的额外代价衡量。</p>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:15%"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:15%"><col style="width:25%"><col style="width:13%">
+          </colgroup>
+          <thead><tr><th>方案（类别）</th><th>显式/隐式</th><th>外推能力</th><th>内插能力</th><th>计算/内存开销</th><th>公式要点</th><th>代表模型</th></tr></thead>
+          <tbody>
+            <tr><td>Sinusoidal（绝对）</td><td>显式加性</td><td>差</td><td>差</td><td>零参数；推理零额外开销</td><td>固定 sin/cos 多频率向量，直接加在 embedding 上<sup class="src">[1]</sup></td><td>原始 Transformer</td></tr>
+            <tr><td>Learned Absolute（绝对）</td><td>显式加性</td><td>无（位置表封顶）</td><td>无</td><td>参数量 ≈ 最大位置 × d_model</td><td>可训练位置向量加性叠加<sup class="src">[2]</sup></td><td>GPT-1/2、BERT、GPT-3</td></tr>
+            <tr><td>Transformer-XL RPE（相对）</td><td>显式偏置</td><td>中（段级状态辅助）</td><td>中</td><td>注意力分数加可学习项；缓存额外显存</td><td>分数中显式使用相对距离 m−n<sup class="src">[4]</sup></td><td>Transformer-XL</td></tr>
+            <tr><td>T5 Relative Bias（相对）</td><td>显式偏置</td><td>中</td><td>中</td><td>32 桶可学习偏置表</td><td>近距离精确桶、远距离对数桶<sup class="src">[5]</sup></td><td>T5、mT5</td></tr>
+            <tr><td>DeBERTa 解耦（相对/解耦）</td><td>显式</td><td>中</td><td>中</td><td>内容/位置双向量，约 2 倍向量开销</td><td>注意力拆为内容-内容、内容-位置、位置-内容三部分<sup class="src">[6]</sup></td><td>DeBERTa</td></tr>
+            <tr><td>ALiBi（免参数）</td><td>隐式偏置</td><td>较好（线性衰减）</td><td>好</td><td>零参数、零存储</td><td>logits 减去 m·|i−j|，m=2^(−8/n)<sup class="src">[7]</sup></td><td>BLOOM、Falcon、Baichuan2-13B</td></tr>
+            <tr><td>RoPE（旋转/隐式）</td><td>隐式乘法</td><td>需重缩放（PI/NTK/YaRN）</td><td>需重缩放</td><td>每层旋转 Q/K，约 2 倍角度计算</td><td>内积只依赖 m−n；高频维度近、低频维度远<sup class="src">[11]</sup></td><td>Llama、Qwen、Mistral、DeepSeek-V3</td></tr>
+            <tr><td>Partial RoPE（部分旋转）</td><td>隐式（部分维度）</td><td>较好（未旋转维度天然外推）</td><td>好</td><td>旋转维度减半</td><td>仅前 25% 位置维度旋转<sup class="src">[16]</sup><sup class="src">[26]</sup></td><td>GLM-4.5、Phi-4-mini、Qwen3-Next/3.6</td></tr>
+            <tr><td>iRoPE / NoPE-层（层间交替）</td><td>部分层免旋转</td><td>好（免旋转层不限长）</td><td>好</td><td>免旋转层零 PE 开销</td><td>隔层不旋转 + 注意力温度按位置调整<sup class="src">[25]</sup></td><td>Llama 4 Scout/Maverick、Kimi Linear（MLA 层）</td></tr>
+            <tr><td>2D-RoPE / M-RoPE（多维）</td><td>隐式（多维旋转）</td><td>随语言侧方案</td><td>随语言侧方案</td><td>角度拆高度/宽度分量</td><td>视觉 token 沿 h、w 两轴分别分配频率<sup class="src">[30]</sup></td><td>Qwen2-VL/Qwen3-VL、GLM-4.5V</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：“差/好”为相对口径下的定性判断，依据各论文在长度泛化与长上下文基准上的结论；NoPE 论文实测 ALiBi、RoPE、APE 在下游任务长度泛化上均不占优<sup class="src">[10]</sup>，此处外推评级主要指“超出训练长度时是否立即崩坏”。</p>
+    </section>
+
+    <!-- ===== 5 模型系列 × 版本总表 ===== -->
+    <section id="matrix">
+      <h2>模型系列 × 版本总表</h2>
+      <p class="section-lead">15 个模型系列、每系列至少 2 个版本（含 2025–2026 最新版）。θ 为 rope_theta / rope.freq_base；未知项明确标注。</p>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:11%"><col style="width:15%"><col style="width:24%"><col style="width:17%"><col style="width:13%"><col style="width:12%"><col style="width:8%">
+          </colgroup>
+          <thead><tr><th>模型系列</th><th>版本（年份）</th><th>位置编码方案</th><th>θ/基频或桶数</th><th>上下文长度</th><th>扩展方式</th><th>依据</th></tr></thead>
+          <tbody>
+            <tr><td>OpenAI GPT</td><td>GPT-1（2018）</td><td>可学习绝对位置嵌入</td><td>位置表 0–511</td><td>512</td><td>无</td><td>[2]</td></tr>
+            <tr><td>OpenAI GPT</td><td>GPT-3（2020）</td><td>可学习绝对位置嵌入</td><td>位置表 0–2047</td><td>2048</td><td>无</td><td>[2]</td></tr>
+            <tr><td>OpenAI GPT</td><td>GPT-5（2025.08）</td><td>未公开<span class="tag u">未公开</span></td><td>未公开</td><td>400K</td><td>未公开</td><td>[42]</td></tr>
+            <tr><td>Google BERT/T5</td><td>BERT（2018）</td><td>可学习绝对位置嵌入</td><td>位置表 0–511</td><td>512</td><td>无</td><td>[3]</td></tr>
+            <tr><td>Google BERT/T5</td><td>T5（2019）</td><td>桶化相对偏置</td><td>32 桶</td><td>512</td><td>无</td><td>[5]</td></tr>
+            <tr><td>Meta Llama</td><td>Llama 1（2023）</td><td>RoPE</td><td>θ=10000</td><td>2K</td><td>无</td><td>[12]</td></tr>
+            <tr><td>Meta Llama</td><td>Llama 2（2023）</td><td>RoPE</td><td>θ=10000</td><td>4K</td><td>无</td><td>[12]</td></tr>
+            <tr><td>Meta Llama</td><td>Llama 3 / 3.1（2024）</td><td>RoPE（全部注意力层）</td><td>θ=500000</td><td>8K → 128K</td><td>405B 继续预训练扩展</td><td>[13]</td></tr>
+            <tr><td>Meta Llama</td><td>Llama 4 Scout（2025.04）</td><td>iRoPE：48 层中每第 4 层（12 层）免旋转<span class="tag v">已查证</span></td><td>θ=500000；llama3 缩放 factor 16（orig 8192）</td><td>标称 10M（Instruct）</td><td>推理温度调整 + 分块注意力</td><td>[25]</td></tr>
+            <tr><td>Meta Llama</td><td>Llama 4 Maverick（2025.04）</td><td>RoPE</td><td>θ=500000</td><td>1M</td><td>llama3 缩放</td><td>[25][44]</td></tr>
+            <tr><td>Mistral</td><td>Mistral-7B v0.1（2023）</td><td>RoPE</td><td>θ=10000</td><td>8K</td><td>无</td><td>[35]</td></tr>
+            <tr><td>Mistral</td><td>Mistral-7B v0.3（2024）</td><td>RoPE</td><td>θ=1000000</td><td>32K</td><td>抬升基频</td><td>[35]</td></tr>
+            <tr><td>阿里 Qwen</td><td>Qwen2（2024）</td><td>RoPE</td><td>θ=1000000</td><td>32K</td><td>ABF 抬基频</td><td>[34]</td></tr>
+            <tr><td>阿里 Qwen</td><td>Qwen2.5（2024）</td><td>RoPE</td><td>θ=1000000</td><td>32K → 128K</td><td>YaRN</td><td>[45]</td></tr>
+            <tr><td>阿里 Qwen</td><td>Qwen3（2025.04）</td><td>RoPE（ABF）+ Dual Chunk Attention</td><td>θ=1000000</td><td>32K → 131K</td><td>YaRN + DCA 4 倍</td><td>[14]</td></tr>
+            <tr><td>阿里 Qwen</td><td>Qwen3-Next（2025.09）</td><td>部分旋转（仅前 25% 位置维度）</td><td>未披露</td><td>未公开</td><td>——</td><td>[26]</td></tr>
+            <tr><td>阿里 Qwen</td><td>Qwen3.5（2026.02）</td><td>gated deltanet + 门控注意力混合架构，细节未完全公开<span class="tag u">一方称</span></td><td>未公开</td><td>Qwen3.5-Omni 256K</td><td>未公开</td><td>[38][39]</td></tr>
+            <tr><td>阿里 Qwen</td><td>Qwen3.6（2026）</td><td>部分旋转（旋转维度 64 / 头维 256）</td><td>未披露</td><td>未公开</td><td>——</td><td>[40]</td></tr>
+            <tr><td>DeepSeek</td><td>DeepSeek-V3（2024.12）</td><td>MLA + RoPE</td><td>θ=10000</td><td>4K → 32K → 128K</td><td>两段式继续预训练</td><td>[36]</td></tr>
+            <tr><td>DeepSeek</td><td>DeepSeek-V3.2-Exp（2025.09）</td><td>DSA 稀疏注意力（沿用 V3.1 架构）</td><td>θ=10000（沿用）</td><td>128K</td><td>自 V3.1-Terminus 续训</td><td>[46]</td></tr>
+            <tr><td>DeepSeek</td><td>DeepSeek V4（2026.04）</td><td>CSA + HCA 混合注意力；位置编码细节未公开<span class="tag u">未公开</span></td><td>未公开</td><td>1M（默认）</td><td>未公开</td><td>[41]</td></tr>
+            <tr><td>智谱 GLM</td><td>GLM-4.5（2025.07）</td><td>Partial RoPE（GQA + 部分旋转）</td><td>θ=10000 → 1000000（32K 中段时调整）</td><td>4K → 32K → 128K</td><td>中段续训 + 抬基频</td><td>[16]</td></tr>
+            <tr><td>智谱 GLM</td><td>GLM-4.5V（2025.07）</td><td>ViT 集成 2D-RoPE</td><td>——</td><td>文本侧 128K</td><td>——</td><td>[32]</td></tr>
+            <tr><td>Google Gemma</td><td>Gemma 2（2024）</td><td>RoPE（局部/全局交替注意力）</td><td>θ=10000</td><td>8K</td><td>无</td><td>[47]</td></tr>
+            <tr><td>Google Gemma</td><td>Gemma 3（2025.03）</td><td>RoPE：全局层抬基频、局部分层保持</td><td>全局 θ=1000000，局部 θ=10000</td><td>128K（1B 为 32K）</td><td>类位置插值续训</td><td>[48]</td></tr>
+            <tr><td>Moonshot Kimi</td><td>Kimi K2（2025.07）</td><td>RoPE</td><td>θ=50000<span class="tag u">一方称</span></td><td>4K → 32K → 128K</td><td>YaRN（factor 32）</td><td>[15][37]</td></tr>
+            <tr><td>Moonshot Kimi</td><td>Kimi Linear（2025.10）</td><td>MLA 全注意力层全面 NoPE，位置与近因偏差交由 KDA 线性层</td><td>MLA 层无旋转</td><td>未公开</td><td>——</td><td>[28]</td></tr>
+            <tr><td>Microsoft Phi</td><td>Phi-3（2024）</td><td>RoPE（LongRoPE 方法）</td><td>未单独披露</td><td>4K → 128K</td><td>LongRoPE + 混合上下文窗</td><td>[22]</td></tr>
+            <tr><td>Microsoft Phi</td><td>Phi-4（2024.12）</td><td>RoPE（全注意力）</td><td>未单独披露</td><td>4K（默认）</td><td>无</td><td>[49]</td></tr>
+            <tr><td>Microsoft Phi</td><td>Phi-4-mini（2025.02）</td><td>分数维度 RoPE：25% 头维度保持与位置无关</td><td>未披露</td><td>未公开</td><td>——</td><td>[27]</td></tr>
+            <tr><td>TII Falcon</td><td>Falcon-7B/40B/180B（2023）</td><td>ALiBi</td><td>无（斜率固定）</td><td>2K 训练，可外推</td><td>ALiBi 线性外推</td><td>[9]</td></tr>
+            <tr><td>TII Falcon</td><td>Falcon2-11B（2024.07）</td><td>RoPE（抬升 θ）</td><td>提升后的 θ（按 YaRN 思路）</td><td>更长上下文</td><td>抬升基频</td><td>[50]</td></tr>
+            <tr><td>上海 AI Lab InternLM</td><td>InternLM2.5（2024）</td><td>RoPE</td><td>未公开</td><td>32K</td><td>官方续训扩展</td><td>[43]</td></tr>
+            <tr><td>上海 AI Lab InternLM</td><td>InternLM3-8B-Instruct（2025）</td><td>RoPE</td><td>θ=5×10^7（导出 config）<span class="tag u">一方称</span></td><td>32K</td><td>——</td><td>[43]</td></tr>
+            <tr><td>01.AI Yi</td><td>Yi-34B（2023）</td><td>RoPE（ABF 调整基频）</td><td>按 YaRN 思路调整</td><td>4K 基训练 → 200K</td><td>续训外推</td><td>[33]</td></tr>
+            <tr><td>01.AI Yi</td><td>Yi-1.5-34B（2024）</td><td>RoPE</td><td>θ=5×10^6（导出 config）<span class="tag u">一方称</span></td><td>4K</td><td>——</td><td>[51]</td></tr>
+            <tr><td>百川 Baichuan</td><td>Baichuan2-7B（2023）</td><td>RoPE</td><td>未披露</td><td>4K</td><td>无</td><td>[52]</td></tr>
+            <tr><td>百川 Baichuan</td><td>Baichuan2-13B（2023）</td><td>ALiBi</td><td>无</td><td>4K</td><td>无</td><td>[52]</td></tr>
+            <tr><td>xAI Grok</td><td>Grok-1（2023）</td><td>未公开<span class="tag n">未核实</span></td><td>未公开</td><td>未公开</td><td>——</td><td>——</td></tr>
+            <tr><td>xAI Grok</td><td>Grok-3（2024.12）</td><td>未公开<span class="tag n">未核实</span></td><td>未公开</td><td>128K（一方称）</td><td>未公开</td><td>——</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：“未公开”指官方技术报告/模型卡未披露该细节；“一方称”指仅厂商口径或二手配置梳理（导出 config）、官方未正式说明；“未核实”指公开渠道未找到可靠来源。当前日期 2026-11-04，2025–2026 年发布信息均以检索到的官方/arXiv 来源为准。θ 数值除特别注明外均来自官方技术报告或 HF 导出配置。</p>
+    </section>
+
+<!-- TODO-PE-MATRIX -->
+    <!-- ===== 6 参考资料 ===== -->
+    <section id="refs" class="refs">
+      <h2>参考资料与出处</h2>
+      <p class="section-lead">编号与正文 <code>&lt;sup class="src"&gt;</code> 一一对应；优先级：arXiv &gt; 官方技术报告/博客 &gt; HF/ModelScope 模型卡 &gt; 导出配置与二手梳理。</p>
+      <ol>
+        <li><a href="https://arxiv.org/abs/1706.03762">Vaswani et al., Attention Is All You Need, NeurIPS 2017（arXiv:1706.03762）</a></li>
+        <li><a href="https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf">Radford et al., Improving Language Understanding by Generative Pre-Training（GPT-1）, OpenAI, 2018</a></li>
+        <li><a href="https://arxiv.org/abs/1810.04805">Devlin et al., BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding, NAACL 2019（arXiv:1810.04805）</a></li>
+        <li><a href="https://arxiv.org/abs/1901.02860">Dai et al., Transformer-XL: Attentive Language Models beyond a Fixed-Length Context, ACL 2019（arXiv:1901.02860）</a></li>
+        <li><a href="https://arxiv.org/abs/1910.10683">Raffel et al., Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer（T5）, JMLR 2020（arXiv:1910.10683）</a></li>
+        <li><a href="https://arxiv.org/abs/2006.03654">He et al., DeBERTa: Decoding-enhanced BERT with Disentangled Attention, NAACL 2021（arXiv:2006.03654）</a></li>
+        <li><a href="https://arxiv.org/abs/2108.12409">Press et al., Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation（ALiBi）, ICLR 2022（arXiv:2108.12409）</a></li>
+        <li><a href="https://arxiv.org/abs/2211.05100">BigScience Workshop, BLOOM: A 176B-Parameter Open-Access Multilingual Language Model（arXiv:2211.05100）</a></li>
+        <li><a href="https://arxiv.org/abs/2311.16867">Almazrouei et al., The Falcon Series of Open Language Models（TII）（arXiv:2311.16867）</a></li>
+        <li><a href="https://papers.neurips.cc/paper_files/paper/2023/file/4e85362c02172c0c6567ce593122d31c-Paper-Conference.pdf">Kazemnejad et al., The Impact of Positional Encoding on Length Generalization in Transformers, NeurIPS 2023（NoPE 实证研究）</a></li>
+        <li><a href="https://arxiv.org/abs/2104.09864">Su et al., RoFormer: Enhanced Transformer with Rotary Position Embedding（RoPE）, Neurocomputing 2024（arXiv:2104.09864）</a></li>
+        <li><a href="https://arxiv.org/abs/2307.09288">Touvron et al., Llama 2: Open Foundation and Fine-Tuned Chat Models（arXiv:2307.09288）</a></li>
+        <li><a href="https://arxiv.org/abs/2407.21783">Grimm et al., The Llama 3 Herd of Models（arXiv:2407.21783）</a></li>
+        <li><a href="https://arxiv.org/abs/2505.09388">Qwen Team, Qwen3 Technical Report（arXiv:2505.09388）</a></li>
+        <li><a href="https://arxiv.org/abs/2507.20534">Kimi Team, Kimi K2: Open Agentic Intelligence（arXiv:2507.20534）</a></li>
+        <li><a href="https://arxiv.org/abs/2508.06471">Zeng et al., GLM-4.5: Agentic, Reasoning, and Coding (ARC) Foundation Models（arXiv:2508.06471）</a></li>
+        <li><a href="https://arxiv.org/abs/2306.15595">Chen et al., Extending Context Window of Large Language Models via Positional Interpolation（PI）（arXiv:2306.15595）</a></li>
+        <li><a href="https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/">bloc97, NTK-Aware Scaled RoPE allows LLaMA models to have extended context without fine-tuning, r/LocalLLaMA, 2023-06</a></li>
+        <li><a href="https://proceedings.iclr.cc/paper_files/paper/2024/file/874a4d89f2d04b4bcf9a2c19545cf040-Paper-Conference.pdf">Peng et al., YaRN: Efficient Context Window Extension of Large Language Models, ICLR 2024 论文中对 Dynamic NTK（emozilla, 2023）的记载</a></li>
+        <li><a href="https://arxiv.org/abs/2309.00071">Peng et al., YaRN: Efficient Context Window Extension of Large Language Models（arXiv:2309.00071）</a></li>
+        <li><a href="https://arxiv.org/abs/2402.13753">Ding et al., LongRoPE: Extending LLM Context Window Beyond 2 Million Tokens（arXiv:2402.13753）</a></li>
+        <li><a href="https://arxiv.org/abs/2404.14219">Abdin et al., Phi-3 Technical Report: A Highly Capable Language Model Locally on Your Phone（arXiv:2404.14219）</a></li>
+        <li><a href="https://arxiv.org/abs/2410.01131">Loshchilov et al., nGPT: Normalized Transformer with Representation Learning on the Hypersphere（arXiv:2410.01131，经核验并非 NoPE 论文）</a></li>
+        <li><a href="http://www.proceedings.com/content/079/079017-1727open.pdf">What Rotary Position Embedding Can Tell Us: Identifying Query and Key Weights Corresponding to Basic Syntactic or High-level Semantic Information（RoPE 浅层角度对齐信号分析）</a></li>
+        <li><a href="https://localaimaster.com/models/llama-4-scout">Llama 4 Scout 模型配置梳理：θ=500000、llama3 缩放 factor 16（orig 8192）、48 层中 12 层（每第 4 层）无旋转（结合 Meta 官方发布博客交叉核对）</a></li>
+        <li><a href="https://qwen.ai/blog?id=qwen3-next">Qwen Team, Qwen3-Next 官方博客：仅对前 25% 位置维度施加旋转位置编码，2025-09</a></li>
+        <li><a href="https://arxiv.org/abs/2503.01743">Phi-4-Mini Technical Report: Compact yet Powerful Multimodal Language Models via Mixture-of-LoRAs（分数维度 RoPE，arXiv:2503.01743）</a></li>
+        <li><a href="https://arxiv.org/abs/2510.26692">Kimi Team, Kimi Linear: An Expressive, Efficient Attention Architecture（MLA 层 NoPE，arXiv:2510.26692）</a></li>
+        <li><a href="https://arxiv.org/abs/2010.11929">Dosovitskiy et al., An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale（ViT）（arXiv:2010.11929）</a></li>
+        <li><a href="https://arxiv.org/abs/2409.12191">Qwen Team, Qwen2-VL: Enhancing Vision-Language Model's Perception of the World at Any Resolution（2D-RoPE/M-RoPE，arXiv:2409.12191）</a></li>
+        <li><a href="https://modelscope.cn/models/Qwen/Qwen3-VL-32B-Instruct">Qwen3-VL-32B-Instruct ModelScope 官方模型卡：Interleaved-MRoPE（时间/宽/高交错分配频率）</a></li>
+        <li><a href="https://arxiv.org/abs/2507.01006">GLM-4.5V and GLM-4.1V-Thinking: Towards Versatile Multimodal Reasoning（ViT 集成 2D-RoPE，arXiv:2507.01006）</a></li>
+        <li><a href="https://arxiv.org/abs/2403.04652">01.AI, Yi: Open Foundation Models by 01.AI（RoPE ABF，4K 基训练外推至 200K，arXiv:2403.04652）</a></li>
+        <li><a href="https://huggingface.co/Qwen/Qwen2-7B">Qwen2-7B Hugging Face 官方模型卡（θ=1000000，上下文 32K）</a></li>
+        <li><a href="https://www.ollama.com/library/mistral:7b/blobs/ff82381e2bea">Mistral-7B v0.3 导出配置：rope.freq_base=1e6、context_length=32768（v0.1 为 θ=10000、8K，见 HF v0.1 模型卡）</a></li>
+        <li><a href="https://arxiv.org/abs/2412.19437">DeepSeek-AI, DeepSeek-V3 Technical Report（4K 基训练，两段式扩展至 32K、128K，arXiv:2412.19437）</a></li>
+        <li><a href="https://labhub.hopto.org/blog/ai-papers/2026-08-12-model-internals-positional-encoding?lang=en">LabHub 模型内部配置梳理：Kimi K2 rope_theta=50,000、YaRN factor 32（二手配置来源，官方报告未披露 θ）</a></li>
+        <li><a href="https://qwen.ai/blog?id=qwen3.5">Qwen Team, Qwen3.5: Towards Native Multimodal Agents 官方博客，2026-02-16</a></li>
+        <li><a href="https://arxiv.org/abs/2604.15804">Qwen3.5-Omni Technical Report（支持 256K 上下文，arXiv:2604.15804）</a></li>
+        <li><a href="https://modelscope.cn/models/Qwen/Qwen3.6-35B-A3B/summary">Qwen3.6-35B-A3B ModelScope 官方模型卡：头维 256、旋转位置编码维度 64（部分旋转）</a></li>
+        <li><a href="https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf">DeepSeek V4 Model Card（2026-04-24，CSA+HCA 混合注意力，上下文 1M 默认；位置编码细节未披露）</a></li>
+        <li><a href="https://openai.com/index/introducing-gpt-5/">OpenAI, Introducing GPT-5（400K 上下文；架构与位置编码未公开）</a></li>
+        <li><a href="https://www.ollama.com/lly/InternLM3-8B-Instruct:8b-instruct-q4_0/blobs/dd38d7164071">InternLM3-8B-Instruct 导出配置：rope.freq_base=5e7、context_length=32768（官方仓库 internlm/internlm3-8b-instruct）</a></li>
+        <li><a href="https://apxml.com/models/llama-4-maverick">Llama 4 Maverick 规格梳理：RoPE θ=500000、上下文 1M（二手来源）</a></li>
+        <li><a href="https://modelscope.cn/models/Qwen/Qwen2.5-7B-Instruct">Qwen2.5-7B-Instruct ModelScope 官方模型卡（θ=1000000，32K 原生、YaRN 扩展至 128K）</a></li>
+        <li><a href="https://www.deepseek.com/en/news/deepseek-v3-2/">DeepSeek, DeepSeek-V3.2-Exp 发布说明：自 V3.1-Terminus 128K 上下文续训，引入 DSA 稀疏注意力</a></li>
+        <li><a href="https://arxiv.org/abs/2408.00118">Gemma 2: Improving Open Language Models at a Practical Size（局部/全局交替注意力 + RoPE，arXiv:2408.00118）</a></li>
+        <li><a href="https://www.52nlp.cn/wp-content/uploads/2025/03/Gemma3%E6%8A%80%E6%9C%AF%E6%8A%A5%E5%91%8A%E8%8B%B1%E4%B8%AD%E5%AF%B9%E7%85%A7%E7%89%88.pdf">Gemma 3 Technical Report 中英对照版（全局层 RoPE 基频 10K→1M、局部分层保持 10K；128K 上下文，1B 为 32K）</a></li>
+        <li><a href="https://arxiv.org/abs/2412.08905">Phi-4 Technical Report（14B、默认上下文 4096、全注意力，arXiv:2412.08905）</a></li>
+        <li><a href="https://arxiv.org/abs/2407.14885">Falcon2-11B Technical Report（由 ALiBi 转向 RoPE 并提升 θ_rope，arXiv:2407.14885）</a></li>
+        <li><a href="https://www.ollama.com/library/yi:34b/blobs/648f108f6a1e">Yi-1.5-34B-Chat 导出配置：rope.freq_base=5e6、context_length=4096</a></li>
+        <li><a href="https://arxiv.org/abs/2309.10305">Baichuan 2: Open Large-scale Language Models（7B 用 RoPE、13B 用 ALiBi，arXiv:2309.10305）</a></li>
+      </ol>
+    </section>
+
+  </main>
+</div>
+
+<footer class="doc-footer">
+  <div class="footer-inner">
+    <div class="footer-series">Transformers 架构演进系列笔记</div>
+    <nav class="footer-nav">
+      <a href="注意力机制演进对比.html">注意力机制演进</a><span class="sep">·</span>
+      <a href="ffn_evolution.html">前馈网络演进</a><span class="sep">·</span>
+      <a href="normalization_evolution.html">归一化演进</a><span class="sep">·</span>
+      <a href="positional_encoding_evolution.html" class="current">位置编码演进</a>
+    </nav>
+    <p class="footer-meta">生成于 2026-11-04 · 关键事实附来源，未核实项已标注 · 本系列为个人学习笔记，引用请核对原始出处</p>
+  </div>
+</footer>
+
+<button id="backTop" aria-label="回到顶部"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>window.echarts || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"><\/script>')</script>
+<script>
+(function(){
+  // ===== 图表初始化助手：seriesChart(id, option) =====
+  window.seriesChart = function(id, option){
+    var el = document.getElementById(id);
+    if(!el || !window.echarts) return null;
+    var c = echarts.init(el);
+    c.setOption(option);
+    window.addEventListener('resize', function(){ c.resize(); });
+    return c;
+  };
+  // ===== 目录切换（移动端） =====
+  var toc = document.getElementById('toc');
+  var toggle = document.getElementById('tocToggle');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = toc.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+  // ===== 目录高亮当前小节 =====
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    if(document.getElementById(id)) map[id] = a;
+  });
+  if('IntersectionObserver' in window && Object.keys(map).length){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('on'); });
+          if(map[e.target.id]) map[e.target.id].classList.add('on');
+        }
+      });
+    }, {rootMargin:'-15% 0px -70% 0px'});
+    Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+  }
+  // ===== 回到顶部 =====
+  var bt = document.getElementById('backTop');
+  if(bt){
+    window.addEventListener('scroll', function(){
+      bt.classList.toggle('show', (window.scrollY || document.documentElement.scrollTop) > 400);
+    }, {passive:true});
+    bt.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+  }
+})();
+</script>
+<script>
+// ===== 本页图表数据与初始化（数据内联，来源见正文上标） =====
+(function(){
+  // 图 1：上下文长度（token，对数刻度）
+  var ctxData = [
+    {name:'Transformer(2017)', v:512}, {name:'BERT(2018)', v:512},
+    {name:'GPT-2(2019)', v:1024}, {name:'GPT-3(2020)', v:2048},
+    {name:'Llama 1(2023)', v:2048}, {name:'Llama 2(2023)', v:4096},
+    {name:'Mistral-7B(2023)', v:8192}, {name:'Llama 3(2024)', v:8192},
+    {name:'Qwen2(2024)', v:32768}, {name:'Llama 3.1(2024)', v:131072},
+    {name:'DeepSeek-V3(2024)', v:131072}, {name:'Qwen3(2025,YaRN)', v:131072},
+    {name:'Kimi K2(2025)', v:131072}, {name:'GLM-4.5(2025)', v:131072},
+    {name:'Qwen3.5-Omni(2026)', v:262144}, {name:'DeepSeek V4(2026)', v:1048576},
+    {name:'Llama 4 Scout(2025)', v:10485760}
+  ];
+  window.seriesChart('chart-ctx', {
+    grid:{left:110,right:30,top:30,bottom:40},
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, valueFormatter:function(v){return v.toLocaleString()+' tokens';}},
+    xAxis:{type:'log', min:300, axisLabel:{color:'#64748b'}, splitLine:{lineStyle:{color:'#eef2f7'}}},
+    yAxis:{type:'category', inverse:true, data:ctxData.map(function(d){return d.name;}), axisLabel:{color:'#475569', fontSize:11.5}},
+    series:[{type:'bar', data:ctxData.map(function(d){return d.v;}), barWidth:'62%',
+      itemStyle:{color:'#2563eb', borderRadius:[0,3,3,0]},
+      label:{show:true, position:'right', color:'#1e40af', fontSize:10.5, formatter:function(p){return p.value>=1000000?(p.value/1000000)+'M':(p.value/1024)+'K';}}
+    }]
+  });
+
+  // 图 2：RoPE 基频 theta（对数刻度）
+  var thetaData = [
+    {name:'Llama 2(2023)', v:10000}, {name:'Mistral-7B v0.1(2023)', v:10000},
+    {name:'DeepSeek-V3(2024)', v:10000}, {name:'Kimi K2(2025)', v:50000},
+    {name:'Llama 3/3.1/4(2024-25)', v:500000}, {name:'Qwen2/2.5/3(2024-25)', v:1000000},
+    {name:'Mistral-7B v0.3(2024)', v:1000000}, {name:'Yi-1.5-34B(2024)', v:5000000},
+    {name:'InternLM3-8B(2025)', v:50000000}
+  ];
+  window.seriesChart('chart-theta', {
+    grid:{left:130,right:50,top:30,bottom:40},
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, valueFormatter:function(v){return v.toLocaleString();}},
+    xAxis:{type:'log', min:5000, max:100000000, axisLabel:{color:'#64748b'}, splitLine:{lineStyle:{color:'#eef2f7'}}},
+    yAxis:{type:'category', inverse:true, data:thetaData.map(function(d){return d.name;}), axisLabel:{color:'#475569', fontSize:11.5}},
+    series:[{type:'bar', data:thetaData.map(function(d){return d.v;}), barWidth:'62%',
+      itemStyle:{color:'#0d9488', borderRadius:[0,3,3,0]},
+      label:{show:true, position:'right', color:'#0f766e', fontSize:10.5, formatter:function(p){return p.value.toLocaleString();}}
+    }]
+  });
+
+  // 图 3：机理示意（示意数据）
+  var dists = []; var alibi = []; var rope = [];
+  for(var d=0; d<=256; d+=4){ dists.push(d); alibi.push(-0.12*d); rope.push(Math.cos(d*0.35)*Math.exp(-d/120)); }
+  window.seriesChart('chart-mech', {
+    grid:{left:60,right:30,top:40,bottom:44},
+    tooltip:{trigger:'axis'},
+    legend:{top:4, textStyle:{color:'#475569', fontSize:12}},
+    xAxis:{type:'value', name:'相对距离 |i-j|', nameLocation:'middle', nameGap:26, axisLabel:{color:'#64748b'}},
+    yAxis:{type:'value', name:'注意力得分贡献（示意）', nameTextStyle:{color:'#64748b'}, axisLabel:{color:'#64748b'}, splitLine:{lineStyle:{color:'#eef2f7'}}},
+    series:[
+      {name:'ALiBi：线性惩罚（-m·距离）', type:'line', data:dists.map(function(x,i){return [x, alibi[i]];}), showSymbol:false, lineStyle:{color:'#e11d48', width:2.5}, itemStyle:{color:'#e11d48'}},
+      {name:'RoPE：振荡衰减（相对内积）', type:'line', data:dists.map(function(x,i){return [x, rope[i]];}), showSymbol:false, lineStyle:{color:'#2563eb', width:2.5}, itemStyle:{color:'#2563eb'}}
+    ]
+  });
+})();
+</script>
+</body>
+</html>

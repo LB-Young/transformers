@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>归一化（Normalization）演进对比 · Transformers 架构演进系列</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
+<style>
+/* ===== 设计令牌 ===== */
+:root{
+  --c-primary:#2563eb; --c-primary-dark:#1e40af; --c-primary-soft:#eff6ff;
+  --c-teal:#0d9488;   --c-teal-soft:#f0fdfa;
+  --c-amber:#d97706;  --c-amber-soft:#fffbeb;
+  --c-rose:#e11d48;   --c-rose-soft:#fff1f2;
+  --c-bg:#f6f8fb; --c-card:#ffffff; --c-text:#1e293b; --c-muted:#64748b;
+  --c-border:#e2e8f0; --c-heading:#0f172a; --c-code-bg:#f1f5f9;
+  --font-body:"PingFang SC","Microsoft YaHei","Noto Sans SC","Source Han Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font-family:var(--font-body);background:var(--c-bg);color:var(--c-text);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--c-primary);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{color:var(--c-heading);line-height:1.35;margin:0}
+h2{font-size:22px;margin:44px 0 14px;padding-top:10px}
+h2::before{content:"";display:inline-block;width:5px;height:20px;background:var(--c-primary);border-radius:3px;margin-right:10px;vertical-align:-3px}
+h3{font-size:17px;margin:28px 0 10px}
+p{margin:10px 0}
+code{font-family:var(--font-mono);font-size:.9em;background:var(--c-code-bg);border-radius:4px;padding:1px 5px;word-break:break-all}
+/* ===== 顶栏 ===== */
+.doc-header{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);color:#fff;padding:30px 16px 26px}
+.doc-header-inner{max-width:1120px;margin:0 auto}
+.doc-series{font-size:13px;letter-spacing:.12em;color:#93c5fd;text-transform:uppercase;margin-bottom:6px}
+.doc-title{font-size:26px;font-weight:700;color:#fff;margin:0 0 8px}
+.doc-subtitle{font-size:14.5px;color:#cbd5e1;margin:0;max-width:880px}
+/* ===== 布局 ===== */
+.layout{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:0;padding:0 16px}
+main{min-width:0;max-width:920px;padding:24px 0 40px}
+/* ===== 目录（移动端：折叠面板；桌面：左侧固定） ===== */
+#tocToggle{display:flex;align-items:center;gap:8px;margin:14px 0 0;padding:9px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;font-size:14px;color:var(--c-primary);cursor:pointer}
+#tocToggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+#toc{display:none;margin:10px 0 0;padding:10px 12px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.06)}
+#toc.open{display:block}
+#toc .toc-title{font-size:13px;color:var(--c-muted);letter-spacing:.08em;margin:2px 4px 8px;font-weight:600}
+#toc a{display:block;padding:5px 10px;border-left:2px solid var(--c-border);color:var(--c-text);font-size:14px;border-radius:0 6px 6px 0}
+#toc a:hover{background:var(--c-primary-soft);text-decoration:none}
+#toc a.on{border-left-color:var(--c-primary);background:var(--c-primary-soft);color:var(--c-primary-dark);font-weight:600}
+#toc a.lvl2{padding-left:22px;font-size:13px;color:var(--c-muted)}
+/* ===== 正文组件 ===== */
+.section-lead{font-size:15px;color:var(--c-muted);border-left:3px solid var(--c-border);padding:2px 0 2px 12px;margin:6px 0 18px}
+.card{background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px 18px;margin:14px 0}
+.chart{width:100%;height:360px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:6px}
+.chart-note{font-size:12.5px;color:var(--c-muted);text-align:center;margin:6px 0 0}
+/* 时间轴：grid 三列（时间/轴/内容），圆点中心与轴线像素级对齐 */
+.timeline{margin:22px 0 10px}
+.tl-item{display:grid;grid-template-columns:86px 30px 1fr;padding-bottom:20px}
+.tl-item:last-child{padding-bottom:4px}
+.tl-year{padding-top:5px;text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--c-primary-dark);font-weight:700}
+.tl-axis{position:relative;display:flex;justify-content:center}
+.tl-axis::before{content:"";position:absolute;top:6px;bottom:-20px;width:2px;background:var(--c-border);border-radius:1px}
+.tl-item:last-child .tl-axis::before{bottom:6px}
+.tl-dot{position:relative;z-index:1;width:12px;height:12px;border-radius:50%;background:var(--c-primary);box-shadow:0 0 0 2px var(--c-primary-soft);margin-top:0}
+.tl-dot.teal{background:var(--c-teal);box-shadow:0 0 0 2px var(--c-teal-soft)}
+.tl-dot.amber{background:var(--c-amber);box-shadow:0 0 0 2px var(--c-amber-soft)}
+.tl-dot.rose{background:var(--c-rose);box-shadow:0 0 0 2px var(--c-rose-soft)}
+.tl-card{background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;padding:11px 14px;min-width:0}
+.tl-card .tl-head{font-weight:600;font-size:14.5px;color:var(--c-heading)}
+.tl-card .tl-body{font-size:13.5px;color:var(--c-muted);margin-top:3px}
+.tl-card .tl-body code{font-size:.9em}
+/* 表格 */
+.table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--c-border);border-radius:12px;background:var(--c-card)}
+table.cmp{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px;min-width:720px}
+table.cmp th{background:#eef2f7;color:var(--c-heading);font-weight:600;text-align:left;padding:9px 10px;border-bottom:1px solid var(--c-border);position:sticky;top:0}
+table.cmp td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top;word-break:break-word}
+table.cmp tr:last-child td{border-bottom:none}
+table.cmp tbody tr:nth-child(even){background:#fafbfd}
+table.cmp td code{background:none;padding:0}
+.cmp-note{font-size:12.5px;color:var(--c-muted);margin:-8px 0 18px}
+/* 公式 */
+.fml{font-family:var(--font-mono);font-size:13.5px;background:var(--c-code-bg);border:1px solid var(--c-border);border-radius:8px;padding:8px 12px;display:inline-block;max-width:100%;overflow-x:auto;margin:4px 0}
+/* 状态标签：已查证 / 一方称 / 未公开 / 未核实 */
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:1px 9px;margin-left:6px;vertical-align:2px}
+.tag.v{background:var(--c-teal-soft);color:var(--c-teal)}
+.tag.u{background:var(--c-amber-soft);color:var(--c-amber)}
+.tag.n{background:var(--c-rose-soft);color:var(--c-rose)}
+/* 来源上标 */
+sup.src{font-family:var(--font-mono);font-size:.72em;color:var(--c-primary);margin-left:1px}
+/* 图例说明块 */
+.legend-box{display:flex;flex-wrap:wrap;gap:8px 18px;margin:10px 0 4px;font-size:12.5px;color:var(--c-muted)}
+/* 参考文献 */
+.refs ol{padding-left:22px;margin:10px 0}
+.refs li{font-size:13px;color:var(--c-muted);margin:6px 0;word-break:break-all}
+.refs li a{color:var(--c-primary);word-break:break-all}
+/* ===== 页脚 ===== */
+.doc-footer{background:#0f172a;color:#94a3b8;padding:34px 16px 46px;margin-top:40px;font-size:13.5px}
+.footer-inner{max-width:1120px;margin:0 auto}
+.footer-series{color:#e2e8f0;font-weight:600;margin-bottom:10px;font-size:14px}
+.footer-nav a{color:#93c5fd;margin:0 6px}
+.footer-nav a:hover{color:#fff;text-decoration:none}
+.footer-nav a.current{color:#64748b;cursor:default;text-decoration:none}
+.footer-nav .sep{color:#475569;margin:0 2px}
+.footer-meta{margin-top:12px;color:#64748b;font-size:12.5px}
+/* ===== 回到顶部 ===== */
+#backTop{position:fixed;right:22px;bottom:26px;width:44px;height:44px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);color:var(--c-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(15,23,42,.12);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#backTop.show{opacity:1;pointer-events:auto}
+#backTop svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2}
+/* ===== 桌面端 ===== */
+@media (min-width:1024px){
+  .doc-header{padding:42px 24px 34px}
+  .doc-title{font-size:31px}
+  .layout{grid-template-columns:250px 1fr;gap:36px;padding:0 24px}
+  #tocToggle{display:none}
+  #toc{display:block;position:sticky;top:24px;height:calc(100vh - 48px);overflow-y:auto;margin:24px 0 0;padding:14px 12px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{#toc,#tocToggle,#backTop{display:none!important}}
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <div class="doc-header-inner">
+    <div class="doc-series">Transformers 架构演进系列笔记</div>
+    <h1 class="doc-title">归一化（Normalization）演进对比</h1>
+    <p class="doc-subtitle">从 BatchNorm 到 LayerNorm / RMSNorm，再到注意力内部的 QK-Norm：归一化是 Transformer 深度扩展与训练稳定性的基石。</p>
+  </div>
+</header>
+
+<button id="tocToggle" aria-expanded="false">
+  <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  文档目录
+</button>
+
+<div class="layout">
+  <nav id="toc" aria-label="文档目录">
+    <div class="toc-title">本页目录</div>
+    <a href="#overview">1 总览</a>
+    <a href="#timeline">2 演进时间线</a>
+    <a href="#charts">3 关键对比图表</a>
+    <a href="#tables">4 方法对比表</a>
+    <a href="#matrix">5 模型系列 × 版本总表</a>
+    <a href="#refs">6 参考资料</a>
+  </nav>
+
+  <main>
+    <!-- ===== 1 总览 ===== -->
+    <section id="overview">
+      <h2>总览</h2>
+      <p class="section-lead">归一化（Normalization）回答一个问题：如何在网络层数不断加深时，让每一层输入的均值与方差保持稳定，使梯度不随深度指数放大或消失。2015 年的 BatchNorm 在 CNN 上大获成功，却与变长序列、自回归生成天然不兼容；2016 年的 LayerNorm 把统计从 batch 维移到特征维，成为 Transformer 的默认件；2019 年 RMSNorm 砍掉均值中心化只保留重缩放；2023 年起 QK-Norm 把归一化搬进注意力内部。</p>
+
+      <h3>1.1 BatchNorm：从 batch 统计出发，却在序列任务中碰壁</h3>
+      <p>批量归一化（Batch Normalization, BatchNorm）由 Ioffe 与 Szegedy 于 2015 年提出<sup class="src">[1]</sup>：在训练时对每个神经元沿着<b>批量与空间</b>维度计算均值 μ 与方差 σ²，对激活做仿射归一化，并在推理时用滑动平均（running mean/variance）统计。它在 ImageNet 上把内部协变量偏移（internal covariate shift）压下来，允许更大学习率、加速收敛。</p>
+      <p>但 BatchNorm 在 Transformer / 序列任务中几乎不可用<sup class="src">[2][3]</sup>，原因有三：其一，它依赖批量统计，<b>变长序列与不等长 batch</b> 无法共用同一组统计量；其二，自回归生成（decoding）时逐 token 产生，batch 内只有一条序列，统计量无意义；其三，训练时用 batch 统计、推理时用滑动统计，两套模式在动态序列长度下容易失配。因此 NLP 社区很快转向了"单样本、逐 token"的归一化。</p>
+
+      <h3>1.2 LayerNorm：把统计搬到特征维，成为 Transformer 默认件</h3>
+      <p>层归一化（Layer Normalization, LayerNorm）由 Ba、Kiros 与 Hinton 于 2016 年提出<sup class="src">[2]</sup>：对每个 token 的特征向量整体计算均值与方差，再做仿射缩放 γ 与平移 β：</p>
+      <div class="fml">LayerNorm(x) = (x − μ) / √(σ² + ε) · γ + β</div>
+      <p>它与 batch 大小、序列长度完全解耦，天然适合 RNN 与 Transformer。2017 年原始 Transformer（Vaswani 等）在每个子层（自注意力、FFN）<b>输出之后</b>、残差相加之后做 LayerNorm，即 Post-LN（"Add &amp; Norm"）<sup class="src">[3]</sup>。Post-LN 在浅网络下没问题，但网络加深后训练极不稳定、必须依赖学习率预热（warmup）。</p>
+
+      <h3>1.3 Pre-LN 主流化：把归一化挪到子层输入侧</h3>
+      <p>2020 年 Microsoft Research 的 Xiong 等在《On Layer Normalization in the Transformer Architecture》中给出机理分析<sup class="src">[5]</sup>：Pre-LN（把 LN 放在子层<b>输入</b>侧，残差通路直接走恒等映射）让反向梯度沿残差流无衰减地回传，初始化时梯度量级有界，<b>可以去掉 warmup</b>；而 Post-LN 的梯度方差随层数 N 指数振荡，深层难以收敛。后续信号传播理论工作进一步量化了这一差异：Pre-LN 反向梯度量级随深度按双曲线趋于 N，Post-LN 则指数放大或缩小<sup class="src">[17]</sup>。</p>
+      <p>GPT-2（2019）与 GPT-3（2020）均采用 Pre-LN<sup class="src">[6]</sup>，2023 年后几乎所有主流开源大模型（Llama、Mistral、Qwen、DeepSeek 等）都把"Pre-Norm + 归一化"作为默认配方<sup class="src">[12]</sup>。</p>
+
+      <h3>1.4 RMSNorm：砍掉均值中心化，只保留重缩放</h3>
+      <p>2019 年 Zhang 与 Sennrich 提出均方根层归一化（RMS Normalization, RMSNorm）<sup class="src">[4]</sup>：假设 re-centering（均值中心化）对训练帮助不大，只对向量的均方根（RMS）做归一化：</p>
+      <div class="fml">RMSNorm(x) = x / √(Mean(x²) + ε) · γ</div>
+      <p>论文在多种网络上实测：RMSNorm 与 LayerNorm 精度相当，运行时间在不同模型上减少 <b>7% ∼ 64%</b><sup class="src">[4]</sup>（注意：不是常见的"固定省 7%"说法，而是随模型与硬件从 7% 到 64% 不等的区间）。2023 年 Llama 1 起，RMSNorm 取代 LayerNorm 成为开源大模型事实标准<sup class="src">[12]</sup>；FlashNorm 等后续工作进一步指出，对 270M 量级模型，RMSNorm 全部移除的吞吐上限也只有约 10%，说明其在大模型中开销已很小<sup class="src">[22]</sup>。</p>
+
+      <h3>1.5 深层稳定变体：DeepNorm、Sandwich-Norm、NormFormer</h3>
+      <p>当网络向 100～1000 层扩展时，单靠 Pre-LN 仍不够：<b>DeepNorm</b>（Wang 等，2022，DeepNet）在 Post-LN 残差路上把恒等分支乘以常数 α、残差分支权重按 β 缩小，理论上把更新量界住，支撑训练到 1000 层<sup class="src">[10]</sup>；<b>Sandwich-Norm</b>（前后都做归一化）最早见于 CogView 2021<sup class="src">[9]</sup>，2024 年 Gemma 2 把"Pre-Norm + Post-Norm 各一层 RMSNorm"作为标配<sup class="src">[20]</sup>；<b>NormFormer</b>（Shleifer 等，2021，FAIR）在 Pre-LN 基础上额外加三个轻量归一化，参数只增加 0.4%，相同算力下收敛更快<sup class="src">[8]</sup>。</p>
+
+      <h3>1.6 QK-Norm：把归一化搬进注意力内部</h3>
+      <p>注意力 logits = QKᵀ/√d 是双线性形式，Q、K 权重的谱范数一涨，logits 就被平方放大，容易饱和 softmax。最早 Henry 等（2020）在低资源翻译上提出对 Q、K 沿 head 维做 ℓ2 归一化<sup class="src">[7]</sup>；2023 年 Google 的 ViT-22B 用 LayerNorm 归一化 Q、K 后才稳定训练<sup class="src">[11]</sup>；2024 年 Gemma 3 用 per-head RMSNorm（QK-Norm）替换掉 Gemma 2 的 soft-capping<sup class="src">[26]</sup>；2025 年 Qwen3 明确引入 QK-Norm 保证训练稳定<sup class="src">[25]</sup>，Llama 4 Scout 也在 RoPE 之后对 Q、K 做无可学习参数的 RMSNorm<sup class="src">[31]</sup>。</p>
+
+      <div class="legend-box">
+        <span><span class="tag v">已查证</span> 有官方/arXiv 来源</span>
+        <span><span class="tag u">一方称/未公开</span> 仅厂商口径或未公开细节</span>
+        <span><span class="tag n">未核实</span> 未能找到可靠来源</span>
+      </div>
+    </section>
+
+    <!-- ===== 2 演进时间线 ===== -->
+    <section id="timeline">
+      <h2>演进时间线</h2>
+      <p class="section-lead">归一化主线：BatchNorm（2015）→ LayerNorm（2016）→ Pre-LN 主流化（2019-2020）→ RMSNorm（2019，2023 年起事实标准）→ 深层稳定变体（2021-2022）→ QK-Norm 进入注意力（2023-2026）。</p>
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-year">2015</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">BatchNorm 提出<sup class="src">[1]</sup></div>
+            <div class="tl-body">Ioffe &amp; Szegedy：沿 batch 维统计均值/方差，加速 CNN 收敛。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2016</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">LayerNorm 提出<sup class="src">[2]</sup></div>
+            <div class="tl-body">Ba, Kiros, Hinton：沿特征维逐 token 归一化，摆脱 batch 依赖。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2017</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">原始 Transformer 采用 Post-LN<sup class="src">[3]</sup></div>
+            <div class="tl-body">Vaswani 等：每个子层输出后做 LayerNorm（"Add &amp; Norm"）。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2019</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">RMSNorm 提出<sup class="src">[4]</sup>；GPT-2 采用 Pre-LN<sup class="src">[6]</sup></div>
+            <div class="tl-body">砍掉均值中心化；论文实测运行时间减少 7%∼64%。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2020</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Pre-LN 理论定型<sup class="src">[5]</sup>；QK-Norm 首次提出<sup class="src">[7]</sup>；GPT-3 沿用 Pre-LN<sup class="src">[6]</sup></div>
+            <div class="tl-body">Pre-LN 梯度有界、去 warmup；Henry 等对 Q/K 做 ℓ2 归一化。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2021</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">NormFormer<sup class="src">[8]</sup>；Sandwich-LN 见于 CogView<sup class="src">[9]</sup></div>
+            <div class="tl-body">额外轻量归一化，参数 +0.4%、收敛更快；前后都归一化。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2022</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeepNet / DeepNorm<sup class="src">[10]</sup></div>
+            <div class="tl-body">残差缩放 α、分支权重缩放 β，理论上训练到 1000 层。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2023</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">ViT-22B 普及 QK-LN<sup class="src">[11]</sup>；Llama 1 让 RMSNorm 成为事实标准<sup class="src">[12]</sup></div>
+            <div class="tl-body">Dehghani 等用 LayerNorm 归一化 Q/K；Llama 起开源模型普遍 RMSNorm+Pre-Norm。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Gemma 2 采用 Sandwich-RMSNorm<sup class="src">[20]</sup>；DeepSeek-V3 用 RMSNorm 并在 MLA 压缩潜向量后追加归一化<sup class="src">[23]</sup></div>
+            <div class="tl-body">Gemma 2 注意力 soft-cap 50；DeepSeek-V3 训练全程无 loss spike。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Gemma 3 用 QK-Norm 替换 soft-cap<sup class="src">[26]</sup>；Qwen3 引入 QK-Norm<sup class="src">[25]</sup>；Llama 4 Scout 在 RoPE 后归一化 Q/K<sup class="src">[31]</sup>；Kimi K2 用 QK-Clip 替代 QK-Norm<sup class="src">[27]</sup>；DeepSeek-V3.2 沿用 V3 归一化、仅换 DSA<sup class="src">[28]</sup>；Qwen3-Next 改用 Zero-Centered RMSNorm<sup class="src">[29]</sup></div>
+            <div class="tl-body">QK-Norm 成为 2025 年开源旗舰的新标配；不同厂商对"如何稳住 Q/K"开始分叉。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">"Post-LN Is Back" 引发后归一化回潮讨论<sup class="src">[33]</sup>；Qwen3.5 混合 GDN+MoE、GLM-5 引入 DSA<sup class="src">[30]</sup>；DeepSeek V4（2026-04）仅披露 CSA+HCA 混合注意力、归一化未公开<sup class="src">[37]</sup></div>
+            <div class="tl-body">学界重新评估 Post-LN 表达力；归一化在混合架构中的角色仍在演进，2026 年多数新模型细节未公开。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 3 关键对比图表 ===== -->
+    <section id="charts">
+      <h2>关键对比图表</h2>
+      <p class="section-lead">三张图分别量化：RMSNorm 相对 LayerNorm 的运行开销区间、主流开源模型归一化配方的时间分布、以及 Pre-LN 与 Post-LN 梯度随深度变化的示意曲线。</p>
+      <h3>图 1：LayerNorm vs RMSNorm 运行开销对比</h3>
+      <div id="chart-cost" class="chart"></div>
+      <p class="chart-note">图 1：RMSNorm 论文（NeurIPS 2019）实测，LayerNorm 归一化步骤耗时归一化为 100%，RMSNorm 在不同模型上减少 7%∼64% 运行时间（即相对耗时落在 36%∼93%）；270M 量级小模型实测移除 RMSNorm 后吞吐上限仅约 +10%（FlashNorm 2024）<sup class="src">[4][22]</sup>。</p>
+      <h3>图 2：主流开源旗舰模型归一化配方随时间分布（样本统计）</h3>
+      <div id="chart-adoption" class="chart"></div>
+      <p class="chart-note">图 2：本文依据文末模型总表（#matrix）统计的开源旗舰模型样本，按发布年份分组计数；"RMSNorm+QK-Norm"含 per-head RMSNorm、post-RoPE Q/K 归一化等注意力内部归一化。样本非全量，仅作配方迁移趋势示意。</p>
+      <h3>图 3：Pre-LN vs Post-LN 反向梯度随深度变化（示意）</h3>
+      <div id="chart-grad" class="chart"></div>
+      <p class="chart-note">图 3：示意曲线（非实测数据）。定性依据：信号传播理论分析指出 Post-LN 反向梯度方差随层数 N 指数振荡，Pre-LN 梯度量级沿残差双曲线增长至约 N<sup class="src">[5][17]</sup>；纵轴为对数刻度的相对梯度量级。</p>
+    </section>
+
+    <!-- ===== 4 方法对比表 ===== -->
+    <section id="tables">
+      <h2>方法对比表</h2>
+      <p class="section-lead">覆盖 7 种归一化方案，从公式、提出时间、梯度/稳定性/开销影响、代表模型 5 个维度对比。</p>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:13%"><col style="width:25%"><col style="width:15%"><col style="width:27%"><col style="width:20%">
+          </colgroup>
+          <thead><tr><th>方法</th><th>公式（简）</th><th>提出时间/论文</th><th>对梯度 / 稳定性 / 开销的影响</th><th>代表模型</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>BatchNorm</td>
+              <td><code>y = γ·(x−μ_batch)/√σ²_batch + β</code>，μ/σ 沿 batch×空间维统计</td>
+              <td>2015，arXiv:1502.03167<sup class="src">[1]</sup></td>
+              <td>CNN 上收敛快；但依赖 batch 统计，<b>变长序列 / 自回归推理不兼容</b>，训练-推理两套统计</td>
+              <td>ResNet 系列（视觉）；未用于主流 LLM</td>
+            </tr>
+            <tr>
+              <td>LayerNorm</td>
+              <td><code>(x−μ)/√(σ²+ε)·γ + β</code>，μ/σ 沿特征维逐 token</td>
+              <td>2016，arXiv:1607.06450<sup class="src">[2]</sup>；Transformer Post-LN 2017<sup class="src">[3]</sup></td>
+              <td>与 batch 无关；Post-LN 梯度方差随深度指数振荡、需 warmup；归一化本身要算均值+方差两次</td>
+              <td>原始 Transformer、BERT、GPT-2/3、Phi-2/4、Falcon-180B</td>
+            </tr>
+            <tr>
+              <td>Pre-LN（结构变化）</td>
+              <td><code>x + Sublayer(LN(x))</code>，LN 在子层输入侧</td>
+              <td>2019 GPT-2 采用；2020 理论定型 arXiv:2002.04745<sup class="src">[5]</sup></td>
+              <td>残差流恒等直连，反向梯度量级初始化有界、<b>可去掉 warmup</b>；代价是深层表达力略降</td>
+              <td>GPT-2/3、PaLM、几乎所有 2023+ 开源 LLM</td>
+            </tr>
+            <tr>
+              <td>RMSNorm</td>
+              <td><code>x/√(Mean(x²)+ε)·γ</code>，去掉均值中心化与 β</td>
+              <td>2019，arXiv:1910.07467<sup class="src">[4]</sup></td>
+              <td>与 LayerNorm 精度相当，运行时间实测减少 <b>7%∼64%</b>；270M 小模型移除全部 RMSNorm 吞吐上限仅约 +10%<sup class="src">[22]</sup></td>
+              <td>Llama 1/2/3、Mistral/Mixtral、Qwen2/2.5、DeepSeek-V2/V3、GLM-4.5、InternLM2/3、Yi、Baichuan2</td>
+            </tr>
+            <tr>
+              <td>DeepNorm</td>
+              <td><code>xₗ₊₁ = LN(α·xₗ + Gₗ(xₗ))</code>，分支权重按 β 缩小</td>
+              <td>2022，arXiv:2203.00555（DeepNet）<sup class="src">[10]</sup></td>
+              <td>结合 Post-LN 表达力与 Pre-LN 稳定性，理论上界住更新量，<b>训练到 1000 层</b></td>
+              <td>DeepSeek-V2（α=1.5 残差缩放）<sup class="src">[19]</sup></td>
+            </tr>
+            <tr>
+              <td>Sandwich-Norm</td>
+              <td>每个子层<b>前后</b>各做一次归一化：<code>LN_in(x)</code> 与 <code>LN_out(x + Sublayer(·))</code></td>
+              <td>2021 见于 CogView<sup class="src">[9]</sup>；2024 Gemma 2 推广</td>
+              <td>前稳梯度、后稳幅度，深层训练抖动更小；开销约多一倍归一化算子</td>
+              <td>Gemma 2 / Gemma 3（pre_+post_attention_layernorm）<sup class="src">[20][26]</sup></td>
+            </tr>
+            <tr>
+              <td>NormFormer</td>
+              <td>Pre-LN 基础上：注意力后加 LN + head-wise 缩放 + FFN 第一线性层后加 LN</td>
+              <td>2021，arXiv:2110.09456（FAIR）<sup class="src">[8]</sup></td>
+              <td>参数仅 +0.4%，相同算力下 1.3B 模型收敛到同等困惑度快 <b>24%</b></td>
+              <td>FAIR 实验模型；未成为单一开源旗舰标配</td>
+            </tr>
+            <tr>
+              <td>QK-Norm</td>
+              <td><code>softmax(LN(Q)·LN(K)ᵀ/√d)·V</code>（或 per-head RMSNorm），只归一 Q/K，V 不归一</td>
+              <td>2020 arXiv:2010.04245（Henry 等 ℓ2 版）<sup class="src">[7]</sup>；2023 ViT-22B 普及 LayerNorm 版<sup class="src">[11]</sup></td>
+              <td>把 Q/K 每 head 的 RMS 压到约 γ，<b>抑制注意力 logits 平方放大</b>，避免 softmax 饱和；开销极小</td>
+              <td>ViT-22B、Gemma 3、Qwen3、Llama 4 Scout（post-RoPE、无可学习参数）<sup class="src">[25][26][31]</sup></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：① "Pre-LN"严格说是归一化<b>位置</b>而非独立算子，常与 LayerNorm/RMSNorm 组合出现（如 Pre-RMSNorm）。② QK-Norm 有三种落地变体：per-head LayerNorm（ViT-22B）、per-head RMSNorm（Gemma 3/Qwen3）、post-RoPE 无 affine 的 RMSNorm（Llama 4 Scout）。③ Kimi K2 未用 QK-Norm，而用 MuonClip 优化器中的 QK-Clip（更新后 rescale W_q/W_k 矩阵），属于同目标不同手段<sup class="src">[27]</sup>。</p>
+    </section>
+
+    <!-- ===== 5 模型 × 版本总表 ===== -->
+    <section id="matrix">
+      <h2>模型系列 × 版本总表</h2>
+      <p class="section-lead">14 个模型系列、每系列至少 2 个版本（含最新版）；"未公开"指官方未披露细节，"未核实"指公开渠道未能找到可靠来源；"依据"列编号指向文末 #refs。</p>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:11%"><col style="width:15%"><col style="width:16%"><col style="width:11%"><col style="width:23%"><col style="width:14%"><col style="width:10%">
+          </colgroup>
+          <thead><tr><th>模型系列</th><th>版本（年份）</th><th>归一化类型</th><th>Pre/Post</th><th>QK-Norm（有/无 + 类型）</th><th>备注</th><th>依据</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="3">GPT（OpenAI）</td><td>GPT-2（2019）</td><td>LayerNorm</td><td>Pre</td><td>无</td><td>最终 LN 放在 softmax 前</td><td>[6]</td></tr>
+            <tr><td>GPT-3（2020）</td><td>LayerNorm</td><td>Pre</td><td>无</td><td>沿用 GPT-2 配方</td><td>[6]</td></tr>
+            <tr><td>GPT-5（2025）<span class="tag u">未公开</span></td><td>未公开</td><td>未公开</td><td>未公开</td><td>闭源，无技术报告</td><td>—</td></tr>
+            <tr><td rowspan="3">Llama（Meta）</td><td>Llama 1/2（2023）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>RMSNorm 走向主流的起点</td><td>[12]</td></tr>
+            <tr><td>Llama 3（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>ε≈1e-5∼1e-6</td><td>[21]</td></tr>
+            <tr><td>Llama 4 Scout（2025）<span class="tag v">已查证</span></td><td>RMSNorm</td><td>Pre</td><td>有：post-RoPE、无可学习参数的 RMSNorm</td><td>在 RoPE 之后对 Q、K 归一化</td><td>[31]</td></tr>
+            <tr><td rowspan="2">Mistral（Mistral AI）</td><td>Mistral-7B（2023）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>—</td><td>[35]</td></tr>
+            <tr><td>Mixtral 8x7B（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>MoE 结构不影响归一化配方</td><td>[18]</td></tr>
+            <tr><td rowspan="4">Qwen（阿里）</td><td>Qwen2（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>带 QKV bias（Qwen3 才移除）</td><td>[25]</td></tr>
+            <tr><td>Qwen2.5（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>官方博客未提 QK-Norm</td><td>[34]</td></tr>
+            <tr><td>Qwen3（2025）</td><td>RMSNorm</td><td>Pre</td><td>有：QK-Norm（RMSNorm 实现）</td><td>明确引用 Dehghani 2023</td><td>[25]</td></tr>
+            <tr><td>Qwen3.5（2026）<span class="tag u">未公开</span></td><td>未公开细节（混合 GDN+MoE，397B/17B 激活）</td><td>未公开</td><td>未公开</td><td>官方博客未披露归一化细节</td><td>[30]</td></tr>
+            <tr><td rowspan="4">DeepSeek</td><td>DeepSeek-V2（2024）</td><td>RMSNorm</td><td>Pre + DeepNorm 残差缩放</td><td>无</td><td>α=1.5 残差缩放，MLA</td><td>[19]</td></tr>
+            <tr><td>DeepSeek-V3（2024）</td><td>RMSNorm</td><td>Pre</td><td>无；MLA 压缩潜向量后追加 RMSNorm</td><td>训练全程无 loss spike</td><td>[23]</td></tr>
+            <tr><td>DeepSeek-V3.2（2025）</td><td>同 V3</td><td>同 V3</td><td>无</td><td>唯一架构改动是 DSA</td><td>[28]</td></tr>
+            <tr><td>DeepSeek V4（2026-04）<span class="tag u">未公开</span></td><td>未公开</td><td>未公开</td><td>未公开</td><td>模型卡仅披露 CSA+HCA 混合注意力；Pro 总 1.6T/激活 49B，Flash 总 284B/激活 13B</td><td>[37]</td></tr>
+            <tr><td rowspan="2">GLM（智谱）</td><td>GLM-4.5（2025）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>GQA；官方文档/NVIDIA 文档一致</td><td>[32]</td></tr>
+            <tr><td>GLM-5（2026）<span class="tag u">未公开</span></td><td>未公开（引入 DSA）</td><td>未公开</td><td>未公开</td><td>官方仅披露稀疏注意力方向</td><td>[32]</td></tr>
+            <tr><td rowspan="3">Gemma（Google）</td><td>Gemma 1（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>—</td><td>[16]</td></tr>
+            <tr><td>Gemma 2（2024）</td><td>RMSNorm</td><td>Sandwich（pre+post）</td><td>无；用 soft-cap 50.0 代替</td><td>pre/post attention &amp; feedforward 各一层</td><td>[20]</td></tr>
+            <tr><td>Gemma 3（2025）</td><td>RMSNorm</td><td>Sandwich</td><td>有：per-head QK-Norm 替换 soft-cap</td><td>引用 ViT-22B/OLMo/Chameleon</td><td>[26]</td></tr>
+            <tr><td rowspan="2">Kimi（Moonshot）</td><td>Kimi K2（2025）</td><td>RMSNorm</td><td>Pre（MLA）</td><td>无 QK-Norm；用 QK-Clip（Muon 更新后 rescale W_q/W_k）</td><td>同目标不同手段</td><td>[27]</td></tr>
+            <tr><td>Kimi K2 Thinking（2025）</td><td>沿用 K2</td><td>沿用</td><td>沿用 QK-Clip</td><td>后训练变体，架构未变</td><td>[27]</td></tr>
+            <tr><td rowspan="2">Phi（微软）</td><td>Phi-2（2023）</td><td>LayerNorm</td><td>Pre</td><td>无</td><td>Phi 系列坚持 LayerNorm</td><td>[24]</td></tr>
+            <tr><td>Phi-4（2024）</td><td>LayerNorm</td><td>Pre</td><td>无</td><td>架构沿用 phi-3-medium</td><td>[24]</td></tr>
+            <tr><td rowspan="2">InternLM（上海 AI Lab）</td><td>InternLM2（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>官方技术报告</td><td>[36]</td></tr>
+            <tr><td>InternLM3（2025）<span class="tag u">未公开</span></td><td>RMSNorm（据 HF 配置）</td><td>Pre</td><td>未公开</td><td>正式技术报告细节未检索到</td><td>[36]</td></tr>
+            <tr><td rowspan="2">Baichuan</td><td>Baichuan-7B（2022）</td><td>LayerNorm</td><td>Pre</td><td>无</td><td>第一代</td><td>[14]</td></tr>
+            <tr><td>Baichuan2（2023）</td><td>RMSNorm 实现</td><td>Pre</td><td>无</td><td>报告明确写"用 RMSNorm 实现"提高效率</td><td>[14]</td></tr>
+            <tr><td rowspan="2">Yi（零一万物）</td><td>Yi-6B/9B（2023）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>类 Llama 配方</td><td>[15]</td></tr>
+            <tr><td>Yi-1.5（2024）</td><td>RMSNorm</td><td>Pre</td><td>无</td><td>—</td><td>[15]</td></tr>
+            <tr><td rowspan="2">Grok（xAI）</td><td>Grok-1（2023）<span class="tag u">未公开</span></td><td>未公开</td><td>未公开</td><td>未公开</td><td>仅开源权重，无架构报告</td><td>—</td></tr>
+            <tr><td>Grok-3（2025）<span class="tag u">未公开</span></td><td>未公开</td><td>未公开</td><td>未公开</td><td>闭源</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：表中"未公开"指官方未披露细节；"未核实"指公开渠道未能找到可靠来源。当前日期 2026-11-04，2025-2026 年发布信息均以检索到的官方/arXiv 来源为准。Grok、GPT-5 等闭源模型无任何官方归一化细节，全部标"未公开"。</p>
+    </section>
+
+    <!-- ===== 6 参考资料 ===== -->
+    <section id="refs" class="refs">
+      <h2>参考资料与出处</h2>
+      <p class="section-lead">编号与正文 sup.src 一一对应；优先 arXiv / 官方技术报告 / 官方博客 / HF 模型卡 / GitHub。</p>
+      <ol>
+        <li>Ioffe &amp; Szegedy. Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift. 2015. <a href="https://arxiv.org/abs/1502.03167">arXiv:1502.03167</a></li>
+        <li>Ba, Kiros &amp; Hinton. Layer Normalization. 2016. <a href="https://arxiv.org/abs/1607.06450">arXiv:1607.06450</a></li>
+        <li>Vaswani et al. Attention Is All You Need（原始 Transformer，Post-LN）. 2017. <a href="https://arxiv.org/abs/1706.03762">arXiv:1706.03762</a></li>
+        <li>Zhang &amp; Sennrich. Root Mean Square Layer Normalization（RMSNorm）. NeurIPS 2019. <a href="https://arxiv.org/abs/1910.07467">arXiv:1910.07467</a></li>
+        <li>Xiong et al. On Layer Normalization in the Transformer Architecture（Pre-LN 理论）. Microsoft Research, 2020. <a href="https://arxiv.org/abs/2002.04745">arXiv:2002.04745</a></li>
+        <li>Brown et al. Language Models are Few-Shot Learners（GPT-3；GPT-2 同配方）. 2020. <a href="https://arxiv.org/abs/2005.14165">arXiv:2005.14165</a></li>
+        <li>Henry et al. Query-Key Normalization for Transformers（QK-Norm 首次提出）. Findings of EMNLP 2020. <a href="https://arxiv.org/abs/2010.04245">arXiv:2010.04245</a></li>
+        <li>Shleifer, Weston &amp; Ott. NormFormer: Improved Transformer Pretraining with Extra Normalization. FAIR, 2021. <a href="https://arxiv.org/abs/2110.09456">arXiv:2110.09456</a></li>
+        <li>Wang et al. CogView（Sandwich-LN 早期出现）. 2021. <a href="https://arxiv.org/abs/2105.13290">arXiv:2105.13290</a></li>
+        <li>Wang et al. DeepNet: Scaling Transformers to 1,000 Layers（DeepNorm）. Microsoft, 2022. <a href="https://arxiv.org/abs/2203.00555">arXiv:2203.00555</a></li>
+        <li>Dehghani et al. Scaling Vision Transformers to 22 Billion Parameters（ViT-22B，QK-LN 普及）. 2023. <a href="https://arxiv.org/abs/2302.05442">arXiv:2302.05442</a></li>
+        <li>Touvron et al. LLaMA: Open and Efficient Foundation Language Models. 2023. <a href="https://arxiv.org/abs/2302.13971">arXiv:2302.13971</a></li>
+        <li value="14">Baichuan2: Open Large-scale Language Models. 2023. <a href="https://arxiv.org/abs/2309.10305">arXiv:2309.10305</a></li>
+        <li>01.AI. Yi: Open Foundation Models. 2024. <a href="https://arxiv.org/abs/2403.04652">arXiv:2403.04652</a></li>
+        <li>Gemma Team. Gemma: Open Models Based on Gemini Research and Technology. 2024. <a href="https://arxiv.org/abs/2403.08295">arXiv:2403.08295</a></li>
+        <li>DeepMind et al. Transformers Get Stable: An End-to-End Signal Propagation Theory for Language Models. 2024. <a href="https://arxiv.org/abs/2403.09635">arXiv:2403.09635</a></li>
+        <li>Jiang et al. Mixtral of Experts. 2024. <a href="https://arxiv.org/abs/2401.04088">arXiv:2401.04088</a></li>
+        <li>DeepSeek-AI. DeepSeek-V2: A Strong, Economical, and Open-source Mixture-of-Experts Language Model. 2024. <a href="https://arxiv.org/abs/2405.04434">arXiv:2405.04434</a></li>
+        <li>Gemma Team. Gemma 2: Improving Open Language Models at a Practical Size. 2024. <a href="https://arxiv.org/abs/2408.00118">arXiv:2408.00118</a></li>
+        <li>Grattafiori et al. The Llama 3 Herd of Models. Meta, 2024. <a href="https://arxiv.org/abs/2407.21783">arXiv:2407.21783</a></li>
+        <li>FlashNorm: Fast Normalization for Transformers. 2024. <a href="https://arxiv.org/abs/2407.09577">arXiv:2407.09577</a></li>
+        <li>DeepSeek-AI. DeepSeek-V3 Technical Report. 2024. <a href="https://arxiv.org/abs/2412.19437">arXiv:2412.19437</a></li>
+        <li>Microsoft Research. Phi-4 Technical Report. 2024. <a href="https://arxiv.org/abs/2412.08905">arXiv:2412.08905</a></li>
+        <li>Qwen Team. Qwen3 Technical Report. 2025. <a href="https://arxiv.org/abs/2505.09388">arXiv:2505.09388</a></li>
+        <li>Gemma Team. Gemma 3 Technical Report. 2025. <a href="https://arxiv.org/abs/2503.19786">arXiv:2503.19786</a></li>
+        <li>Moonshot AI. Kimi K2: Open Agentic Intelligence. 2025. <a href="https://arxiv.org/abs/2507.20534">arXiv:2507.20534</a></li>
+        <li>DeepSeek-AI. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. 2025. <a href="https://arxiv.org/abs/2512.02556">arXiv:2512.02556</a></li>
+        <li>Qwen Blog. Qwen3-Next（Zero-Centered RMSNorm、norm 权重加 weight decay）. 2025-09. <a href="https://qwen.ai/blog?id=qwen3-next">qwen.ai/blog?id=qwen3-next</a></li>
+        <li>Qwen Blog. Qwen3.5: Towards Native Multimodal Agents（混合 GDN+MoE，397B/17B）. 2026-02. <a href="https://qwen.ai/blog?id=qwen3.5">qwen.ai/blog?id=qwen3.5</a></li>
+        <li>Llama 4 发布说明（HF / 社区镜像）：Scout 在 RoPE 之后对 Q、K 做无可学习参数的 RMSNorm. 2025-04. <a href="https://cdn-avatars.qwak.ai/blog/llama4-release">llama4 release notes（镜像）</a></li>
+        <li>智谱 GLM-4.5 官方文档（RMSNorm、GQA）；NVIDIA Megatron Bridge GLM45 文档. <a href="https://docs.bigmodel.cn/cn/guide/models/text/glm-4.5">docs.bigmodel.cn GLM-4.5</a></li>
+        <li>Post-LayerNorm Is Back: Stable, Expressive, and Deep. 2026. <a href="https://arxiv.org/abs/2601.19895">arXiv:2601.19895</a></li>
+        <li>Qwen Blog. Qwen2.5-LLM: 扩展大型语言模型的边界. 2024-09. <a href="https://qwenlm.github.io/zh/blog/qwen2.5-llm/">qwenlm.github.io Qwen2.5-LLM</a></li>
+        <li>Mistral AI. Announcing Mistral-7B. 2023-09. <a href="https://mistral.ai/news/announcing-mistral-7b/">mistral.ai/news/announcing-mistral-7b</a></li>
+        <li>InternLM Team. InternLM2: Towards Versatile Agents Through Advanced Training. 2024. <a href="https://arxiv.org/abs/2403.17242">arXiv:2403.17242</a></li>
+        <li>DeepSeek-AI. DeepSeek V4 Model Card（2026-04-24 发布；Pro 总 1.6T/激活 49B，Flash 总 284B/激活 13B；仅披露 CSA+HCA 混合注意力，归一化细节未披露）. 2026. <a href="https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf">deepseek-V4-model-card-EN.pdf</a>；发布页 <a href="https://api-docs.deepseek.com/news/news260424">api-docs.deepseek.com/news/news260424</a></li>
+      </ol>
+    </section>
+  </main>
+</div>
+
+<footer class="doc-footer">
+  <div class="footer-inner">
+    <div class="footer-series">Transformers 架构演进系列笔记</div>
+    <nav class="footer-nav">
+      <a href="注意力机制演进对比.html">注意力机制演进</a><span class="sep">·</span>
+      <a href="ffn_evolution.html">前馈网络演进</a><span class="sep">·</span>
+      <a href="normalization_evolution.html" class="current">归一化演进</a><span class="sep">·</span>
+      <a href="positional_encoding_evolution.html">位置编码演进</a>
+    </nav>
+    <p class="footer-meta">生成于 2026-11-04 · 关键事实附来源，未核实项已标注 · 本系列为个人学习笔记，引用请核对原始出处</p>
+  </div>
+</footer>
+
+<button id="backTop" aria-label="回到顶部"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>window.echarts || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"><\/script>')</script>
+<script>
+(function(){
+  // ===== 图表初始化助手：seriesChart(id, option) =====
+  window.seriesChart = function(id, option){
+    var el = document.getElementById(id);
+    if(!el || !window.echarts) return null;
+    var c = echarts.init(el);
+    c.setOption(option);
+    window.addEventListener('resize', function(){ c.resize(); });
+    return c;
+  };
+  // ===== 目录切换（移动端） =====
+  var toc = document.getElementById('toc');
+  var toggle = document.getElementById('tocToggle');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = toc.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+  // ===== 目录高亮当前小节 =====
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    if(document.getElementById(id)) map[id] = a;
+  });
+  if('IntersectionObserver' in window && Object.keys(map).length){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('on'); });
+          if(map[e.target.id]) map[e.target.id].classList.add('on');
+        }
+      });
+    }, {rootMargin:'-15% 0px -70% 0px'});
+    Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+  }
+  // ===== 回到顶部 =====
+  var bt = document.getElementById('backTop');
+  if(bt){
+    window.addEventListener('scroll', function(){
+      bt.classList.toggle('show', (window.scrollY || document.documentElement.scrollTop) > 400);
+    }, {passive:true});
+    bt.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+  }
+  // ===== 图表数据与初始化 =====
+  // 图1：LayerNorm vs RMSNorm 运行开销（LayerNorm=100% 基准）
+  window.seriesChart('chart-cost', {
+    color:['#2563eb','#0d9488','#d97706'],
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, confine:true},
+    legend:{bottom:0, textStyle:{fontSize:12}},
+    grid:{left:60, right:20, top:30, bottom:60},
+    xAxis:{type:'category', data:['LayerNorm','RMSNorm（论文实测区间）'], axisLabel:{fontSize:12}},
+    yAxis:{type:'value', name:'归一化相关耗时（%，LayerNorm=100）', max:100, nameTextStyle:{fontSize:11}},
+    series:[
+      {name:'最慢情形（RMS 仅省 ~7%）', type:'bar', data:[100, 93], barWidth:26, label:{show:true, position:'top', fontSize:11}},
+      {name:'最快情形（RMS 省 ~64%）', type:'bar', data:[100, 36], barWidth:26, label:{show:true, position:'top', fontSize:11}}
+    ]
+  });
+  // 图2：主流开源旗舰模型归一化配方随时间分布（按本文总表统计的样本）
+  window.seriesChart('chart-adoption', {
+    color:['#64748b','#2563eb','#0d9488','#e11d48','#d97706'],
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, confine:true},
+    legend:{bottom:0, textStyle:{fontSize:11}},
+    grid:{left:40, right:20, top:30, bottom:80},
+    xAxis:{type:'category', data:['2023','2024','2025','2026'], axisLabel:{fontSize:12}},
+    yAxis:{type:'value', name:'模型数量（个）', minInterval:1},
+    series:[
+      {name:'LayerNorm-only', type:'bar', stack:'a', data:[2,1,0,0], label:{show:true, fontSize:10}},
+      {name:'RMSNorm（无 QK-Norm）', type:'bar', stack:'a', data:[4,9,2,0], label:{show:true, fontSize:10}},
+      {name:'Sandwich-RMSNorm', type:'bar', stack:'a', data:[0,1,0,0], label:{show:true, fontSize:10}},
+      {name:'RMSNorm+QK-Norm/QK-Clip', type:'bar', stack:'a', data:[0,0,3,0], label:{show:true, fontSize:10}},
+      {name:'未公开细节', type:'bar', stack:'a', data:[0,0,0,2], label:{show:true, fontSize:10}}
+    ]
+  });
+  // 图3：Pre-LN vs Post-LN 反向梯度随深度变化（示意，非实测）
+  (function(){
+    var post=[], pre=[], xs=[];
+    for(var n=1;n<=32;n++){
+      xs.push(n);
+      post.push(+Math.abs(Math.sin(n/1.9)*Math.exp(n/9.5)).toFixed(1));
+      pre.push(+(1 + 30*(1-1/n)).toFixed(1));
+    }
+    window.seriesChart('chart-grad', {
+      color:['#e11d48','#0d9488'],
+      tooltip:{trigger:'axis', confine:true},
+      legend:{bottom:0, textStyle:{fontSize:12}},
+      grid:{left:60, right:20, top:30, bottom:60},
+      xAxis:{type:'category', data:xs, name:'反向传播经过的层数 n', nameTextStyle:{fontSize:11}},
+      yAxis:{type:'log', name:'相对梯度量级（对数，示意）', nameTextStyle:{fontSize:11}},
+      series:[
+        {name:'Post-LN（振荡指数包络，示意）', type:'line', data:post, smooth:true, symbol:'none'},
+        {name:'Pre-LN（双曲线趋于 N，示意）', type:'line', data:pre, smooth:true, symbol:'none'}
+      ]
+    });
+  })();
+})();
+</script>
+</body>
+</html>

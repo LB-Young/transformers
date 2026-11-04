@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前馈网络（FFN）演进对比 · Transformers 架构演进系列</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold'%3ET%3C/text%3E%3C/svg%3E">
+<style>
+/* ===== 设计令牌 ===== */
+:root{
+  --c-primary:#2563eb; --c-primary-dark:#1e40af; --c-primary-soft:#eff6ff;
+  --c-teal:#0d9488;   --c-teal-soft:#f0fdfa;
+  --c-amber:#d97706;  --c-amber-soft:#fffbeb;
+  --c-rose:#e11d48;   --c-rose-soft:#fff1f2;
+  --c-bg:#f6f8fb; --c-card:#ffffff; --c-text:#1e293b; --c-muted:#64748b;
+  --c-border:#e2e8f0; --c-heading:#0f172a; --c-code-bg:#f1f5f9;
+  --font-body:"PingFang SC","Microsoft YaHei","Noto Sans SC","Source Han Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font-family:var(--font-body);background:var(--c-bg);color:var(--c-text);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--c-primary);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{color:var(--c-heading);line-height:1.35;margin:0}
+h2{font-size:22px;margin:44px 0 14px;padding-top:10px}
+h2::before{content:"";display:inline-block;width:5px;height:20px;background:var(--c-primary);border-radius:3px;margin-right:10px;vertical-align:-3px}
+h3{font-size:17px;margin:28px 0 10px}
+p{margin:10px 0}
+code{font-family:var(--font-mono);font-size:.9em;background:var(--c-code-bg);border-radius:4px;padding:1px 5px;word-break:break-all}
+/* ===== 顶栏 ===== */
+.doc-header{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);color:#fff;padding:30px 16px 26px}
+.doc-header-inner{max-width:1120px;margin:0 auto}
+.doc-series{font-size:13px;letter-spacing:.12em;color:#93c5fd;text-transform:uppercase;margin-bottom:6px}
+.doc-title{font-size:26px;font-weight:700;color:#fff;margin:0 0 8px}
+.doc-subtitle{font-size:14.5px;color:#cbd5e1;margin:0;max-width:880px}
+/* ===== 布局 ===== */
+.layout{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:0;padding:0 16px}
+main{min-width:0;max-width:920px;padding:24px 0 40px}
+/* ===== 目录（移动端：折叠面板；桌面：左侧固定） ===== */
+#tocToggle{display:flex;align-items:center;gap:8px;margin:14px 0 0;padding:9px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;font-size:14px;color:var(--c-primary);cursor:pointer}
+#tocToggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+#toc{display:none;margin:10px 0 0;padding:10px 12px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.06)}
+#toc.open{display:block}
+#toc .toc-title{font-size:13px;color:var(--c-muted);letter-spacing:.08em;margin:2px 4px 8px;font-weight:600}
+#toc a{display:block;padding:5px 10px;border-left:2px solid var(--c-border);color:var(--c-text);font-size:14px;border-radius:0 6px 6px 0}
+#toc a:hover{background:var(--c-primary-soft);text-decoration:none}
+#toc a.on{border-left-color:var(--c-primary);background:var(--c-primary-soft);color:var(--c-primary-dark);font-weight:600}
+#toc a.lvl2{padding-left:22px;font-size:13px;color:var(--c-muted)}
+/* ===== 正文组件 ===== */
+.section-lead{font-size:15px;color:var(--c-muted);border-left:3px solid var(--c-border);padding:2px 0 2px 12px;margin:6px 0 18px}
+.card{background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px 18px;margin:14px 0}
+.chart{width:100%;height:360px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:6px}
+.chart-note{font-size:12.5px;color:var(--c-muted);text-align:center;margin:6px 0 0}
+/* 时间轴：grid 三列（时间/轴/内容），圆点中心与轴线像素级对齐 */
+.timeline{margin:22px 0 10px}
+.tl-item{display:grid;grid-template-columns:86px 30px 1fr;padding-bottom:20px}
+.tl-item:last-child{padding-bottom:4px}
+.tl-year{padding-top:5px;text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--c-primary-dark);font-weight:700}
+.tl-axis{position:relative;display:flex;justify-content:center}
+.tl-axis::before{content:"";position:absolute;top:6px;bottom:-20px;width:2px;background:var(--c-border);border-radius:1px}
+.tl-item:last-child .tl-axis::before{bottom:6px}
+.tl-dot{position:relative;z-index:1;width:12px;height:12px;border-radius:50%;background:var(--c-primary);box-shadow:0 0 0 2px var(--c-primary-soft);margin-top:0}
+.tl-dot.teal{background:var(--c-teal);box-shadow:0 0 0 2px var(--c-teal-soft)}
+.tl-dot.amber{background:var(--c-amber);box-shadow:0 0 0 2px var(--c-amber-soft)}
+.tl-dot.rose{background:var(--c-rose);box-shadow:0 0 0 2px var(--c-rose-soft)}
+.tl-card{background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;padding:11px 14px;min-width:0}
+.tl-card .tl-head{font-weight:600;font-size:14.5px;color:var(--c-heading)}
+.tl-card .tl-body{font-size:13.5px;color:var(--c-muted);margin-top:3px}
+.tl-card .tl-body code{font-size:.9em}
+/* 表格 */
+.table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--c-border);border-radius:12px;background:var(--c-card)}
+table.cmp{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px;min-width:720px}
+table.cmp th{background:#eef2f7;color:var(--c-heading);font-weight:600;text-align:left;padding:9px 10px;border-bottom:1px solid var(--c-border);position:sticky;top:0}
+table.cmp td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top;word-break:break-word}
+table.cmp tr:last-child td{border-bottom:none}
+table.cmp tbody tr:nth-child(even){background:#fafbfd}
+table.cmp td code{background:none;padding:0}
+.cmp-note{font-size:12.5px;color:var(--c-muted);margin:-8px 0 18px}
+/* 公式 */
+.fml{font-family:var(--font-mono);font-size:13.5px;background:var(--c-code-bg);border:1px solid var(--c-border);border-radius:8px;padding:8px 12px;display:inline-block;max-width:100%;overflow-x:auto;margin:4px 0}
+/* 状态标签：已查证 / 一方称 / 未公开 / 未核实 */
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:1px 9px;margin-left:6px;vertical-align:2px}
+.tag.v{background:var(--c-teal-soft);color:var(--c-teal)}
+.tag.u{background:var(--c-amber-soft);color:var(--c-amber)}
+.tag.n{background:var(--c-rose-soft);color:var(--c-rose)}
+/* 来源上标 */
+sup.src{font-family:var(--font-mono);font-size:.72em;color:var(--c-primary);margin-left:1px}
+/* 图例说明块 */
+.legend-box{display:flex;flex-wrap:wrap;gap:8px 18px;margin:10px 0 4px;font-size:12.5px;color:var(--c-muted)}
+/* 参考文献 */
+.refs ol{padding-left:22px;margin:10px 0}
+.refs li{font-size:13px;color:var(--c-muted);margin:6px 0;word-break:break-all}
+.refs li a{color:var(--c-primary);word-break:break-all}
+/* ===== 页脚 ===== */
+.doc-footer{background:#0f172a;color:#94a3b8;padding:34px 16px 46px;margin-top:40px;font-size:13.5px}
+.footer-inner{max-width:1120px;margin:0 auto}
+.footer-series{color:#e2e8f0;font-weight:600;margin-bottom:10px;font-size:14px}
+.footer-nav a{color:#93c5fd;margin:0 6px}
+.footer-nav a:hover{color:#fff;text-decoration:none}
+.footer-nav a.current{color:#64748b;cursor:default;text-decoration:none}
+.footer-nav .sep{color:#475569;margin:0 2px}
+.footer-meta{margin-top:12px;color:#64748b;font-size:12.5px}
+/* ===== 回到顶部 ===== */
+#backTop{position:fixed;right:22px;bottom:26px;width:44px;height:44px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);color:var(--c-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(15,23,42,.12);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#backTop.show{opacity:1;pointer-events:auto}
+#backTop svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2}
+/* ===== 桌面端 ===== */
+@media (min-width:1024px){
+  .doc-header{padding:42px 24px 34px}
+  .doc-title{font-size:31px}
+  .layout{grid-template-columns:250px 1fr;gap:36px;padding:0 24px}
+  #tocToggle{display:none}
+  #toc{display:block;position:sticky;top:24px;height:calc(100vh - 48px);overflow-y:auto;margin:24px 0 0;padding:14px 12px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{#toc,#tocToggle,#backTop{display:none!important}}
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <div class="doc-header-inner">
+    <div class="doc-series">Transformers 架构演进系列笔记</div>
+    <h1 class="doc-title">前馈网络（FFN）演进对比</h1>
+    <p class="doc-subtitle">从“两个线性层 + ReLU”的标准 FFN，到 SwiGLU 门控 FFN，再到细粒度专家与共享专家并存的稀疏 MoE——看 FFN 如何从一个位置级特征变换模块，演化为大模型参数扩张与稀疏激活的主战场。</p>
+  </div>
+</header>
+
+<button id="tocToggle" aria-expanded="false">
+  <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  文档目录
+</button>
+
+<div class="layout">
+  <nav id="toc" aria-label="文档目录">
+    <div class="toc-title">本页目录</div>
+    <a href="#overview">1 总览</a>
+    <a href="#timeline">2 演进时间线</a>
+    <a href="#activations" class="lvl2">2.1 激活函数演进</a>
+    <a href="#structure" class="lvl2">2.2 结构演进</a>
+    <a href="#moe" class="lvl2">2.3 MoE 化主线</a>
+    <a href="#charts">3 关键对比图表</a>
+    <a href="#tables">4 架构对比表</a>
+    <a href="#matrix">5 模型系列 × 版本总表</a>
+    <a href="#refs">6 参考资料</a>
+  </nav>
+
+  <main>
+    <!-- ===== 1 总览 ===== -->
+    <section id="overview">
+      <h2>总览</h2>
+      <p class="section-lead">前馈网络（Feed-Forward Network, FFN）是 Transformer 中与自注意力（Self-Attention）并列的两大子层之一：注意力负责 token 之间的信息混合，FFN 负责对每个 token 独立做非线性特征变换。</p>
+      <p>在原始 Transformer（2017）中，FFN 只是“两个线性层 + 中间 ReLU 激活”的简单堆叠，中间维度约为 d_model 的 4 倍<sup class="src">[1]</sup>。但随着模型变大，FFN 逐渐成为参数与算力的主要承载者：在原始 Transformer 中，每层 FFN 的参数量约为注意力子层的 2 倍（FFN ≈ 8·d_model²，注意力 ≈ 4·d_model²），整层计算中 FFN 约占三分之二<sup class="src">[1]</sup>。</p>
+      <p>过去九年，FFN 的演进沿三条主线展开：其一，<strong>激活函数</strong>从 ReLU 走向 GELU、再走向自门控的 SiLU/Swish 与 GLU 家族，最终 SwiGLU 成为 Llama、Mistral、Qwen、Gemma、PaLM 等主流模型的标配<sup class="src">[2][4][5][6]</sup>；其二，<strong>结构</strong>从单条路径的两线性层，演化为 up/gate/down 三权重的门控 FFN，并出现 PaLM 式 attention 与 FFN 并行的单残差分支设计<sup class="src">[6]</sup>；其三，自 2021 年 Switch Transformer 起，FFN 被整体复制为多个“专家”，经路由器选择性激活，FFN 成为稀疏混合专家（Mixture-of-Experts, MoE）的载体——从 Mixtral 的 8 大专家 Top-2，到 DeepSeek-V2/V3 的细粒度专家 + 共享专家，再到 2025-2026 年千亿至万亿参数级 MoE 成为主流旗舰形态<sup class="src">[8][9][10][11]</sup>。</p>
+      <div class="legend-box">
+        <span><span class="tag v">已查证</span> 有官方/arXiv 来源</span>
+        <span><span class="tag u">一方称/未公开</span> 仅厂商口径或未公开细节</span>
+        <span><span class="tag n">未核实</span> 未能找到可靠来源</span>
+      </div>
+    </section>
+
+    <!-- ===== 2 演进时间线 ===== -->
+    <section id="timeline">
+      <h2>演进时间线</h2>
+      <p class="section-lead">2017–2026：激活函数、FFN 结构与 MoE 路由三条线索的关键节点，关键节点附来源上标。</p>
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-year">2017.6</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">原始 Transformer 的标准 FFN<sup class="src">[1]</sup></div>
+            <div class="tl-body">两层线性变换 + ReLU，中间维度 d_ff≈4·d_model（base 版 512→2048）；FFN 约占每层参数的三分之二。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2017.10</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Swish / SiLU 自门控激活<sup class="src">[4]</sup></div>
+            <div class="tl-body">Google 提出 Swish（x·σ(x)），因形式上等价于 x 乘自身 sigmoid 门，又称自门控（self-gated）激活。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2018–2019</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">GELU 进入 Transformer<sup class="src">[2][3]</sup></div>
+            <div class="tl-body">GELU 论文 2016 年提出；GPT-2（2019）首次在 Transformer 中用 GELU 取代 ReLU，BERT 随后跟进。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2020.2</div>
+          <div class="tl-axis"><span class="tl-dot teal"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">GLU 变体系统性对比<sup class="src">[5]</sup></div>
+            <div class="tl-body">Shazeer 提出 GLU/Bilinear/ReGLU/GeGLU/SwiGLU 一族门控激活，实验表明 SwiGLU/GeGLU 优于标准 FFN，为门控 FFN 定调。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2020.6</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">GShard：首个大规模 Top-2 MoE<sup class="src">[7]</sup></div>
+            <div class="tl-body">Google 将 FFN 复制为多个专家并做分片训练，600B 模型每 token 激活 2 个专家，验证 MoE 可扩展。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2021.1</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Switch Transformer：Top-1 路由<sup class="src">[8]</sup></div>
+            <div class="tl-body">简化为每 token 只激活 1 个专家，训练成本减半，模型扩到 1.6T，使 MoE 成为社区共识路线。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2022.4</div>
+          <div class="tl-axis"><span class="tl-dot"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">PaLM：并行 FFN + SwiGLU<sup class="src">[6]</sup></div>
+            <div class="tl-body">把 attention 与 FFN 放在同一残差分支并行计算（不再串行），FFN 用 SwiGLU；540B 模型验证并行结构可行。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2023.12</div>
+          <div class="tl-axis"><span class="tl-dot amber"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Mixtral 8×7B：开源稀疏 MoE 破圈<sup class="src">[9]</sup></div>
+            <div class="tl-body">8 个专家、Top-2 路由、共享注意力，总参数约 46.7B、每 token 激活约 12.9B；开源权重让 MoE 可被广泛复现。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.5</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeepSeek-V2：细粒度专家 + 共享专家<sup class="src">[10]</sup></div>
+            <div class="tl-body">236B 总参数/21B 激活；256 个细粒度路由专家（Top-6）外加 2 个共享专家——FFN 专家粒度首次大幅细化。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2024.12</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeepSeek-V3：无辅助损失负载均衡<sup class="src">[11]</sup></div>
+            <div class="tl-body">671B 总/37B 激活；256 路由专家 Top-8 + 1 共享专家，用路由 bias 代替辅助损失做负载均衡，标志国产 MoE 主线成熟。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.4</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3 MoE 与 Llama 4<sup class="src">[12][16]</sup></div>
+            <div class="tl-body">Qwen3-235B-A22B：128 专家激活 8、取消共享专家、global-batch 负载均衡损失；Meta Llama 4 Maverick 首次在 Llama 系列采用 MoE（128 专家、400B/17B）。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.7</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Kimi K2：万亿级开源 MoE<sup class="src">[13]</sup></div>
+            <div class="tl-body">1.04T 总参数/32B 激活，沿用 DeepSeek-V3 式架构（MLA + 专家 FFN），配合 MuonClip 优化器零 loss spike 预训练。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.9</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3-Next 与 GLM-4.6<sup class="src">[19][23]</sup></div>
+            <div class="tl-body">Qwen3-Next-80B-A3B 引入混合注意力 + 高稀疏 MoE + MTP；智谱 GLM-4.6（355B/32B）开源，200K 上下文。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2025.10</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">MiniMax-M2：极致稀疏 MoE<sup class="src">[25]</sup></div>
+            <div class="tl-body">230B 总参数仅激活 10B（稀疏率约 4.3%），登顶 Hugging Face 热榜，开源。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.2</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">GLM-5 开源<sup class="src">[20]</sup></div>
+            <div class="tl-body">智谱将 MoE 规模从 355B/32B 扩至 744B/40B，MIT 协议开源；同日 OpenAI GPT-5 系列已迭代至 5.2（2025.12）。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.2–4</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3.5 与 Qwen3.6 开源<sup class="src">[36][37]</sup></div>
+            <div class="tl-body">Qwen3.5-397B-A17B（原生多模态 MoE，397B/17B，2 月）；Qwen3.6-35B-A3B（稀疏 MoE，35B/3B，4 月，主打 Agentic Coding）。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.4</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">DeepSeek V4 发布<sup class="src">[39][40][41]</sup></div>
+            <div class="tl-body">V4-Pro 1.6T 总/49B 激活、V4-Flash 284B/13B；官方仅公布规模，FFN/专家细节未披露。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.7</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Kimi K3：896 专家的超大 MoE<sup class="src">[21]</sup></div>
+            <div class="tl-body">2.8T 总/104B 激活；896 路由专家激活 16 + 2 共享专家，配自研 Kimi Delta Attention 混合线性注意力。</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2026.8–9</div>
+          <div class="tl-axis"><span class="tl-dot rose"></span></div>
+          <div class="tl-card">
+            <div class="tl-head">Qwen3.8-Flash 与 DeepSeek V4.1 Flash<sup class="src">[18][24]</sup></div>
+            <div class="tl-body">Qwen3.8-Flash（125B 激活 6B，含 51B n-gram embedding）；DeepSeek V4.1 Flash 采用非对称 Causal-Encoder-Decoder MoE（输入激活 8B/输出激活 16B）。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- ===== 2.1 激活函数演进 ===== -->
+    <section id="activations">
+      <h2>2.1 激活函数演进：ReLU → GELU → SiLU/Swish → GLU 家族 → SwiGLU</h2>
+      <p class="section-lead">FFN 中间非线性函数的每一次更换，都等价于换了一种“token 特征再加工”的方式；趋势是从分段硬阈值走向平滑自门控。</p>
+      <h3>起点：ReLU（2017）</h3>
+      <p>原始 Transformer 的 FFN 为<sup class="src">[1]</sup>：</p>
+      <div class="fml">FFN(x) = max(0, x·W₁ + b₁) · W₂ + b₂，　d_ff = 2048 = 4·d_model（base 版）</div>
+      <p>ReLU（Rectified Linear Unit）计算极便宜，但在负值区梯度恒为 0，存在“神经元死亡”风险，且函数在 0 点不可导。</p>
+      <h3>GELU：引入随机正则化视角（2016 论文，2019 年进入 Transformer）</h3>
+      <p>高斯误差线性单元（Gaussian Error Linear Unit, GELU）由 Hendrycks 与 Gimpel 于 2016 年提出<sup class="src">[2]</sup>，定义为 <code>GELU(x) = x · Φ(x)</code>，其中 Φ(x) 是标准正态累积分布函数——直观含义是“按 x 属于正态分布的概率对 x 做随机门控”。GPT-2（2019）首次把 GELU 用于 Transformer<sup class="src">[3]</sup>，此后 BERT、GPT-3 沿用。实现上有两种形式：精确形式用误差函数 <code>0.5x(1+erf(x/√2))</code>；工程上常用 tanh 近似 <code>x·σ(1.702x)</code> 以避免 erf 调用（GPT-2 时代代码中的 <code>gelu_new</code> 即此近似）。</p>
+      <h3>SiLU / Swish：自门控激活（2017）</h3>
+      <p>Swish（后在 PyTorch 中官方命名为 SiLU，Sigmoid Linear Unit）由 Google 于 2017 年提出<sup class="src">[4]</sup>：</p>
+      <div class="fml">SiLU(x) = Swish(x) = x · σ(x) = x / (1 + e⁻ˣ)</div>
+      <p>因为门控系数 σ(x) 是输入 x 自己的函数，SiLU 被称为“自门控”（self-gated）激活。它处处平滑可导、非单调（负值区先降后升），在 ImageNet 上被验证优于 ReLU。</p>
+      <h3>GLU 家族：把“门控”升级为显式第二路权重（2020）</h3>
+      <p>Shazeer 2020 年的论文《GLU Variants Improve Transformer》系统对比了一族“门控线性单元”<sup class="src">[5]</sup>：通用形式为两路线性投影逐元素相乘，一路做激活、一路做门控：</p>
+      <div class="fml">GLU 族：　y = g(x·W₁ + b₁) ⊙ (x·V + c)<br>
+      GLU: g=σ；Bilinear: g=恒等；ReGLU: g=ReLU；GeGLU: g=GELU；SwiGLU: g=Swish</div>
+      <p>其中最有影响力的是 <strong>SwiGLU</strong>：<code>SwiGLU(x) = Swish(x·W₁ + b₁) ⊙ (x·V + c)</code>，最后再经 <code>W₂</code> 投影回 d_model。相比标准两权重 FFN，它多出一路门控矩阵 V，参数量约为原来的 1.5 倍；论文与后续实践普遍把中间维 d_ff 从 4·d_model 下调到约 (2/3)·8·d_model 量级（如 Llama-7B 为 11000≈2.69·d_model）来补偿<sup class="src">[5][34]</sup>。</p>
+      <p>Shazeer 的实验表明 GeGLU/SwiGLU 在同等训练步数下困惑度优于 ReLU 标准 FFN<sup class="src">[5]</sup>。此后 PaLM（2022）<sup class="src">[6]</sup>、Llama 系列（2023 起）<sup class="src">[34]</sup>、Mistral、Qwen、Gemma 等主流开源模型几乎全部采用 SwiGLU（即 up/gate/down 三权重门控 FFN）；Gemma 2/3 则采用 GELU 的门控变体（GeGLU 类，配置中名为 <code>gelu_pytorch_tanh</code>）<sup class="src">[14][35]</sup>。</p>
+    </section>
+
+    <!-- ===== 2.2 结构演进 ===== -->
+    <section id="structure">
+      <h2>2.2 结构演进：从两线性层到门控三权重，再到并行 FFN</h2>
+      <p class="section-lead">同样是 SwiGLU，Llama 是“先注意力后 FFN 串行”，PaLM 之后越来越多模型把两者并到同一条残差分支上。</p>
+      <h3>标准 FFN → 门控 FFN</h3>
+      <p>标准 FFN 用 <code>up_proj + down_proj</code> 两个权重；门控 FFN（SwiGLU）拆为三个：<code>gate_proj</code>（SwiGLU 左支）与 <code>up_proj</code> 逐元素相乘后再经 <code>down_proj</code> 投影。代价是门控支路带来约 50% 的额外参数，换来的是更稳定的训练与更好的精度/参数比——这是 2023 年后稠密模型的事实标准<sup class="src">[5][34]</sup>。</p>
+      <h3>并行 FFN（Parallel Attention &amp; FFN）</h3>
+      <p>原始（及 Llama 式）Block 是 <code>x → Attention(x) → FFN(·)</code> 的串行两段残差。PaLM（2022）改为在同一残差分支上并行<sup class="src">[6]</sup>：</p>
+      <div class="fml">y = x + Attention(LN(x)) + FFN(LN(x))　（PaLM 式并行）<br>
+      y₁ = x + Attn(LN(x))；y = y₁ + FFN(LN(y₁))　（Llama 式串行）</div>
+      <p>并行结构把两段子层合并成一次“加和”，省一层 LayerNorm 的串行依赖，在 540B 规模上验证可行<sup class="src">[6]</sup>；后续 PaLM 2、部分开源复现沿用该思路。</p>
+      <h3>扩张比（d_ff/d_model）的实际取值</h3>
+      <p>原始 Transformer 把 FFN 中间维定为 4·d_model<sup class="src">[1]</sup>。引入 SwiGLU 三权重后，为控制总参数，各模型普遍把名义扩张比下调：Llama-7B 为 11000/4096≈2.69<sup class="src">[34]</sup>，Mistral-7B 为 14336/4096=3.5，Qwen2-7B 为 11008/3584≈3.07（HF 配置口径<sup class="src">[35]</sup>）。注意门控 FFN 的“等效计算量”仍接近旧 4× 结构。</p>
+      <h3>Pre-Norm 框架下的层序</h3>
+      <p>自 GPT-2/GPT-3 起主流采用 Pre-Norm（LN 在子层之前），FFN 与 attention 交替堆叠：每一层为一个 Block，Block 内 FFN 永远紧跟在该 Block 的注意力之后（或与之并行）；FFN 自身不改变位置编码、不做 token 间混合，是纯粹的逐 token 变换<sup class="src">[1][3]</sup>。</p>
+    </section>
+    <!-- ===== 2.3 MoE 化主线 ===== -->
+    <section id="moe">
+      <h2>2.3 MoE 化主线：FFN 复制为“专家”，按 token 稀疏激活</h2>
+      <p class="section-lead">MoE（Mixture-of-Experts）把每个 Block 的 FFN 复制 N 份成为 N 个专家，路由器（router/gate）按 token 选择其中少数几个参与计算——总参数暴涨而每 token 算力近似不变。</p>
+      <h3>从 GShard 到 Switch Transformer（2020–2021）</h3>
+      <p>GShard（2020）首次在 600B 级模型上验证 Top-2 路由：每 token 经 softmax 门控选 2 个专家加权求和<sup class="src">[7]</sup>。Switch Transformer（2021）把路由简化为 Top-1（只选分数最高的 1 个专家），训练 FLOPs 减半，模型扩至 1.6T，并提出辅助损失（auxiliary loss）鼓励专家负载均衡<sup class="src">[8]</sup>。</p>
+      <h3>Mixtral 8×7B：粗粒度专家 + Top-2（2023.12）</h3>
+      <p>Mixtral 8×7B 把 Llama 式 FFN 整体复制 8 份作为专家，每 token 激活 Top-2 个，注意力层仍共享（不分专家）<sup class="src">[9]</sup>。总参数约 46.7B、每 token 激活约 12.9B，是首个证明“开源 MoE 可达到稠密大模型水平”的爆款，确立了“大而少”的粗粒度专家路线。</p>
+      <h3>DeepSeek-V2：细粒度专家 + 共享专家（2024.5）</h3>
+      <p>DeepSeek-V2（236B 总/21B 激活）把专家切细：256 个路由专家、每 token 激活其中 6 个（Top-6），并另设 <strong>2 个共享专家（shared experts）</strong>对所有 token 恒定激活，承载通用知识，减少路由专家间冗余<sup class="src">[10]</sup>。细粒度 + 共享专家由此成为后续国产旗舰的标准配方。</p>
+      <h3>DeepSeek-V3：无辅助损失负载均衡（2024.12）</h3>
+      <p>DeepSeek-V3（671B 总/37B 激活）沿用 256 路由专家 + Top-8，但把共享专家减为 <strong>1 个</strong>，并用可学习的路由 bias 做负载均衡，<strong>取消了 Switch 时代的辅助损失</strong>——避免辅助损失干扰专家专业化<sup class="src">[11]</sup>。这一“无辅助损失负载均衡”被后续 Kimi K2、GLM-4.5/4.6 等广泛沿用<sup class="src">[13][19]</sup>。</p>
+      <h3>2025–2026：MoE 成为旗舰默认形态</h3>
+      <p>2025 年起，新旗舰几乎清一色 MoE：Qwen3-235B-A22B（128 专家激活 8，<strong>取消共享专家</strong>，改用 global-batch 负载均衡损失）<sup class="src">[12]</sup>；Llama 4 Maverick（128 专家、每 token 激活 2 个、专家 hidden 8192）<sup class="src">[16][33]</sup>；Kimi K2（1.04T/32B，沿用 DeepSeek-V3 式架构）<sup class="src">[13]</sup>；GLM-4.5/4.6（355B/32B）<sup class="src">[19]</sup>；MiniMax-M2（230B/10B）<sup class="src">[25]</sup>。进入 2026 年：GLM-5 扩至 744B/40B<sup class="src">[20]</sup>；Kimi K3 把路由专家数推到 896（激活 16）+2 共享专家，总参数 2.8T/激活 104B<sup class="src">[21]</sup>；DeepSeek V4 于 2026 年 4 月发布（V4-Pro 1.6T 总/49B 激活、V4-Flash 284B/13B，FFN/专家细节官方未披露）<sup class="src">[39][40][41]</sup>；DeepSeek V4.1 Flash 更引入非对称 Causal-Encoder-Decoder 结构，输入侧激活 8B、输出侧激活 16B<sup class="src">[18]</sup>；Qwen3.8-Flash 则在 MoE 之外叠加了 51B 的 n-gram embedding 查表参数<sup class="src">[24]</sup>；阿里上半年还连续开源 Qwen3.5-397B-A17B（原生多模态 MoE，397B/17B）与 Qwen3.6-35B-A3B（稀疏 MoE，35B/3B）<sup class="src">[36][37]</sup>。闭源侧，OpenAI GPT-5/5.1/5.2 官方称采用“统一系统 + 快速模型与深度推理模型之间的路由”，但未披露 FFN/专家细节<sup class="src">[26][27][28]</sup>；Gemini 3 被第三方分析为 Sparse MoE，官方未披露细节<sup class="src">[29]</sup>。</p>
+    </section>
+    <!-- ===== 3 关键对比图表 ===== -->
+    <section id="charts">
+      <h2>关键对比图表</h2>
+      <p class="section-lead">三张图分别回答：激活函数长什么样、MoE 总参 vs 激活参差多少、以及每 token 的实际计算稀疏到什么程度。</p>
+      <h3>图 1：三种代表性激活函数曲线对比</h3>
+      <div id="chart-1" class="chart"></div>
+      <p class="chart-note">图 1：横轴 x∈[-5,5]，纵轴 f(x)。ReLU 分段硬折点；GELU 处处平滑、负值区带小幅负峰；SiLU/Swish 同样平滑且负峰更深。曲线由 JS 按公式现算（GELU 用 tanh 近似），口径见 [2][4]。</p>
+      <h3>图 2：代表性 MoE 模型——总参数量 vs 每 token 激活参数量</h3>
+      <div id="chart-2" class="chart"></div>
+      <p class="chart-note">图 2：单位 B（十亿参数）。灰条=总参数，蓝条=每 token 激活参数。数值取自各模型技术报告/官方发布口径（Mixtral [9]、DeepSeek-V2/V3 [10][11]、Qwen3 [12]、GLM-4.6 [19]、Kimi K2 [13]、Llama 4 [16]、MiniMax-M2 [25]、Kimi K3 [21]、GLM-5 [20]、Qwen3-Next [23]）。</p>
+      <h3>图 3：MoE 稀疏率演变（激活参数 / 总参数）</h3>
+      <div id="chart-3" class="chart"></div>
+      <p class="chart-note">图 3：稀疏率越低=每 token 实际动用的参数占比越小。2023 年 Mixtral 约 27.6%，2025–2026 年新旗舰普遍压到 3%–9% 区间。数据由图 2 同口径数值计算（active/total）。</p>
+    </section>
+    <!-- ===== 4 架构对比表 ===== -->
+    <section id="tables">
+      <h2>4 架构对比表</h2>
+      <p class="section-lead">表 A 对比激活函数（7 列数值/性质维度）；表 B 对比 FFN 整体结构形态（7 列，含参数/FLOPs/路由机制）。</p>
+      <h3>表 A：激活函数对比</h3>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:11%"><col style="width:21%"><col style="width:15%"><col style="width:16%"><col style="width:12%"><col style="width:12%"><col style="width:13%">
+          </colgroup>
+          <thead><tr><th>名称</th><th>公式</th><th>提出时间/论文</th><th>代表模型</th><th>负值区行为</th><th>平滑性/可微性</th><th>训练稳定性特点</th></tr></thead>
+          <tbody>
+            <tr><td>ReLU</td><td>max(0, x)</td><td>2017，原始 Transformer [1]</td><td>原始 Transformer、GPT 早期</td><td>负值恒 0</td><td>x=0 处不可导；分段硬折</td><td>计算最省，但有神经元死亡风险</td></tr>
+            <tr><td>GELU</td><td>x·Φ(x)，精确 0.5x(1+erf(x/√2))</td><td>2016 论文 [2]；2019 入 Transformer [3]</td><td>GPT-2/3、BERT、GPT 系列</td><td>负值有小幅负峰（≈-0.17 附近）</td><td>处处平滑可导</td><td>比 ReLU 稳定；精确式需 erf，工程多用 tanh 近似</td></tr>
+            <tr><td>SiLU / Swish</td><td>x·σ(x)</td><td>2017.10 [4]</td><td>SwishNet、后作为 SwiGLU 门控支路</td><td>负峰更深（≈-0.28 在 x≈-1.28）</td><td>处处平滑、非单调</td><td>自门控，深网络优于 ReLU</td></tr>
+            <tr><td>GLU</td><td>(xW₁+b₁)⊙σ(xV+c)</td><td>2020.2 [5]</td><td>早期探索，少单独使用</td><td>门控可负，两路相乘后行为由门控决定</td><td>平滑（门为 sigmoid）</td><td>引入显式门控支路</td></tr>
+            <tr><td>ReGLU</td><td>ReLU(xW₁+b₁)⊙(xV+c)</td><td>2020.2 [5]</td><td>实验对比用</td><td>左支负值被置 0</td><td>左支硬折、右支线性</td><td>比 GLU 略优但不及 GeGLU/SwiGLU</td></tr>
+            <tr><td>GeGLU</td><td>GELU(xW₁+b₁)⊙(xV+c)</td><td>2020.2 [5]</td><td>Gemma 2/3（gelu_pytorch_tanh）[14][35]</td><td>左支带负峰</td><td>平滑</td><td>论文中优于 ReGLU，与 SwiGLU 接近</td></tr>
+            <tr><td>SwiGLU</td><td>Swish(xW₁+b₁)⊙(xV+c)，再过 W₂</td><td>2020.2 [5]</td><td>PaLM、Llama、Mistral、Qwen、DeepSeek、Kimi [6][11][13]</td><td>左支带更深负峰</td><td>处处平滑、非单调</td><td>当代主流；三权重多约 1.5× 参数，靠下调 d_ff 补偿</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：负值区极值为数值量级（在 x≈-1 至 -1.3 附近）；“代表模型”列为采用该激活的典型，同一模型门控支路与主激活名称常混用（如 Llama 配置中 hidden_act=silu 即 SwiGLU 左支）。</p>
+      <h3>表 B：FFN 整体结构形态对比</h3>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:14%"><col style="width:15%"><col style="width:17%"><col style="width:13%"><col style="width:14%"><col style="width:13%"><col style="width:14%">
+          </colgroup>
+          <thead><tr><th>结构形态</th><th>权重组成</th><th>参数/FLOPs 特性</th><th>每 token 激活参数占比</th><th>路由机制</th><th>代表模型</th><th>优缺点</th></tr></thead>
+          <tbody>
+            <tr><td>标准 FFN</td><td>up + down 两权重</td><td>每层 ≈8·d² 参数；稠密激活</td><td>100%</td><td>无（固定）</td><td>原始 Transformer、GPT-2 [1][3]</td><td>简单稳定；扩参数=扩算力，受算力天花板限制</td></tr>
+            <tr><td>门控 FFN（SwiGLU）</td><td>gate + up + down 三权重</td><td>比标准多约 50% 参数；常用下调 d_ff 补偿</td><td>100%</td><td>无（固定）</td><td>Llama、Mistral、Qwen 稠密版 [5][34]</td><td>精度/参数比更好；参数仍全激活</td></tr>
+            <tr><td>并行 FFN</td><td>同门控/标准 FFN，只是与 attention 同残差并行</td><td>计算量不变；少一层串行 LN 依赖</td><td>100%</td><td>无（固定）</td><td>PaLM、PaLM 2 [6]</td><td>大模型下训练更省串行延迟；串行等价结构仍常见</td></tr>
+            <tr><td>粗粒度 MoE（专家大而少）</td><td>N 个专家 FFN，共享注意力</td><td>总参数≈N×专家，FLOPs≈激活专家数×专家</td><td>约 27.6%（Mixtral 12.9/46.7）</td><td>Top-2 路由 + 辅助损失均衡</td><td>Mixtral 8×7B、GShard、Switch Top-1 [7][8][9]</td><td>参数大、激活小；专家粗→通信/冗余问题</td></tr>
+            <tr><td>细粒度专家 + 共享专家</td><td>M 个细粒度路由专家 + K 个恒定共享专家</td><td>专家切细→负载更均；共享专家恒定激活</td><td>DeepSeek-V3 约 5.5%（37/671）；Qwen3 约 9.4%（22/235）</td><td>Top-k 路由；V3 用路由 bias 无辅助损失；Qwen3 用 global-batch 损失</td><td>DeepSeek-V2/V3、Kimi K2/K3、GLM-4.5/4.6/5 [10][11][12][13][19][20][21]</td><td>当前旗舰主流；显存占用=全专家，需专家并行</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：“每 token 激活参数占比”= 激活参数/总参数，MoE 中注意力与共享专家等恒定部分均计入；不同论文对“激活参数”口径略有差异（是否计入 embedding/共享专家），本表以官方公布口径为准并在正文标注。</p>
+    </section>
+    <!-- ===== 5 模型系列 × 版本总表 ===== -->
+    <section id="matrix">
+      <h2>5 模型系列 × 版本总表</h2>
+      <p class="section-lead">覆盖 14 个模型系列，每系列至少 2 个版本（含截至 2026-11 的最新版）；未知项标“未公开/未核实”，逐行附依据编号。</p>
+      <div class="table-wrap">
+        <table class="cmp">
+          <colgroup>
+            <col style="width:11%"><col style="width:15%"><col style="width:17%"><col style="width:16%"><col style="width:20%"><col style="width:13%"><col style="width:8%">
+          </colgroup>
+          <thead><tr><th>模型系列</th><th>版本（年份）</th><th>激活函数</th><th>门控/MoE 结构</th><th>中间维/扩张比或专家配置</th><th>备注</th><th>依据</th></tr></thead>
+          <tbody>
+            <tr><td>Transformer（原版）</td><td>base（2017）</td><td>ReLU</td><td>标准两线性层，串行</td><td>d_ff=2048=4×512</td><td>FFN 约占每层参数 2/3</td><td>[1]</td></tr>
+            <tr><td>GPT</td><td>GPT-2（2019）</td><td>GELU（tanh 近似）</td><td>标准两线性层，Pre-Norm</td><td>4×d_model</td><td>首次把 GELU 带进 Transformer</td><td>[2][3]</td></tr>
+            <tr><td>GPT</td><td>GPT-5 系列（2025.8–12）</td><td>未公开</td><td>未公开；官方称 fast 模型/thinking 模型间路由</td><td>未公开</td><td>闭源，无技术报告</td><td>[26][27][28]</td></tr>
+            <tr><td>Llama</td><td>Llama 1/2（2023）</td><td>SwiGLU（silu 门控）</td><td>门控三权重，串行</td><td>7B：11000≈2.69×4096</td><td>SwiGLU 走向普及的代表</td><td>[5][34]</td></tr>
+            <tr><td>Llama</td><td>Llama 4 Maverick（2025.4）</td><td>未公开</td><td>MoE（首次进入 Llama 系列）</td><td>128 专家激活 2；400B 总/17B 激活；专家 hidden 8192</td><td>原生多模态</td><td>[16][33]</td></tr>
+            <tr><td>Mistral</td><td>Mistral-7B（2023）</td><td>SwiGLU</td><td>门控三权重</td><td>14336=3.5×4096</td><td>开源稠密强基模型</td><td>[35]</td></tr>
+            <tr><td>Mistral</td><td>Mixtral 8×7B（2023.12）</td><td>SwiGLU</td><td>MoE，8 专家 Top-2，共享注意力</td><td>46.7B 总/12.9B 激活</td><td>开源 MoE 破圈之作</td><td>[9]</td></tr>
+            <tr><td>Mistral</td><td>Magistral Small/Medium（2025.6）</td><td>未公开</td><td>未公开（官方未披露细节）</td><td>未公开</td><td>欧洲首个推理模型</td><td>[32]</td></tr>
+            <tr><td>Qwen</td><td>Qwen2.5（2024）</td><td>SwiGLU（silu）</td><td>稠密；MoE 版含共享专家</td><td>7B：11008≈3.07×3584</td><td>稠密+MoE 并行</td><td>[12][35]</td></tr>
+            <tr><td>Qwen</td><td>Qwen3（2025.4）</td><td>SwiGLU（silu）</td><td>MoE：128 专家激活 8，<strong>无共享专家</strong>，global-batch 负载均衡损失</td><td>235B 总/22B 激活；30B-A3B</td><td>统一 thinking/非 thinking</td><td>[12]</td></tr>
+            <tr><td>Qwen</td><td>Qwen3-Next-80B-A3B（2025.9）</td><td>未公开细节</td><td>高稀疏 MoE + 混合注意力 + MTP</td><td>80B 总/3B 激活</td><td>next 架构</td><td>[23]</td></tr>
+            <tr><td>Qwen</td><td>Qwen3.5-397B-A17B（2026.2）</td><td>未公开</td><td>原生多模态 MoE</td><td>397B 总/17B 激活</td><td>亦称 Qwen3.5-Plus；开源</td><td>[36][38]</td></tr>
+            <tr><td>Qwen</td><td>Qwen3.6-35B-A3B（2026.4）</td><td>未公开</td><td>稀疏 MoE</td><td>35B 总/3B 激活</td><td>Agentic Coding 开源；另有 Plus 闭源版</td><td>[37]</td></tr>
+            <tr><td>Qwen</td><td>Qwen3.8-Flash（2026.8）</td><td>未公开</td><td>多模态 MoE，next 架构</td><td>transformer 125B/激活 6B；另 51B n-gram embedding</td><td>一方称（官方口径）</td><td>[24]</td></tr>
+            <tr><td>DeepSeek</td><td>DeepSeek-V2（2024.5）</td><td>门控 FFN（按论文架构）</td><td>细粒度 MoE：256 路由专家 Top-6 + 2 共享专家</td><td>236B 总/21B 激活</td><td>细粒度+共享专家开创</td><td>[10]</td></tr>
+            <tr><td>DeepSeek</td><td>DeepSeek-V3（2024.12）</td><td>门控 FFN</td><td>256 路由专家 Top-8 + 1 共享专家；无辅助损失负载均衡</td><td>671B 总/37B 激活</td><td>含 MTP 训练目标</td><td>[11]</td></tr>
+            <tr><td>DeepSeek</td><td>V3.1（2025.8）</td><td>同 V3</td><td>同 V3 架构</td><td>约 671B</td><td>UE8M0 FP8；混合推理</td><td>[17]</td></tr>
+            <tr><td>DeepSeek</td><td>V4（2026.4.24）</td><td>未公开</td><td>MoE（FFN 细节官方未披露）</td><td>V4-Pro：1.6T 总/49B 激活；V4-Flash：284B 总/13B 激活</td><td>官方 Transparency Center 列 V4.0</td><td>[39][40][41]</td></tr>
+            <tr><td>DeepSeek</td><td>V4.1 Flash（2026.9）</td><td>未公开</td><td>MoE，非对称 Causal-Encoder-Decoder</td><td>552B 总；输入激活 8B/输出激活 16B</td><td>一方称（官方口径）</td><td>[18]</td></tr>
+            <tr><td>GLM</td><td>GLM-4.5（2025.7）</td><td>未公开</td><td>MoE</td><td>355B 总/32B 激活</td><td>开源</td><td>[19]</td></tr>
+            <tr><td>GLM</td><td>GLM-4.6（2025.9.30）</td><td>未公开</td><td>MoE</td><td>355B 总/32B 激活；200K 上下文</td><td>编码特化</td><td>[19]</td></tr>
+            <tr><td>GLM</td><td>GLM-5（2026.2.12）</td><td>未公开</td><td>MoE</td><td>744B 总/40B 激活</td><td>MIT 协议开源</td><td>[20]</td></tr>
+            <tr><td>Gemma</td><td>Gemma 2（2024）</td><td>gelu_pytorch_tanh（GeGLU 类）</td><td>门控 FFN（HF 配置口径）</td><td>9B 稠密</td><td>中间维偏大</td><td>[35]</td></tr>
+            <tr><td>Gemma</td><td>Gemma 3（2025.3）</td><td>gelu_pytorch_tanh（HF 配置口径）</td><td>门控 FFN；滑动窗口注意力</td><td>1B/4B/12B/27B 稠密；128K+ 上下文</td><td>多模态</td><td>[14][35]</td></tr>
+            <tr><td>Kimi（月之暗面）</td><td>Kimi K2（2025.7）</td><td>门控 FFN（仿 V3 架构）</td><td>MoE，MLA 注意力</td><td>1.04T 总/32B 激活；hidden 7168</td><td>MuonClip 优化器</td><td>[13]</td></tr>
+            <tr><td>Kimi（月之暗面）</td><td>Kimi K3（2026.7）</td><td>未公开</td><td>MoE：896 路由专家激活 16 + 2 共享专家；KDA 混合线性注意力</td><td>2.8T 总/104B 激活；1M 上下文</td><td>全球首个近 3T 开源模型</td><td>[21]</td></tr>
+            <tr><td>Phi（微软）</td><td>Phi-2（2023）</td><td>GELU</td><td>标准两线性层</td><td>2.7B 稠密</td><td>教科书蒸馏小模型</td><td>[35]</td></tr>
+            <tr><td>Phi（微软）</td><td>Phi-4（2024.12）</td><td>SwiGLU（silu，HF 配置口径）</td><td>门控三权重</td><td>14B 稠密</td><td>小模型强推理</td><td>[35]</td></tr>
+            <tr><td>Grok（xAI）</td><td>Grok-1（2024.3 开源）</td><td>SwiGLU（开源权重配置口径）</td><td>MoE：8 专家 Top-2</td><td>314B 总/25B 激活</td><td>当时最大开源权重</td><td>[31][35]</td></tr>
+            <tr><td>Grok（xAI）</td><td>Grok 3（2025.2）</td><td>未公开</td><td>MoE（官方未披露细节）</td><td>传闻约 1T 总/25B 激活（未核实）</td><td>闭源</td><td>[30]</td></tr>
+            <tr><td>InternLM（书生）</td><td>InternLM2（2023）</td><td>SwiGLU</td><td>门控三权重</td><td>7B/20B 稠密</td><td>开源</td><td>[35]</td></tr>
+            <tr><td>InternLM（书生）</td><td>InternLM3（2025.1）</td><td>SwiGLU（一方称）</td><td>30B-A3B MoE；专家细节未核实</td><td>30B 总/约 3B 激活</td><td>8B 稠密 + 30B MoE</td><td>[35]</td></tr>
+            <tr><td>MiniMax</td><td>MiniMax-Text-01（2025.1）</td><td>未公开</td><td>MoE</td><td>456.8B 总/45.9B 激活</td><td>开源</td><td>[25]</td></tr>
+            <tr><td>MiniMax</td><td>MiniMax-M2（2025.10.27）</td><td>未公开</td><td>MoE</td><td>230B 总/10B 激活</td><td>开源；AA 榜开源第一</td><td>[25]</td></tr>
+            <tr><td>PaLM（Google）</td><td>PaLM（2022.4）</td><td>SwiGLU</td><td>attention 与 FFN 并行（单残差分支）</td><td>540B 稠密</td><td>并行结构首创</td><td>[6]</td></tr>
+            <tr><td>PaLM（Google）</td><td>PaLM 2（2023）</td><td>SwiGLU</td><td>沿用并行结构</td><td>未公开具体参数</td><td>多语言增强</td><td>[6]</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">注：“未公开”指官方未披露细节；“未核实”指公开渠道未能找到可靠来源。当前日期 2026-11-04，2025-2026 年发布信息均以检索到的官方/arXiv 来源为准；HF 配置口径指 Hugging Face 模型 config.json 的公开配置<sup class="src">[35]</sup>。Grok 3 规模传闻未列入官方口径。</p>
+    </section>
+    <!-- ===== 6 参考资料 ===== -->
+    <section id="refs" class="refs">
+      <h2>参考资料与出处</h2>
+      <p class="section-lead">编号与正文 <code>&lt;sup class="src"&gt;</code> 一一对应；优先级：arXiv &gt; 官方技术报告/博客 &gt; HF model card &gt; 官方发布新闻 &gt; 二手分析。</p>
+      <ol>
+        <li><a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need（原始 Transformer），Vaswani et al., 2017（arXiv:1706.03762）</a></li>
+        <li><a href="https://arxiv.org/abs/1606.08415">Gaussian Error Linear Units (GELUs)，Hendrycks &amp; Gimpel, 2016（arXiv:1606.08415）</a></li>
+        <li><a href="https://arxiv.org/abs/1906.06660">Language Models are Unsupervised Multitask Learners（GPT-2），Radford et al., 2019（arXiv:1906.06660）</a></li>
+        <li><a href="https://arxiv.org/abs/1710.05941">Swish: a Self-Gated Activation Function，Ramachandran et al., 2017（arXiv:1710.05941）</a></li>
+        <li><a href="https://arxiv.org/abs/2002.05202">GLU Variants Improve Transformer，Noam Shazeer, 2020（arXiv:2002.05202）</a></li>
+        <li><a href="https://arxiv.org/abs/2204.02311">PaLM: Scaling Language Modeling with Pathways，Google, 2022（arXiv:2204.02311）</a></li>
+        <li><a href="https://arxiv.org/abs/2006.16668">GShard: Scaling Giant Models with Conditional Computation，Google, 2020（arXiv:2006.16668）</a></li>
+        <li><a href="https://arxiv.org/abs/2101.03961">Switch Transformer: Scaling to Trillion Parameter Models，Fedus et al., 2021（arXiv:2101.03961）</a></li>
+        <li><a href="https://arxiv.org/abs/2401.04088">Mixtral of Experts，Mistral AI, 2024（arXiv:2401.04088）</a></li>
+        <li><a href="https://arxiv.org/abs/2405.04434">DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model，2024（arXiv:2405.04434）</a></li>
+        <li><a href="https://arxiv.org/abs/2412.19437">DeepSeek-V3 Technical Report，2024（arXiv:2412.19437）</a></li>
+        <li><a href="https://arxiv.org/abs/2505.09388">Qwen3 Technical Report，Alibaba, 2025（arXiv:2505.09388）</a></li>
+        <li><a href="https://arxiv.org/abs/2507.20534">Kimi K2 Technical Report，Moonshot AI, 2025（arXiv:2507.20534）</a></li>
+        <li><a href="https://arxiv.org/abs/2503.19786">Gemma 3 Technical Report，Google, 2025（arXiv:2503.19786）</a></li>
+        <li><a href="https://www.thepaper.cn/newsDetail_forward_30742093">阿里 Qwen3 深夜开源（8 款模型），澎湃新闻，2025-04-29</a></li>
+        <li><a href="http://m.toutiao.com/group/7489955562608788006/">Meta 发布 Llama 4（首次采用 MoE 架构），财联社，2025-04-06</a></li>
+        <li><a href="http://m.toutiao.com/group/7540986967681516051/">DeepSeek 正式发布 V3.1（UE8M0 FP8、混合推理），扬子晚报，2025-08-21</a></li>
+        <li><a href="https://m.thepaper.cn/newsDetail_forward_34044160">DeepSeek V4.1 Flash 发布（552B MoE、非对称结构），澎湃新闻，2026-09-10</a></li>
+        <li><a href="http://m.toutiao.com/group/7555785746968281635/">智谱正式发布并开源 GLM-4.6，每日经济新闻，2025-09-30</a></li>
+        <li><a href="http://m.toutiao.com/group/7605765334078947875/">智谱开源 GLM-5（744B/40B），每日经济新闻，2026-02-12</a></li>
+        <li><a href="http://m.toutiao.com/group/7667470191513387561/">Kimi K3 正式开源（896 专家、2.8T/104B），21 世纪经济报道，2026-07-28</a></li>
+        <li><a href="http://m.toutiao.com/group/7700598374801654281/">Kimi K3.1 Pro 发布（2.8T/104B），每日经济新闻，2026-10-25</a></li>
+        <li><a href="http://m.toutiao.com/group/7549012201118450215/">阿里开源 Qwen3-Next（80B-A3B，混合注意力+高稀疏 MoE），钱江晚报，2025-09-12</a></li>
+        <li><a href="http://m.toutiao.com/group/7678345365271101971/">阿里发布 Qwen3.8-Flash（125B 激活 6B），南方都市报，2026-08-26</a></li>
+        <li><a href="http://m.toutiao.com/group/7566053315180610075/">MiniMax 发布并开源 MiniMax-M2（230B/10B），澎湃新闻，2025-10-27</a></li>
+        <li><a href="http://m.toutiao.com/group/7536053712477880847/">OpenAI 正式发布 GPT-5，环球网，2025-08-08</a></li>
+        <li><a href="http://m.toutiao.com/group/7572043846016614927/">OpenAI 推出 GPT-5.1 系列，环球网，2025-11-13</a></li>
+        <li><a href="http://m.toutiao.com/group/7582868777671328290/">OpenAI 发布 GPT-5.2，杭州日报，2025-12-12</a></li>
+        <li><a href="https://tomorrowunveiled.com/wp-content/uploads/2025/11/Episode_-_Gemini_3_-_1117_-_Gemini.pdf">Google Gemini 3: Comprehensive Analysis（第三方分析，Sparse MoE 结论），Tomorrow Unveiled, 2025-11</a></li>
+        <li><a href="http://m.toutiao.com/group/7472641256288453132/">马斯克发布 Grok 3，每日经济新闻，2025-02-18</a></li>
+        <li><a href="http://m.toutiao.com/group/7347549153511178762/">xAI 开源 Grok-1（314B MoE），澎湃新闻，2024-03-18</a></li>
+        <li><a href="http://m.toutiao.com/group/7514505991392674344/">Mistral 推出首个推理模型 Magistral，环球网，2025-06-11</a></li>
+        <li><a href="https://www.thepaper.cn/newsDetail_forward_31288365">万亿参数狂欢：一文刷爆 2025 年七大顶流大模型架构，澎湃湃客，2025-08-04</a></li>
+        <li><a href="https://arxiv.org/abs/2302.13971">Llama 1 Open Foundation and Fine-Tuned Chat Models，Meta, 2023（arXiv:2302.13971）</a></li>
+        <li><a href="https://huggingface.co/models">Hugging Face 各模型 config.json（hidden_act / intermediate_size / MoE 专家数等公开配置口径）</a></li>
+        <li><a href="https://qwen.ai/blog?id=qwen3.5">Qwen3.5: Towards Native Multimodal Agents（Qwen3.5-397B-A17B / Qwen3.5-Plus），Qwen 官方博客，2026-02-16</a></li>
+        <li><a href="https://qwen.ai/blog?id=qwen3.6-35b-a3b">Qwen3.6-35B-A3B: Agentic Coding Power, Now Open to All，Qwen 官方博客，2026-04-15</a></li>
+        <li><a href="https://arxiv.org/abs/2604.15804">Qwen3.5-Omni 技术报告（256K 上下文），阿里巴巴，2026（arXiv:2604.15804）</a></li>
+        <li><a href="https://api-docs.deepseek.com/news/news260424">DeepSeek V4 Preview Release（V4-Pro 1.6T/49B、V4-Flash 284B/13B），DeepSeek API Docs，2026-04-24</a></li>
+        <li><a href="https://www.deepseek.com/en/transparency/">DeepSeek Transparency Center（列出 V4.0，April 24, 2026），DeepSeek 官方</a></li>
+        <li><a href="https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf">DeepSeek V4 Model Card（英文版 PDF），DeepSeek 官方</a></li>
+      </ol>
+    </section>
+  </main>
+</div>
+<footer class="doc-footer">
+  <div class="footer-inner">
+    <div class="footer-series">Transformers 架构演进系列笔记</div>
+    <nav class="footer-nav">
+      <a href="注意力机制演进对比.html">注意力机制演进</a><span class="sep">·</span>
+      <a href="ffn_evolution.html" class="current">前馈网络演进</a><span class="sep">·</span>
+      <a href="normalization_evolution.html">归一化演进</a><span class="sep">·</span>
+      <a href="positional_encoding_evolution.html">位置编码演进</a>
+    </nav>
+    <p class="footer-meta">生成于 2026-11-04 · 关键事实附来源，未核实项已标注 · 本系列为个人学习笔记，引用请核对原始出处</p>
+  </div>
+</footer>
+
+<button id="backTop" aria-label="回到顶部"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>window.echarts || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"><\/script>')</script>
+<script>
+(function(){
+  // ===== 图表初始化助手：seriesChart(id, option) =====
+  window.seriesChart = function(id, option){
+    var el = document.getElementById(id);
+    if(!el || !window.echarts) return null;
+    var c = echarts.init(el);
+    c.setOption(option);
+    window.addEventListener('resize', function(){ c.resize(); });
+    return c;
+  };
+  // ===== 图 1：激活函数曲线（JS 现算） =====
+  (function(){
+    var xs = [];
+    for(var i=-50;i<=50;i++){ xs.push(i/10); }
+    function relu(x){ return Math.max(0,x); }
+    function gelu(x){ return x / (1 + Math.exp(-1.702*x)); } // tanh 近似 GELU
+    function silu(x){ return x / (1 + Math.exp(-x)); }
+    window.seriesChart('chart-1', {
+      color:['#64748b','#2563eb','#0d9488'],
+      grid:{left:48,right:20,top:30,bottom:36},
+      legend:{top:0,data:['ReLU','GELU（tanh 近似）','SiLU / Swish']},
+      tooltip:{trigger:'axis'},
+      xAxis:{type:'value',min:-5,max:5,name:'x',nameLocation:'middle',nameGap:26,axisLine:{lineStyle:{color:'#94a3b8'}}},
+      yAxis:{type:'value',min:-2,max:6,name:'f(x)',splitLine:{lineStyle:{color:'#eef2f7'}}},
+      series:[
+        {name:'ReLU',type:'line',showSymbol:false,data:xs.map(function(x){return [x, +relu(x).toFixed(3)];})},
+        {name:'GELU（tanh 近似）',type:'line',showSymbol:false,data:xs.map(function(x){return [x, +gelu(x).toFixed(3)];})},
+        {name:'SiLU / Swish',type:'line',showSymbol:false,data:xs.map(function(x){return [x, +silu(x).toFixed(3)];})}
+      ]
+    });
+  })();
+  // ===== 图 2：MoE 总参数 vs 激活参数 =====
+  (function(){
+    var models = ['Mixtral 8x7B','DeepSeek-V2','DeepSeek-V3','Qwen3-235B','GLM-4.6','Kimi K2','Llama4-Mav','MiniMax-M2','Kimi K3','GLM-5','Qwen3-Next'];
+    var total  = [46.7, 236, 671, 235, 355, 1040, 400, 230, 2800, 744, 80];
+    var active = [12.9, 21, 37, 22, 32, 32, 17, 10, 104, 40, 3];
+    window.seriesChart('chart-2', {
+      color:['#cbd5e1','#2563eb'],
+      grid:{left:52,right:20,top:34,bottom:70},
+      legend:{top:0,data:['总参数','每 token 激活参数']},
+      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:function(v){return v+' B';}},
+      xAxis:{type:'category',data:models,axisLabel:{rotate:38,fontSize:11}},
+      yAxis:{type:'value',name:'十亿参数（B）',splitLine:{lineStyle:{color:'#eef2f7'}}},
+      series:[
+        {name:'总参数',type:'bar',data:total},
+        {name:'每 token 激活参数',type:'bar',data:active}
+      ]
+    });
+  })();
+  // ===== 图 3：稀疏率（激活/总） =====
+  (function(){
+    var models = ['Mixtral 8x7B','Qwen3-235B','GLM-4.6','DeepSeek-V2','DeepSeek-V3','GLM-5','Llama4-Mav','MiniMax-M2','Qwen3-Next','Kimi K3','Kimi K2'];
+    var ratio = [12.9/46.7*100, 22/235*100, 32/355*100, 21/236*100, 37/671*100, 40/744*100, 17/400*100, 10/230*100, 3/80*100, 104/2800*100, 32/1040*100];
+    window.seriesChart('chart-3', {
+      grid:{left:52,right:24,top:30,bottom:70},
+      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},valueFormatter:function(v){return v.toFixed(1)+'%';}},
+      xAxis:{type:'category',data:models,axisLabel:{rotate:38,fontSize:11}},
+      yAxis:{type:'value',name:'激活/总参数（%）',splitLine:{lineStyle:{color:'#eef2f7'}}},
+      series:[{
+        type:'bar',
+        data: ratio.map(function(r){ return {value:+r.toFixed(1), itemStyle:{color: r>20?'#0d9488':(r>8?'#2563eb':'#d97706')}}; }),
+        label:{show:true,position:'top',fontSize:10,formatter:function(p){return p.value+'%';}}
+      }]
+    });
+  })();
+  // ===== 目录切换（移动端） =====
+  var toc = document.getElementById('toc');
+  var toggle = document.getElementById('tocToggle');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = toc.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+  // ===== 目录高亮当前小节 =====
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    if(document.getElementById(id)) map[id] = a;
+  });
+  if('IntersectionObserver' in window && Object.keys(map).length){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('on'); });
+          if(map[e.target.id]) map[e.target.id].classList.add('on');
+        }
+      });
+    }, {rootMargin:'-15% 0px -70% 0px'});
+    Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+  }
+  // ===== 回到顶部 =====
+  var bt = document.getElementById('backTop');
+  if(bt){
+    window.addEventListener('scroll', function(){
+      bt.classList.toggle('show', (window.scrollY || document.documentElement.scrollTop) > 400);
+    }, {passive:true});
+    bt.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+  }
+})();
+</script>
+</body>
+</html>
