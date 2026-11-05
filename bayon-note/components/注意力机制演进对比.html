@@ -1,741 +1,1253 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>注意力机制演进与架构全对比（2017–2026）</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f4e79'/%3E%3Crect x='6' y='6' width='8' height='8' fill='%23fff'/%3E%3Crect x='18' y='6' width='8' height='8' fill='%239fc3e0'/%3E%3Crect x='6' y='18' width='8' height='8' fill='%239fc3e0'/%3E%3Crect x='18' y='18' width='8' height='8' fill='%23f0b429'/%3E%3C/svg%3E">
+<title>注意力机制演进对比 · Transformers 架构演进系列</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cg fill='%23fff'%3E%3Crect x='6' y='6' width='5' height='5' opacity='.9'/%3E%3Crect x='13.5' y='6' width='5' height='5' opacity='.55'/%3E%3Crect x='21' y='6' width='5' height='5' opacity='.3'/%3E%3Crect x='6' y='13.5' width='5' height='5' opacity='.55'/%3E%3Crect x='13.5' y='13.5' width='5' height='5' opacity='.9'/%3E%3Crect x='21' y='13.5' width='5' height='5' opacity='.55'/%3E%3Crect x='6' y='21' width='5' height='5' opacity='.3'/%3E%3Crect x='13.5' y='21' width='5' height='5' opacity='.55'/%3E%3Crect x='21' y='21' width='5' height='5' opacity='.9'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root{
-  --bg:#f4f6f9; --paper:#ffffff; --ink:#1c2733; --ink-soft:#4a5a6a; --line:#dde4ec;
-  --blue:#1f4e79; --teal:#0e7490; --amber:#b45309; --green:#2e7d46; --red:#b3261e;
-  --tag-bg:#eef3f8;
+  --c-primary:#2563eb; --c-primary-dark:#1e40af; --c-primary-soft:#eff6ff;
+  --c-teal:#0d9488;   --c-teal-soft:#f0fdfa;
+  --c-amber:#d97706;  --c-amber-soft:#fffbeb;
+  --c-rose:#e11d48;   --c-rose-soft:#fff1f2;
+  --c-bg:#f6f8fb; --c-card:#ffffff; --c-text:#1e293b; --c-muted:#64748b;
+  --c-border:#e2e8f0; --c-heading:#0f172a; --c-code-bg:#f1f5f9;
+  --font-body:"PingFang SC","Microsoft YaHei","Noto Sans SC","Source Han Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
 }
-*{box-sizing:border-box;}
-html{scroll-behavior:smooth;}
-body{
-  margin:0; background:var(--bg); color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  font-size:15px; line-height:1.7;
-}
-a{color:var(--teal); text-decoration:none; word-break:break-all;}
-a:hover{text-decoration:underline;}
-.wrap{max-width:1080px; margin:0 auto; padding:0 16px;}
-/* ===== 头部 ===== */
-header.hero{background:linear-gradient(135deg,#16324f 0%,#1f4e79 60%,#0e7490 100%); color:#fff; padding:36px 0 28px;}
-header.hero h1{margin:0 0 8px; font-size:26px; line-height:1.35; font-weight:700;}
-header.hero p.sub{margin:0 0 6px; font-size:15px; color:#d7e6f3;}
-header.hero p.meta{margin:4px 0 0; font-size:13px; color:#a9c4dc;}
-/* ===== 图例 ===== */
-.legend{display:grid; grid-template-columns:1fr; gap:8px; margin:18px 0 4px;}
-.legend-item{display:flex; align-items:flex-start; gap:8px; font-size:13px; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:8px 10px;}
-.dot{flex:0 0 auto; width:10px; height:10px; border-radius:50%; margin-top:7px;}
-.d-verified{background:var(--green);}
-.d-onesrc{background:var(--amber);}
-.d-spec{background:var(--teal);}
-.d-unver{background:var(--red);}
-.legend-item b{font-weight:600;}
-/* ===== 目录 ===== */
-nav.toc{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:18px 0;}
-nav.toc h2{margin:0 0 8px; font-size:15px; color:var(--blue);}
-nav.toc ol{margin:0; padding-left:20px; columns:1;}
-nav.toc li{margin:4px 0; font-size:14px;}
-/* ===== 章节 ===== */
-section{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:18px 16px; margin:18px 0;}
-section h2{margin:0 0 4px; font-size:20px; color:var(--blue); border-bottom:2px solid var(--line); padding-bottom:8px;}
-section h3{margin:18px 0 6px; font-size:16px; color:var(--ink);}
-section p{margin:8px 0;}
-.note{font-size:13px; color:var(--ink-soft); background:var(--tag-bg); border-left:3px solid var(--teal); padding:8px 10px; border-radius:0 6px 6px 0; margin:10px 0;}
-.tag{display:inline-block; font-size:12px; padding:1px 7px; border-radius:10px; background:var(--tag-bg); color:var(--blue); margin-right:4px; white-space:nowrap;}
-/* ===== 时间轴 ===== */
-.tl{position:relative; display:grid; grid-template-columns:78px 22px 1fr; column-gap:6px; margin-top:14px;}
-.tl::before{content:""; position:absolute; left:calc(78px + 6px + 11px - 1px); top:8px; bottom:8px; width:2px; background:#b9c8d8;}
-.tl-time{font-size:13px; font-weight:600; color:var(--blue); text-align:right; padding-top:14px; line-height:1.4;}
-.tl-axis{justify-self:center; width:22px;}
-.tl-dot{display:block; justify-self:center; width:12px; height:12px; border-radius:50%; background:var(--amber); border:2px solid #fff; box-shadow:0 0 0 2px var(--amber); margin-top:18px; position:relative; z-index:1;}
-.tl-body{padding:10px 0 16px 4px; min-width:0;}
-.tl-body h4{margin:0 0 4px; font-size:15px;}
-.tl-body p{margin:3px 0; font-size:13.5px; color:var(--ink-soft);}
-/* ===== 表格 ===== */
-.table-wrap{overflow-x:auto; margin:12px 0; border:1px solid var(--line); border-radius:8px; -webkit-overflow-scrolling:touch;}
-.table-wrap table{min-width:980px;}
-table{border-collapse:collapse; width:100%; table-layout:fixed; font-size:13px; background:#fff;}
-th,td{border:1px solid var(--line); padding:7px 8px; vertical-align:top; text-align:left; word-wrap:break-word; overflow-wrap:break-word;}
-thead th{background:#eef3f8; color:var(--blue); font-weight:600;}
-tbody tr:nth-child(even){background:#f8fafc;}
-td .src{font-size:11.5px; color:var(--teal);}
-/* ===== 图表 ===== */
-.chart{width:100%; height:340px; margin:10px 0;}
-.chart-title{font-size:14px; font-weight:600; color:var(--ink); margin:14px 0 2px;}
-/* ===== 机制卡片 ===== */
-.cards{display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px;}
-.card{border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:#fbfcfe;}
-.card h4{margin:0 0 6px; font-size:15px; color:var(--blue);}
-.card p{margin:4px 0; font-size:13.5px; color:var(--ink-soft);}
-/* ===== 回到顶部 ===== */
-#toTop{position:fixed; right:18px; bottom:24px; width:44px; height:44px; border-radius:50%; border:none; background:var(--blue); color:#fff; font-size:18px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.25); display:none; align-items:center; justify-content:center;}
-#toTop:hover{background:var(--teal);}
-/* ===== 桌面 ===== */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font-family:var(--font-body);background:var(--c-bg);color:var(--c-text);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+a{color:var(--c-primary);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{color:var(--c-heading);line-height:1.35;margin:0}
+h2{font-size:22px;margin:44px 0 14px;padding-top:10px}
+h2::before{content:"";display:inline-block;width:5px;height:20px;background:var(--c-primary);border-radius:3px;margin-right:10px;vertical-align:-3px}
+h3{font-size:17px;margin:28px 0 10px}
+h4{font-size:15px;margin:18px 0 8px}
+p{margin:10px 0}
+code{font-family:var(--font-mono);font-size:.9em;background:var(--c-code-bg);border-radius:4px;padding:1px 5px;word-break:break-all}
+.doc-header{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);color:#fff;padding:30px 16px 26px}
+.doc-header-inner{max-width:1120px;margin:0 auto}
+.doc-series{font-size:13px;letter-spacing:.12em;color:#93c5fd;text-transform:uppercase;margin-bottom:6px}
+.doc-title{font-size:26px;font-weight:700;color:#fff;margin:0 0 8px}
+.doc-subtitle{font-size:14.5px;color:#cbd5e1;margin:0;max-width:880px}
+.layout{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:0;padding:0 16px}
+main{min-width:0;max-width:920px;padding:24px 0 40px}
+#tocToggle{display:flex;align-items:center;gap:8px;margin:14px 0 0;padding:9px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;font-size:14px;color:var(--c-primary);cursor:pointer}
+#tocToggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+#toc{display:none;margin:10px 0 0;padding:10px 12px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.06)}
+#toc.open{display:block}
+#toc .toc-title{font-size:13px;color:var(--c-muted);letter-spacing:.08em;margin:2px 4px 8px;font-weight:600}
+#toc a{display:block;padding:5px 10px;border-left:2px solid var(--c-border);color:var(--c-text);font-size:14px;border-radius:0 6px 6px 0}
+#toc a:hover{background:var(--c-primary-soft);text-decoration:none}
+#toc a.on{border-left-color:var(--c-primary);background:var(--c-primary-soft);color:var(--c-primary-dark);font-weight:600}
+#toc a.lvl2{padding-left:22px;font-size:13px;color:var(--c-muted)}
+.section-lead{font-size:15px;color:var(--c-muted);border-left:3px solid var(--c-border);padding:2px 0 2px 12px;margin:6px 0 18px}
+.chart{width:100%;height:380px;background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:6px}
+.chart-note{font-size:12.5px;color:var(--c-muted);text-align:center;margin:6px 0 0}
+.chart-fallback{padding:60px 20px;text-align:center;color:var(--c-muted);font-size:14px}
+.timeline{margin:22px 0 10px}
+.tl-item{display:grid;grid-template-columns:96px 30px 1fr;padding-bottom:20px}
+.tl-item:last-child{padding-bottom:4px}
+.tl-year{padding-top:5px;text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--c-primary-dark);font-weight:700}
+.tl-axis{position:relative;display:flex;justify-content:center}
+.tl-axis::before{content:"";position:absolute;top:6px;bottom:-20px;width:2px;background:var(--c-border);border-radius:1px}
+.tl-item:last-child .tl-axis::before{bottom:6px}
+.tl-dot{position:relative;z-index:1;width:12px;height:12px;border-radius:50%;background:var(--c-primary);box-shadow:0 0 0 2px var(--c-primary-soft);margin-top:0}
+.tl-dot.teal{background:var(--c-teal);box-shadow:0 0 0 2px var(--c-teal-soft)}
+.tl-dot.amber{background:var(--c-amber);box-shadow:0 0 0 2px var(--c-amber-soft)}
+.tl-dot.rose{background:var(--c-rose);box-shadow:0 0 0 2px var(--c-rose-soft)}
+.tl-card{background:var(--c-card);border:1px solid var(--c-border);border-radius:10px;padding:10px 13px;min-width:0}
+.tl-card .tl-head{font-weight:600;font-size:14px;color:var(--c-heading)}
+.tl-card .tl-body{font-size:13px;color:var(--c-muted);margin-top:3px}
+.tl-card .tl-body code{font-size:.9em}
+.table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--c-border);border-radius:12px;background:var(--c-card)}
+table.cmp{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px;min-width:720px}
+table.cmp th{background:#eef2f7;color:var(--c-heading);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--c-border);position:sticky;top:0}
+table.cmp td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top;word-break:break-word}
+table.cmp tr:last-child td{border-bottom:none}
+table.cmp tbody tr:nth-child(even){background:#fafbfd}
+table.cmp td code{background:none;padding:0}
+.cmp-note{font-size:12.5px;color:var(--c-muted);margin:-8px 0 18px}
+.fml{font-family:var(--font-mono);font-size:13px;background:var(--c-code-bg);border:1px solid var(--c-border);border-radius:8px;padding:8px 12px;display:block;max-width:100%;overflow-x:auto;margin:6px 0;white-space:pre-wrap;word-break:break-word;line-height:1.7}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:1px 9px;margin-left:6px;vertical-align:2px}
+.tag.v{background:var(--c-teal-soft);color:var(--c-teal)}
+.tag.u{background:var(--c-amber-soft);color:var(--c-amber)}
+.tag.n{background:var(--c-rose-soft);color:var(--c-rose)}
+sup.src{font-family:var(--font-mono);font-size:.72em;color:var(--c-primary);margin-left:1px}
+.legend-box{display:flex;flex-wrap:wrap;gap:8px 18px;margin:10px 0 4px;font-size:12.5px;color:var(--c-muted)}
+.refs ol{padding-left:22px;margin:10px 0}
+.refs li{font-size:13px;color:var(--c-muted);margin:6px 0;word-break:break-all}
+.refs li a{color:var(--c-primary);word-break:break-all}
+.refs .refs-group{font-weight:600;color:var(--c-heading);font-size:13.5px;margin:14px 0 4px}
+.series-grid{display:grid;grid-template-columns:1fr;gap:12px;margin:16px 0}
+.series-card{background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:13px 15px}
+.series-card h4{font-size:14.5px;margin:0 0 4px}
+.series-card .sc-line{font-size:13px;color:var(--c-text);margin:4px 0 0}
+.series-card .sc-meta{font-family:var(--font-mono);font-size:11px;color:var(--c-muted);margin-top:7px;word-break:break-all;line-height:1.6}
+.matrix-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--c-border);border-radius:12px;background:var(--c-card)}
+table.matrix{width:100%;table-layout:fixed;border-collapse:collapse;font-size:10.5px;min-width:720px}
+table.matrix th,table.matrix td{padding:5px 2px;border-bottom:1px solid #f1f5f9;text-align:center;vertical-align:middle}
+table.matrix th{background:#eef2f7;font-weight:600;color:var(--c-heading);position:sticky;top:0}
+table.matrix td:first-child,table.matrix th:first-child{text-align:left;font-weight:600;background:#f8fafc;width:108px}
+table.matrix .m-main{background:#dbeafe;color:#1e40af;font-weight:700}
+table.matrix .m-part{background:#f1f5f9;color:#475569}
+table.matrix .m-none{color:#cbd5e1}
+.quote{border-left:3px solid var(--c-teal);background:var(--c-teal-soft);padding:9px 13px;margin:10px 0;font-size:13.5px;border-radius:0 8px 8px 0}
+.quote .q-src{font-family:var(--font-mono);font-size:11.5px;color:var(--c-teal);margin-top:6px;display:block;word-break:break-all}
+.kv{font-family:var(--font-mono);font-size:12px;background:var(--c-code-bg);border:1px solid var(--c-border);border-radius:8px;padding:8px 12px;margin:8px 0;word-break:break-all;line-height:1.75;white-space:pre-wrap}
+.sw{margin:20px 0 4px;padding-top:10px;border-top:1px solid var(--c-border)}
+.sw h3{font-size:15.5px;margin:0 0 6px}
+.sw .sw-badge{display:inline-block;background:var(--c-primary);color:#fff;font-size:11px;font-weight:700;border-radius:4px;padding:1px 7px;margin-right:8px;vertical-align:2px;font-family:var(--font-mono)}
+.table-wrap table.ver-table{font-size:12.5px;min-width:900px}
+.ver-table td{padding:6px 8px}
+.big-table{font-size:12px;min-width:1080px}
+.big-table td{padding:5px 7px}
+.big-table th{padding:7px 8px;font-size:12px}
+.ul-tight{margin:8px 0;padding-left:20px}
+.ul-tight li{margin:4px 0;font-size:13.5px}
+.note-list{margin:8px 0;padding-left:20px}
+.note-list li{margin:5px 0;font-size:13.5px;color:var(--c-text)}
+.doc-footer{background:#0f172a;color:#94a3b8;padding:34px 16px 46px;margin-top:40px;font-size:13.5px}
+.footer-inner{max-width:1120px;margin:0 auto}
+.footer-series{color:#e2e8f0;font-weight:600;margin-bottom:10px;font-size:14px}
+.footer-nav a{color:#93c5fd;margin:0 6px}
+.footer-nav a:hover{color:#fff;text-decoration:none}
+.footer-nav a.current{color:#64748b;cursor:default;text-decoration:none}
+.footer-nav .sep{color:#475569;margin:0 2px}
+.footer-meta{margin-top:12px;color:#64748b;font-size:12.5px}
+#backTop{position:fixed;right:22px;bottom:26px;width:44px;height:44px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);color:var(--c-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(15,23,42,.12);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#backTop.show{opacity:1;pointer-events:auto}
+#backTop svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2}
 @media (min-width:768px){
-  body{font-size:15px;}
-  header.hero h1{font-size:32px;}
-  .legend{grid-template-columns:1fr 1fr;}
-  nav.toc ol{columns:2;}
-  section{padding:24px 28px;}
-  .tl{grid-template-columns:110px 26px 1fr; column-gap:10px;}
-  .tl::before{left:calc(110px + 10px + 13px - 1px);}
-  .tl-time{font-size:14px;}
-  .cards{grid-template-columns:repeat(3,1fr);}
-  .chart{height:420px;}
-  table{font-size:13.5px;}
+  .series-grid{grid-template-columns:1fr 1fr}
+  .chart{height:400px}
 }
+@media (min-width:1024px){
+  .doc-header{padding:42px 24px 34px}
+  .doc-title{font-size:31px}
+  .layout{grid-template-columns:250px 1fr;gap:36px;padding:0 24px}
+  #tocToggle{display:none}
+  #toc{display:block;position:sticky;top:24px;height:calc(100vh - 48px);overflow-y:auto;margin:24px 0 0;padding:14px 12px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{#toc,#tocToggle,#backTop{display:none!important}}
 </style>
 </head>
 <body>
-<header class="hero">
-  <div class="wrap">
-    <h1>注意力机制演进与架构全对比</h1>
-    <p class="sub">覆盖 2017 Transformer 基线 → 2026 混合 / 稀疏 / 线性注意力家族：复杂度、KV Cache、代表模型逐版本对照</p>
-    <p class="meta">调研截止：2026-11-04 ｜ 技术参考文档 ｜ 读者：本地 AI 全栈实践者</p>
+
+<header class="doc-header">
+  <div class="doc-header-inner">
+    <div class="doc-series">Transformers 架构演进系列笔记</div>
+    <h1 class="doc-title">注意力机制演进对比</h1>
+    <p class="doc-subtitle">以 bayon-note 模型笔记为纲：11 个系列、60+ 个版本实际用到的注意力算法。从 MHA / MQA / GQA 的 KV 压缩，到 MLA 低秩潜变量、DSA/MSA/QSA 稀疏索引，再到 Lightning / GDN / KDA 线性混合——看 2022–2026 各家族在每一代模型里真的换了什么。</p>
   </div>
 </header>
 
-<div class="wrap">
-
-  <!-- 验证状态图例 -->
-  <div class="legend">
-    <div class="legend-item"><span class="dot d-verified"></span><span><b>【已查证】</b>有论文 / 官方出处支撑（arXiv、官方博客、HuggingFace 模型卡、官方 API 文档）。</span></div>
-    <div class="legend-item"><span class="dot d-onesrc"></span><span><b>【一方称 / 未公开】</b>厂商宣传但细节未公开；闭源模型注意力一律如实标注「未公开」，不填充推测。</span></div>
-    <div class="legend-item"><span class="dot d-spec"></span><span><b>【推测】</b>无直接出处的二手推断，正文中单独标出。</span></div>
-    <div class="legend-item"><span class="dot d-unver"></span><span><b>【未能核实】</b>检索未找到可靠出处，或官方页无法访问；以脚注 / 附录 B 说明。</span></div>
-  </div>
-
-  <!-- 目录 -->
-  <nav class="toc" id="toc">
-    <h2>页内目录</h2>
-    <ol>
-      <li><a href="#sec1">§1 演进时间线（2017→2026，12 个里程碑）</a></li>
-      <li><a href="#sec2">§2 计算复杂度与 KV Cache 对比图</a></li>
-      <li><a href="#sec3">§3 注意力架构家族总览表</a></li>
-      <li><a href="#sec4">§4 FlashAttention 逐版对比（FA1–FA4）</a></li>
-      <li><a href="#sec5">§5 关键机制速览（MLA / GQA / NSA / MoBA / GDN / KDA / iRoPE 等）</a></li>
-      <li><a href="#sec6">§6 模型系列 × 版本 × 注意力算法 总表</a></li>
-      <li><a href="#appA">附录 A：来源列表</a></li>
-      <li><a href="#appB">附录 B：更正记录与未能核实清单</a></li>
-    </ol>
-  </nav>
-
-  <!-- ============ §1 演进时间线 ============ -->
-  <section id="sec1">
-    <h2>§1 演进时间线（2017 → 2026）</h2>
-    <p>十二个里程碑串起一条主线：<b>先把 O(n²) 的数学复杂度往下压</b>（稀疏化、线性化、状态空间化），<b>再把 GPU 内存层级 IO 压榨到极致</b>（FlashAttention 系），<b>最后把 KV Cache 压缩与动态稀疏组合起来</b>（MLA、NSA/MoBA、DSA、混合架构）。每个节点附论文 / 官方出处。</p>
-    <div class="tl">
-      <div class="tl-time">2017</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>Softmax Attention 基线：Transformer 【已查证】</h4>
-        <p>Vaswani et al.（Google Brain）提出全注意力 + 多头机制，彻底抛弃 RNN/CNN。注意力分数矩阵 O(n²·d)，训练 / 推理同阶，KV 随序列长度线性膨胀且无法压缩——这是之后所有工作要突破的瓶颈。</p>
-        <p class="src">论文：<a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need, arXiv:1706.03762</a></p>
-      </div>
-
-      <div class="tl-time">2019</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>MQA：Multi-Query Attention 【已查证】</h4>
-        <p>Noam Shazeer（Google）指出自回归解码是 memory-bound，KV 张量带宽才是瓶颈。h 个 query 头共享同一份 K/V，注意力 FLOPs 不变，但 KV Cache 与解码读 KV 的内存带宽降为 1/h，质量仅轻微下降。</p>
-        <p class="src">论文：<a href="https://arxiv.org/abs/1911.02150">Fast Transformer Decoding: One Write-Head is All You Need, arXiv:1911.02150</a></p>
-      </div>
-
-      <div class="tl-time">2019–2020</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>稀疏注意力家族：Sparse Transformer / Longformer / BigBird 【已查证】</h4>
-        <p>第一次把 O(n²) 拉到近线性：Sparse Transformer 用局部 + 空洞 factorized 模式（O(n·√n)）；Longformer 用滑窗 O(n·w) + 少量全局 token；BigBird 再加随机 token，证明稀疏注意力仍是通用逼近器。滑窗 SWA 作为公共组件被 Mistral 7B 等发扬光大。代价是静态稀疏、需定制 kernel，未成为 decoder LLM 主干。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/1904.10509">Sparse Transformer 1904.10509</a> ｜ <a href="https://arxiv.org/abs/2004.05150">Longformer 2004.05150</a> ｜ <a href="https://arxiv.org/abs/2007.14062">BigBird 2007.14062</a></p>
-      </div>
-
-      <div class="tl-time">2020</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>线性 / 核近似注意力：Linear Transformer / Performer 【已查证】</h4>
-        <p>用核特征 φ(q)·φ(k) 代替 softmax，借助矩阵结合律把 O(n²) 降到 O(n)，自回归时可写成 RNN 形式（论文称超长序列推理快达 4000×）。Performer 用 FAVOR+ 随机特征无偏估计 softmax 矩阵。短板是精确检索 / 逐 token 召回弱，2022–2024 年间未进入主流 LLM。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2006.16236">Linear Transformer 2006.16236</a> ｜ <a href="https://arxiv.org/abs/2009.14794">Performer 2009.14794</a></p>
-      </div>
-
-      <div class="tl-time">2022–2023</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>IO 感知内核：FlashAttention 1/2 + PagedAttention 【已查证】</h4>
-        <p>Dao et al. 指出瓶颈在 HBM↔SRAM 的 IO 读写而非 FLOPs：tiling + online softmax 精确计算，不把 n×n 中间矩阵写回 HBM；FA2 改进并行划分达 50–70% MFU。同期 PagedAttention 借鉴 OS 虚拟内存分页，把 KV Cache 按块非连续存储、近零碎片，催生 vLLM 生态。二者<b>不改变注意力 FLOPs 复杂度</b>。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2205.14135">FA1 2205.14135</a> ｜ <a href="https://arxiv.org/abs/2307.08691">FA2 2307.08691</a> ｜ <a href="https://arxiv.org/abs/2309.06180">PagedAttention 2309.06180（SOSP 2023）</a></p>
-      </div>
-
-      <div class="tl-time">2023</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>GQA：Grouped-Query Attention 【已查证】</h4>
-        <p>Ainslie et al.（Google）在 MHA（h 个 KV 头）与 MQA（1 个 KV 头）之间取中间档：G 个 KV 头、每组 query 共享一份 K/V，且可从已训练 MHA checkpoint 直接转换、几乎无质量损失。自 Llama 2 70B 起成为主流，Llama 3、Mistral、Qwen、GLM 4.5/4.6 普遍采用。</p>
-        <p class="src">论文：<a href="https://arxiv.org/abs/2305.13245">GQA, arXiv:2305.13245</a></p>
-      </div>
-
-      <div class="tl-time">2023</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>状态空间新范式：RetNet / RWKV / Mamba 【已查证】</h4>
-        <p>第一次让 sub-quadratic 架构在语言建模上逼近 Transformer 质量：RetNet 兼得训练并行 + 推理 O(1) + 好性能；RWKV 用 RNN 形式重写 Transformer；Mamba 用选择性 SSM（参数随输入变化）实现线性时间、约 5× 推理吞吐，论文称可扩展到约 1M 序列。Mamba-2（2024）进一步用 SSD 框架把 SSM 与线性注意力统一。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2307.08621">RetNet 2307.08621</a> ｜ <a href="https://arxiv.org/abs/2305.13048">RWKV 2305.13048</a> ｜ <a href="https://arxiv.org/abs/2312.00752">Mamba 2312.00752</a></p>
-      </div>
-
-      <div class="tl-time">2024</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>MLA：Multi-head Latent Attention（DeepSeek-V2）【已查证】</h4>
-        <p>把 K/V 先联合下投影成低秩潜向量 c_KV（约 512 维），推理时只缓存 c_KV、再上投影恢复多头 K。注意力 FLOPs 仍为 O(n²·d)，但论文称 KV Cache 相比 67B 级模型降低约 93.3%、训练成本省 42.5%。被 DeepSeek-V3 / R1 / V3.1 沿用，Kimi K2 采用同构 MLA。</p>
-        <p class="src">论文：<a href="https://arxiv.org/abs/2405.04434">DeepSeek-V2, arXiv:2405.04434</a></p>
-      </div>
-
-      <div class="tl-time">2024</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>差分注意力 Differential Transformer 【已查证】</h4>
-        <p>把 Q/K 分两组算两个 softmax 注意力图再相减，类似差分放大器消除注意力共模噪声。复杂度与标准 softmax 同阶 O(n²·d)（约 2× 计算量），可直接复用 FlashAttention 内核；在长上下文关键信息检索、幻觉抑制上有收益。属于「改结构不改复杂度」的正交改进。</p>
-        <p class="src">论文：<a href="https://arxiv.org/abs/2410.05258">Differential Transformer, arXiv:2410.05258</a></p>
-      </div>
-
-      <div class="tl-time">2025</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>原生动态稀疏：NSA / MoBA 【已查证】</h4>
-        <p>NSA（DeepSeek）三分支——粗粒度 token 压缩 + 细粒度 top-k 块选择 + 滑窗——输出拼接，64K 长度上 decode/forward/backward 全程加速且不掉点。MoBA（Moonshot & 清华）把 MoE 思想搬到注意力：K/V 切块、按 query 路由选 top-k 块，可在全注意力与稀疏间无缝切换，已部署支撑 Kimi 长文本服务【一方称 / 未公开细节】。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2502.11089">NSA 2502.11089</a> ｜ <a href="https://arxiv.org/abs/2502.13189">MoBA 2502.13189</a></p>
-      </div>
-
-      <div class="tl-time">2024–2026</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>混合注意力（Hybrid）：交错式 / 并行拼接式 【已查证】</h4>
-        <p>两类组织方式必须区分：<b>层间交错（layer-wise）</b>——Gemma 3（5:1 滑窗:全局）、Llama 4 iRoPE（全局:分块局部 = 1:3）、Qwen3-Next（GDN 线性:全注意力 = 3:1）、Hunyuan-TurboS（Mamba2+Attn）；<b>同层并行拼接（parallel）</b>——Falcon-H1 同一 block 内注意力头与 Mamba-2 头并行输出拼接。兼顾线性效率与全注意力精确检索。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2503.19786">Gemma 3 2503.19786</a> ｜ <a href="https://blog.vllm.ai/2025/04/05/llama4.html">Llama 4 iRoPE（vLLM）</a> ｜ <a href="https://arxiv.org/abs/2507.22448">Falcon-H1 2507.22448</a> ｜ <a href="https://arxiv.org/abs/2505.15431">Hunyuan-TurboS 2505.15431</a></p>
-      </div>
-
-      <div class="tl-time">2026</div><div class="tl-axis"><span class="tl-dot"></span></div>
-      <div class="tl-body">
-        <h4>最新进展：FA4 / DSA / GLM-5 / Kimi K3 【已查证】</h4>
-        <p>FlashAttention-4 针对 Blackwell B200 做算法 + kernel 流水线协同，BF16 达 1605 TFLOPs/s（71% 利用率）；DeepSeek-V3.2 引入 DSA（lightning indexer + 逐 query 动态 top-k 细粒度块）；GLM-5 摘要原文采用 DSA；Kimi K3（2.8T）用 KDA（Kimi Delta Attention）门控线性注意力 + 周期性全局 Gated MLA with NoPE，原生 100 万 token。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2603.05451">FA4 2603.05451</a> ｜ <a href="https://arxiv.org/abs/2512.02556">DSA（DeepSeek-V3.2）2512.02556</a> ｜ <a href="https://arxiv.org/abs/2602.15763">GLM-5 2602.15763</a> ｜ <a href="https://www.kimi.com/news/kimi-k3">Kimi K3</a></p>
-      </div>
-    </div>
-  </section>
-  <!-- ============ §2 复杂度与 KV Cache 对比图 ============ -->
-  <section id="sec2">
-    <h2>§2 计算复杂度与 KV Cache 对比</h2>
-    <p>记号：n = 序列长度，d = d_model，h = query 头数，d_h = head_dim，G = KV 头数，w = 滑窗大小。下列图表为<b>渐近复杂度与配置对比示意</b>，非实测跑分。</p>
-
-    <div class="chart-title">图 2-1：随序列长度增长的相对计算量（双对数坐标，渐近示意）</div>
-    <div id="chartComplexity" class="chart"></div>
-    <p class="note">读图要点：Softmax 全注意力沿 n² 斜率上升，1M 长度时计算量是滑窗 / 稀疏 / 线性方法的数千倍以上；滑窗 SWA（w=2048）与线性方法同为线性斜率，区别在常数因子与是否能逐 token 精确召回。</p>
-
-    <div class="chart-title">图 2-2：每 token 每层 KV Cache 字节数（示例：8B 级配置 d_model=4096、64 Q 头、head_dim=64、FP16）</div>
-    <div id="chartKv" class="chart"></div>
-    <p class="note" id="kvNote">计算依据见 RAW_DATA.kvCache.note。MHA→GQA 是 8:1 压缩，MQA/MLA 再压一档；MLA 在压到接近 MQA 的同时保留多头表达（下投影 c_KV 再上投影恢复）。</p>
-
-    <div class="chart-title">图 2-3：代表模型最大上下文长度对比（K tokens，对数轴）</div>
-    <div id="chartCtx" class="chart"></div>
-    <p class="note">上下文长度的爆发式增长由三件事叠加：RoPE/YaRN 外推、GQA/MLA 压低 KV Cache、以及滑动窗 / iRoPE / 混合架构把二次复杂度压回近线性。Gemini 1.5 论文实测通道 ≥10M，此处按 10M 示意。</p>
-  </section>
-  <!-- ============ §3 架构家族总览表 ============ -->
-  <section id="sec3">
-    <h2>§3 注意力架构家族总览（8 大家族 × 7 维度）</h2>
-    <p>按「数学复杂度 → 内存组织 → 代表权衡」横向对比。所有条目均【已查证】，出处见 §1 时间轴与附录 A。</p>
-    <div class="table-wrap">
-      <table>
-        <colgroup>
-          <col style="width:13%"><col style="width:18%"><col style="width:14%"><col style="width:18%"><col style="width:12%"><col style="width:15%"><col style="width:10%">
-        </colgroup>
-        <thead>
-          <tr><th>家族</th><th>代表成员</th><th>计算复杂度</th><th>KV Cache / 内存</th><th>上下文缩放</th><th>核心权衡</th><th>代表模型</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><b>① 经典 Softmax</b>（MHA / MQA / GQA）</td>
-            <td>MHA（1706.03762）；MQA（1911.02150）；GQA（2305.13245）</td>
-            <td>三者均 O(n²·d)，训练 / 推理同阶；区别只在 KV 头数 G</td>
-            <td>MHA=2·n_l·d_model；GQA=2·n_l·d_model·(G/h)；MQA=2·n_l·d_h</td>
-            <td>原生 2K–8K；RoPE/YaRN 外推可到 128K–1M</td>
-            <td>质量最高；MQA/GQA 以极小质量损失换 KV Cache 大幅缩小，GQA 是主流折中</td>
-            <td>GPT-2/3、Llama 1；PaLM、Falcon-7B（MQA）；Llama 3、Qwen 全系、GLM-4.5（GQA）</td>
-          </tr>
-          <tr>
-            <td><b>② 静态稀疏类</b>（SWA / Sparse / Longformer / BigBird）</td>
-            <td>Sparse Transformer（1904.10509）；Longformer（2004.05150）；BigBird（2007.14062）</td>
-            <td>滑窗 O(n·w)；factorized O(n·√n)；Longformer/BigBird O(n)</td>
-            <td>只缓存窗口内 K/V + 少量全局 token；从 n×n 矩阵降到 O(n·w)</td>
-            <td>Longformer-base 4K；BigBird 约 4K–8K；Sparse 称数万步</td>
-            <td>线性复杂度；代价是<b>静态稀疏</b>可能漏掉长程依赖、需定制 kernel，未成 decoder LLM 主干</td>
-            <td>Mistral 7B（SWA w=4096）；Longformer、BigBird（BERT 类长文档）</td>
-          </tr>
-          <tr>
-            <td><b>③ IO 感知类</b>（FlashAttention 1/2/3/4 + PagedAttention）</td>
-            <td>FA1（2205.14135）；FA2（2307.08691）；FA3（2407.08608）；FA4（2603.05451）；PagedAttention（2309.06180）</td>
-            <td><b>不改变 FLOPs</b>，仍 O(n²·d)；优化 HBM↔SRAM IO 次数（精确注意力，非近似）</td>
-            <td>tiling + online softmax 不把 n×n S/P 写回 HBM；PagedAttention 推理侧分页非连续存储、近零碎片</td>
-            <td>本身不提升复杂度上限，但让超长序列在单卡可行，配合 SWA/稀疏到 128K+</td>
-            <td>精确、端到端提速、几乎不改模型代码；代价是依赖手写 CUDA kernel 与对应 GPU 架构</td>
-            <td>所有现代 LLM 训练 / 推理默认后端；vLLM 服务（PagedAttention）</td>
-          </tr>
-          <tr>
-            <td><b>④ 线性 / 状态空间类</b>（Linear / Performer / RetNet / RWKV / Mamba / GDN）</td>
-            <td>Linear（2006.16236）；Performer（2009.14794）；RetNet（2307.08621）；RWKV（2305.13048）；Mamba（2312.00752）；Gated DeltaNet（2412.06464）</td>
-            <td>O(n·d)；训练并行、推理 O(1) 状态；Mamba 推理吞吐约 5×</td>
-            <td><b>无 KV Cache</b>，维护固定大小循环状态矩阵，内存不随 n 膨胀</td>
-            <td>Mamba 论文称可扩展约 1M；RetNet/RWKV 线性外推</td>
-            <td>长序列线性成本、推理快；代价是<b>逐 token 精确召回弱</b>，调参难，需专门 scan kernel</td>
-            <td>Mamba-2.8B、RWKV-4/5/6、RetNet；Jamba、Hunyuan-TurboS 内 Mamba2 层</td>
-          </tr>
-          <tr>
-            <td><b>⑤ 潜在压缩类</b>（MLA）</td>
-            <td>MLA，DeepSeek-V2（2405.04434）</td>
-            <td>FLOPs 仍 O(n²·d)（用上投影恢复的多头 K 算）；压缩只发生在 KV 存储侧</td>
-            <td>K/V 联合下投影为低秩潜向量 c_KV（约 512 维），每 token 只存 c_KV；论文称 KV Cache 降约 93.3%</td>
-            <td>DeepSeek-V2 起 128K；V3/R1 沿用</td>
-            <td>KV Cache 极小且保留多头表达、质量不输 MHA；代价是下/上投影实现复杂、需解耦 RoPE</td>
-            <td>DeepSeek-V2/V3/V3.1/V3.2、R1；Kimi K2（同构 MLA）</td>
-          </tr>
-          <tr>
-            <td><b>⑥ 混合类</b>（Softmax + 线性/SSM；分两种组织）</td>
-            <td>交错式：Zamba（2405.16712）、Gemma 3（2503.19786）、Llama 4 iRoPE、Qwen3-Next（GDN:Attn=3:1）、Kimi KDA（2510.26692）、Hunyuan-TurboS（2505.15431）；并行式：Falcon-H1（2507.22448）</td>
-            <td>线性/SSM 层 O(n)，少数全局层 O(n²)；总复杂度 ≈ O(n²×全局层占比)+O(n×线性层占比)</td>
-            <td>仅全局注意力层缓存 KV；线性 / SSM 层为固定状态</td>
-            <td>Llama 4 Scout 10M；Gemma 3 ≥128K；Qwen3.5 256K</td>
-            <td>兼顾线性效率与全注意力精确检索；代价是两种 kernel 共存、框架复杂度上升、层比例需消融</td>
-            <td>Gemma 3（5:1）、Llama 4（1:3）、Qwen3-Next（3:1）、Falcon-H1（并行）、Jamba（1:7）</td>
-          </tr>
-          <tr>
-            <td><b>⑦ 原生动态稀疏类</b>（NSA / MoBA）</td>
-            <td>NSA（2502.11089）；MoBA（2502.13189）</td>
-            <td>NSA 三分支：压缩 O(n)+top-k 选择+滑窗 O(n·w)，整体近线性；MoBA 按块门控选 top-k，O(n×选中块数)；端到端原生可训练</td>
-            <td>只对选中块 / 窗口计算，n×n 中间矩阵不落地</td>
-            <td>NSA 在 64K 验证加速；MoBA 称已部署支撑 Kimi 长上下文（上限未公开）【一方称】</td>
-            <td>动态（输入相关）稀疏、质量接近全注意力；代价是硬件对齐 kernel 与 top-k 调度复杂</td>
-            <td>NSA（DeepSeek 提出）；MoBA（Kimi 长文本服务）</td>
-          </tr>
-          <tr>
-            <td><b>⑧ 差分注意力</b>（Differential Attention）</td>
-            <td>Differential Transformer（2410.05258）；变体 DiffCLIP（2503.06626）</td>
-            <td>与 softmax 同阶 O(n²·d)（两组 Q/K 各算一次再相减，约 2× 计算量），可复用 FA 内核</td>
-            <td>与标准注意力同，无额外 KV 压缩</td>
-            <td>不改变复杂度上限；论文称长上下文检索、幻觉抑制有收益</td>
-            <td>正交改进、可直接替换；代价是约 2× 注意力计算量，相减结构可能放大输入扰动（第三方提示需注意鲁棒性）</td>
-            <td>Differential Transformer 系列研究模型；DiffCLIP</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-  <!-- ============ §4 FlashAttention 逐版 ============ -->
-  <section id="sec4">
-    <h2>§4 FlashAttention 逐版对比（FA1 → FA4）</h2>
-    <p>所有 FA 版本都是<b>精确注意力</b>（非近似），不改数学复杂度，优化的是 GPU 内存层级 IO；FP8/FP4 低精度为可选加速路径。</p>
-    <div class="table-wrap">
-      <table>
-        <colgroup>
-          <col style="width:10%"><col style="width:14%"><col style="width:32%"><col style="width:28%"><col style="width:16%">
-        </colgroup>
-        <thead>
-          <tr><th>版本</th><th>年份 / 出处</th><th>核心改进</th><th>性能 / 内存</th><th>目标 GPU</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><b>FA1</b></td>
-            <td>2022（NeurIPS）<br><a href="https://arxiv.org/abs/2205.14135">2205.14135</a></td>
-            <td>tiling + online softmax，精确计算；不把 n×n 中间矩阵 S/P 写回 HBM</td>
-            <td>FLOPs 不变（仍 O(n²·d)）；IO 复杂度大幅降低；反向传播省内存</td>
-            <td>Ampere 及以上（CUDA）</td>
-          </tr>
-          <tr>
-            <td><b>FA2</b></td>
-            <td>2023（ICLR 2024）<br><a href="https://arxiv.org/abs/2307.08691">2307.08691</a></td>
-            <td>更好的 threadblock 并行划分、减少非矩阵乘 FLOPs、工作均衡</td>
-            <td>FLOPs 不变；MFU 达 50–70%；论文指出 H100 利用率约 35%</td>
-            <td>Ampere / Hopper</td>
-          </tr>
-          <tr>
-            <td><b>FA3</b></td>
-            <td>2024-07<br><a href="https://arxiv.org/abs/2407.08608">2407.08608</a></td>
-            <td>Hopper 异步：warp-specialization、TMA 重叠、block-wise matmul/softmax 交错、FP8 block quantization</td>
-            <td>FLOPs 不变；H100 上 1.5–2× over FA2；FP16 约 740 TFLOPs/s（75% 利用率），FP8 近 1.2 PFLOPs/s</td>
-            <td>Hopper（H100）为主，FP8 需 Hopper</td>
-          </tr>
-          <tr>
-            <td><b>FA4</b></td>
-            <td>2026-03-05<br><a href="https://arxiv.org/abs/2603.05451">2603.05451</a><br><a href="https://tridao.me/blog/2026/flash4/">Tri Dao 博客</a></td>
-            <td>算法 + kernel 流水线协同设计，针对 Blackwell 非 matmul 单元瓶颈；CuTeDSL</td>
-            <td>FLOPs 不变；B200 BF16 达 1605 TFLOPs/s（71%），比 cuDNN 9.13 快 1.3×、比 Triton 快 2.7×</td>
-            <td>Blackwell（B200）</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">旁证：PyTorch 官方博客 <a href="https://pytorch.org/blog/flexattention-flashattention-4-fast-and-flexible/">FlexAttention + FlashAttention-4</a>。同期其他内核工作：TiledAttention（arXiv:2603.01960）、Hardware-Aware FP4 FA4（arXiv:2609.04105）。</p>
-  </section>
-  <!-- ============ §5 关键机制速览 ============ -->
-  <section id="sec5">
-    <h2>§5 关键机制速览</h2>
-    <p>九个高频出现的机制，每个 1–3 句 + 出处。</p>
-    <div class="cards">
-      <div class="card">
-        <h4>MQA 多查询注意力</h4>
-        <p>所有 query 头共享同一份 K/V；FLOPs 不变，KV Cache 与解码带宽降为 1/h，质量损失略大于 GQA。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/1911.02150">arXiv:1911.02150</a>（PaLM、Falcon-7B 采用）</p>
-      </div>
-      <div class="card">
-        <h4>GQA 分组查询注意力</h4>
-        <p>MHA 与 MQA 的中间档：G 个 KV 头、每组 query 共享一份 K/V；可从 MHA checkpoint 近乎无损转换，是 2023 年后开源模型事实标准。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2305.13245">arXiv:2305.13245</a>（Llama 3、Mistral、Qwen、GLM-4.5）</p>
-      </div>
-      <div class="card">
-        <h4>MLA 多头潜在注意力</h4>
-        <p>K/V 联合下投影为低秩潜向量 c_KV（约 512 维），推理只缓存 c_KV、再上投影恢复多头 K；KV Cache 降约 93.3% 且保留多头表达，Q/K 拆解耦 RoPE。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2405.04434">arXiv:2405.04434</a>（DeepSeek-V2/V3/R1、Kimi K2）</p>
-      </div>
-      <div class="card">
-        <h4>NSA 原生稀疏注意力</h4>
-        <p>三分支拼接：粗粒度 token 压缩（compress）+ 细粒度 top-k 块选择（select）+ 滑窗（sliding）；硬件对齐、端到端可训练，64K 全程加速不掉点。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2502.11089">arXiv:2502.11089</a>（DeepSeek）</p>
-      </div>
-      <div class="card">
-        <h4>MoBA 块级混合注意力</h4>
-        <p>把 MoE 思想搬到注意力：K/V 序列切块，学习门控为每个 query 只选少数相关块；可在全注意力与稀疏间无缝切换，已部署支撑 Kimi 长文本【一方称】。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2502.13189">arXiv:2502.13189</a>（Moonshot & 清华）</p>
-      </div>
-      <div class="card">
-        <h4>GDN 门控线性递归</h4>
-        <p>Gated DeltaNet（线性注意力）：在 DeltaNet 基础上加门控，维护固定大小循环状态、推理 O(1)；Qwen3-Next 起以 GDN:全注意力 = 3:1 层混合，Qwen3.5 中 GDN 约占 75%。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2412.06464">arXiv:2412.06464</a>；<a href="https://blog.vllm.ai/2025/09/11/qwen3-next.html">Qwen3-Next（vLLM）</a></p>
-      </div>
-      <div class="card">
-        <h4>KDA Kimi Delta Attention</h4>
-        <p>在 Gated DeltaNet 上做更细粒度门控的线性注意力模块；官方称首次在公平对比下短 / 长上下文与 RL 扩展均超过全注意力。Kimi K3 进一步用 KDA + Attention Residuals + 周期性全局 Gated MLA with NoPE。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2510.26692">arXiv:2510.26692</a>；<a href="https://www.kimi.com/news/kimi-k3">Kimi K3</a></p>
-      </div>
-      <div class="card">
-        <h4>iRoPE 交错位置编码</h4>
-        <p>Llama 4 架构：全局注意力（不带 RoPE）与分块局部注意力（带 RoPE、chunk=8192、非重叠）按 1:3 层交替；把二次复杂度压到近线性，Scout 支持 10M、Maverick 1M。</p>
-        <p class="src">出处：<a href="https://blog.vllm.ai/2025/04/05/llama4.html">vLLM Llama 4 技术解读</a>；<a href="https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct">HF 模型卡</a></p>
-      </div>
-      <div class="card">
-        <h4>DSA 深度稀疏注意力</h4>
-        <p>DeepSeek-V3.2 引入：lightning indexer 对块打分、逐 query 动态 top-k 选择细粒度块；DSA ≠ NSA。DeepSeek-V4 进一步演化为 CSA（压缩稀疏）与 HCA（重度压缩注意力）交错。</p>
-        <p class="src">出处：<a href="https://arxiv.org/abs/2512.02556">arXiv:2512.02556</a>；第三方系统分析 <a href="https://arxiv.org/abs/2603.13430">2603.13430</a></p>
-      </div>
-    </div>
-  </section>
-  <!-- ============ §6 模型总表 ============ -->
-  <section id="sec6">
-    <h2>§6 模型系列 × 版本 × 注意力算法 总表</h2>
-    <p>共 18 个系列组。闭源前沿（GPT-4 起、Claude 全系、Gemini 旗舰、Grok 全系）注意力一律【未公开】，不填充推测；「—」表示未公开 / 未知。架构细节取自论文全文 / HF config 的条目，在备注中注明。</p>
-    <div class="table-wrap">
-      <table>
-        <colgroup>
-          <col style="width:11%"><col style="width:17%"><col style="width:13%"><col style="width:11%"><col style="width:26%"><col style="width:10%"><col style="width:12%">
-        </colgroup>
-        <thead>
-          <tr><th>系列</th><th>版本</th><th>发布时间</th><th>参数量</th><th>注意力算法</th><th>上下文</th><th>出处</th></tr>
-        </thead>
-        <tbody>
-          <tr><td rowspan="12">GPT<br>OpenAI</td><td>GPT-1</td><td>2018-06</td><td>117M</td><td>MHA（标准 decoder-only）</td><td>2,048</td><td><a href="https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf">论文 PDF</a></td></tr>
-          <tr><td>GPT-2</td><td>2019-02</td><td>1.5B</td><td>MHA</td><td>1,024</td><td><a href="https://d4mucfpksywv.cloudfront.net/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">论文 PDF</a></td></tr>
-          <tr><td>GPT-3</td><td>2020-06</td><td>175B</td><td>MHA</td><td>2,048</td><td><a href="https://arxiv.org/abs/2005.14165">2005.14165</a></td></tr>
-          <tr><td>GPT-3.5</td><td>2022-03（ChatGPT 2022-11-30）</td><td>—</td><td>未公开</td><td>4K / 16K</td><td><a href="https://openai.com/index/chatgpt/">OpenAI</a></td></tr>
-          <tr><td>GPT-4</td><td>2023-03-14</td><td>—</td><td>未公开</td><td>8K（Turbo 32K）</td><td><a href="https://arxiv.org/abs/2303.08774">2303.08774</a></td></tr>
-          <tr><td>GPT-4o</td><td>2024-05-13</td><td>—</td><td>未公开</td><td>128K</td><td><a href="https://openai.com/index/hello-gpt-4o/">OpenAI</a></td></tr>
-          <tr><td>GPT-4.1 / mini / nano</td><td>2025-04-14（API）</td><td>—</td><td>未公开</td><td>最高 1M</td><td><a href="https://openai.com/index/gpt-4-1/">OpenAI</a></td></tr>
-          <tr><td>o1</td><td>2024-09 preview / 2024-12 正式</td><td>—</td><td>未公开</td><td>200K</td><td><a href="https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/models">Azure 模型页</a></td></tr>
-          <tr><td>o3 / o4-mini</td><td>2025-04-16</td><td>—</td><td>未公开</td><td>200K</td><td><a href="https://ai.azure.com/catalog/models/o3">Azure 目录</a></td></tr>
-          <tr><td>GPT-5</td><td>2025-08-07</td><td>—</td><td>未公开（官方称统一系统 = 快 + 推理 + 路由）</td><td>未公布</td><td><a href="https://openai.com/index/introducing-gpt-5/">OpenAI</a></td></tr>
-          <tr><td>GPT-5.1</td><td>2025-11-13</td><td>—</td><td>未公开</td><td>—</td><td><a href="https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-retirement-schedule">Azure</a></td></tr>
-          <tr><td>GPT-5.6 家族（Sol/Terra/Luna）</td><td>2026 年中【未能核实官方页；第三方旁证 GPT-5.6 Sol】</td><td>—</td><td>未公开</td><td>—</td><td>官方页无法访问，见附录 B</td></tr>
-
-          <tr><td rowspan="11">Claude<br>Anthropic</td><td>Claude 1</td><td>2023-03</td><td>—</td><td>未公开</td><td>9K</td><td><a href="https://www.anthropic.com/index/anthropic-introduces-claude">Anthropic</a></td></tr>
-          <tr><td>Claude 2</td><td>2023-07-11</td><td>—</td><td>未公开</td><td>100K</td><td><a href="https://www.anthropic.com/index/claude-2">Anthropic</a></td></tr>
-          <tr><td>Claude 2.1</td><td>2023-11</td><td>—</td><td>未公开</td><td>200K</td><td><a href="https://www.anthropic.com/index/claude-2-1">Anthropic</a></td></tr>
-          <tr><td>Claude 3 家族</td><td>2024-03-04</td><td>—</td><td>未公开</td><td>200K</td><td><a href="https://www.anthropic.com/index/3-model-family">Anthropic</a></td></tr>
-          <tr><td>Claude 3.5 Sonnet</td><td>2024-06-20</td><td>—</td><td>未公开</td><td>200K</td><td><a href="https://www.anthropic.com/index/claude-3-5-sonnet">Anthropic</a></td></tr>
-          <tr><td>Claude 3.7 Sonnet</td><td>2025-02-24（官方页确认）</td><td>—</td><td>未公开（首个混合推理）</td><td>200K</td><td><a href="https://www.anthropic.com/index/claude-3-7-sonnet">Anthropic</a></td></tr>
-          <tr><td>Claude 4（Opus/Sonnet）</td><td>2025-05-22</td><td>—</td><td>未公开</td><td>200K；Sonnet 4 自 2025-08-12 起 1M beta</td><td><a href="https://www.anthropic.com/news/claude-4">Anthropic</a></td></tr>
-          <tr><td>Sonnet 4.5</td><td>2025-09-29</td><td>—</td><td>未公开</td><td>200K（1M beta）</td><td><a href="https://platform.claude.com/docs/en/models/sonnet-4-5/overview">官方文档</a></td></tr>
-          <tr><td>Opus 4.5</td><td>2025-11-24</td><td>—</td><td>未公开</td><td>—</td><td><a href="https://www.anthropic.com/news/claude-opus-4-5">Anthropic</a></td></tr>
-          <tr><td>Opus 5</td><td>2026-07-24</td><td>—</td><td>未公开</td><td>1M</td><td><a href="https://platform.claude.com/docs/ja/models/opus-5/overview">官方文档</a></td></tr>
-          <tr><td>Opus 5.5</td><td>2026-09-22</td><td>—</td><td>未公开</td><td>1M</td><td><a href="https://www.anthropic.com/claude/opus">Anthropic</a></td></tr>
-
-          <tr><td rowspan="5">Gemini<br>Google</td><td>Gemini 1.0 Pro/Ultra</td><td>2023-12-06</td><td>—</td><td>未公开（Transformer 多模态）</td><td>Pro 32K / Ultra 128K</td><td><a href="https://blog.google/technology/ai/google-gemini-ai-advance-2023/">Google</a></td></tr>
-          <tr><td>Gemini 1.5 Pro/Flash</td><td>2024-02-15</td><td>—</td><td>稀疏 MoE Transformer（头细节未披露）</td><td>1M 演示，实测 ≥10M</td><td><a href="https://arxiv.org/abs/2403.05530">2403.05530</a></td></tr>
-          <tr><td>Gemini 2.0 Flash/Pro</td><td>2024-12 / 2025-02</td><td>—</td><td>未公开</td><td>1M</td><td><a href="https://blog.google/technology/google-deepmind/gemini-2-0/">Google</a></td></tr>
-          <tr><td>Gemini 2.5 Pro/Flash</td><td>2025-03 预览；Pro GA 06-17</td><td>—</td><td>稀疏 MoE Transformer</td><td>1M</td><td><a href="https://arxiv.org/abs/2507.06261">2507.06261</a></td></tr>
-          <tr><td>Gemini 3 Pro</td><td>2025-11-18</td><td>—</td><td>未公开（二手称 5:1 局部滑窗 1024 / 全局交替【推测】）</td><td>—</td><td><a href="https://blog.google/technology/developers/gemini-3-developers/">Google</a></td></tr>
-
-          <tr><td rowspan="3">Gemma<br>Google 开源</td><td>Gemma 1（2B/7B）</td><td>2024-02</td><td>2B / 7B</td><td>MHA 纯全局全注意力</td><td>8K</td><td><a href="https://googledevelopers.blogspot.com/en/gemma-explained-whats-new-in-gemma-3/">Google 开发者博客</a></td></tr>
-          <tr><td>Gemma 2（2B/9B/27B）</td><td>2024-06</td><td>2B / 9B / 27B</td><td>GQA + 1:1 交替（局部滑窗 4096 / 全局 8192）+ logit soft-capping</td><td>8K</td><td><a href="https://arxiv.org/abs/2408.00118">2408.00118</a></td></tr>
-          <tr><td>Gemma 3（1B/4B/12B/27B）</td><td>2025-03</td><td>1B / 4B / 12B / 27B</td><td>GQA + 5:1 交错（5 层局部滑窗窗 1024 + 1 层全局）</td><td>128K</td><td><a href="https://arxiv.org/abs/2503.19786">2503.19786</a></td></tr>
-
-          <tr><td rowspan="6">Llama<br>Meta</td><td>Llama 1（7B–65B）</td><td>2023-02</td><td>7B–65B</td><td>MHA（RoPE）</td><td>2,048</td><td><a href="https://arxiv.org/abs/2302.13971">2302.13971</a></td></tr>
-          <tr><td>Llama 2（7B/13B/70B）</td><td>2023-07-18</td><td>7B / 13B / 70B</td><td>7B/13B = MHA；34B/70B = GQA</td><td>4,096</td><td><a href="https://arxiv.org/abs/2307.09288">2307.09288</a></td></tr>
-          <tr><td>Llama 3 / 3.1 / 3.2 / 3.3</td><td>2024-04 起</td><td>8B / 70B / 405B</td><td>全系 GQA（8 KV 头）</td><td>8K → 128K</td><td><a href="https://arxiv.org/abs/2407.21783">2407.21783</a></td></tr>
-          <tr><td>Llama 4 Scout</td><td>2025-04-05</td><td>17B 激活 / 109B 总（16 专家）</td><td>iRoPE 交错：全局（无 RoPE）+ 分块局部（8192）1:3 交替</td><td>10M</td><td><a href="https://llama.com">llama.com</a>；<a href="https://blog.vllm.ai/2025/04/05/llama4.html">vLLM</a></td></tr>
-          <tr><td>Llama 4 Maverick</td><td>2025-04-05</td><td>17B 激活 / ~400B 总（128 专家）</td><td>同上 iRoPE 1:3</td><td>1M</td><td><a href="https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct">HF 模型卡</a></td></tr>
-          <tr><td>Llama 4 Behemoth</td><td>未发布（2025-04 时训练中）</td><td>288B 激活 / ~2T 总</td><td>计划沿用 iRoPE，未发布</td><td>—</td><td><a href="https://llama.com">llama.com</a>（原官方博客链接已失效）</td></tr>
-
-          <tr><td rowspan="8">Mistral<br>/ Mixtral</td><td>Mistral 7B</td><td>2023-09-27</td><td>7B dense</td><td>GQA + 滑窗 SWA（W=4096）</td><td>32,768</td><td><a href="https://arxiv.org/abs/2310.06825">2310.06825</a></td></tr>
-          <tr><td>Mixtral 8x7B</td><td>2023-12</td><td>46.7B 总 / 12.9B 激活</td><td>稀疏 MoE；GQA + SWA</td><td>32,768</td><td><a href="https://arxiv.org/abs/2401.04088">2401.04088</a></td></tr>
-          <tr><td>Mixtral 8x22B</td><td>2024-04</td><td>141B 总 / 39B 激活</td><td>稀疏 MoE + GQA</td><td>65,536</td><td><a href="https://mistral.ai/news/mixtral-8x22b">Mistral</a></td></tr>
-          <tr><td>Mistral Large 1（2402）</td><td>2024-02</td><td>—</td><td>未公开</td><td>32K</td><td><a href="https://mistral.ai/news/mistral-large">Mistral</a></td></tr>
-          <tr><td>Mistral Large 2（2407）</td><td>2024-07</td><td>123B dense</td><td>Dense Transformer（头数未公开）</td><td>128K</td><td><a href="https://www.ibm.com/blog/announcement/mistral-ais-next-generation-flagship-llm-mistral-large-2-is-now-available-in-ibm-watsonx/">IBM</a></td></tr>
-          <tr><td>Mistral Small 3 / 3.1</td><td>2025-01 / 03</td><td>24B dense</td><td>Dense Transformer（头数未公开）</td><td>128K</td><td><a href="https://ollama.ai/library/mistral-small">Ollama</a></td></tr>
-          <tr><td>Mistral Large 3（Mistral 3）</td><td>2025-12-02</td><td>41B 激活 / 675B 总（granular MoE，Apache-2.0）</td><td>细粒度 MoE（注意力头细节未公开）</td><td>256K</td><td><a href="https://www.ibm.com/cn-zh/new/announcements/mistral-large-3-now-available-on-ibm-watsonx">IBM</a></td></tr>
-          <tr><td>Ministral 3</td><td>2026-01</td><td>14B / 8B / 3B</td><td>长上下文 checkpoint 推理微调（底座细节见论文）</td><td>长上下文</td><td><a href="https://arxiv.org/abs/2601.08584">2601.08584</a></td></tr>
-          <tr><td rowspan="11">Qwen<br>阿里</td><td>Qwen-1（1.8B–72B）</td><td>2023-08</td><td>1.8B–72B</td><td>MHA + RoPE</td><td>8K</td><td><a href="https://arxiv.org/abs/2309.16609">2309.16609</a></td></tr>
-          <tr><td>Qwen1.5</td><td>2024-02</td><td>0.5B–72B</td><td>首次引入 GQA</td><td>32K</td><td><a href="https://qwenlm.github.io/blog/qwen1.5/">Qwen 博客</a></td></tr>
-          <tr><td>Qwen2</td><td>2024-06</td><td>0.5B–72B</td><td>GQA + RoPE + SwiGLU（纯全注意力）</td><td>32K（YaRN→128K）</td><td><a href="https://arxiv.org/abs/2407.10671">2407.10671</a></td></tr>
-          <tr><td>Qwen2.5（含 MoE 72B-A14B）</td><td>2024-09</td><td>0.5B–72B</td><td>GQA + QK-Norm</td><td>128K</td><td><a href="https://qwenlm.github.io/blog/qwen2.5/">Qwen 博客</a></td></tr>
-          <tr><td>Qwen2.5-VL / Coder / Turbo</td><td>2024-09 起</td><td>—</td><td>LLM 沿用 GQA；VL 加 M-RoPE</td><td>128K</td><td><a href="https://arxiv.org/abs/2409.12191">2409.12191</a></td></tr>
-          <tr><td>Qwen3（稠密 + MoE）</td><td>2025-04-29</td><td>0.6B–235B</td><td>GQA；128K 版全注意力层与 SWA（窗 2048）交错；小模型纯 GQA；长文 YaRN + DCA</td><td>32K（小模型）/ 128K</td><td><a href="https://qwen.ai/blog?id=qwen3">Qwen</a>；<a href="https://arxiv.org/abs/2505.09388">2505.09388</a></td></tr>
-          <tr><td>Qwen3-VL</td><td>2025-07 / 08</td><td>—</td><td>底座沿用 Qwen3 稠密 GQA + 混合 SWA，M-RoPE</td><td>128K</td><td><a href="https://qwen.ai/blog?id=qwen3-vl-new">Qwen</a></td></tr>
-          <tr><td>Qwen3-Max</td><td>2025-09 预览</td><td>官方称 &gt;1T（闭源）</td><td>未公开</td><td>256K</td><td><a href="https://tongyi.aliyun.com/landing/?family=qwen">阿里云百炼</a></td></tr>
-          <tr><td>Qwen3-Next（80B-A3B）</td><td>2025-09-11</td><td>80B 总 / 3B 激活</td><td>GDN（门控线性递归）+ 全注意力 3:1 混合</td><td>128K</td><td><a href="https://qwen.ai/blog?id=qwen3-next">Qwen</a>；<a href="https://blog.vllm.ai/2025/09/11/qwen3-next.html">vLLM</a></td></tr>
-          <tr><td>Qwen3.5（397B-A17B）</td><td>2026-02-16</td><td>397B 总 / 17B 激活</td><td>线性注意力 GDN 与全注意力层交错（GDN 约 75%）+ 稀疏 MoE</td><td>256K</td><td><a href="https://qwen.ai/blog?id=qwen3.5">Qwen</a></td></tr>
-          <tr><td>Qwen3.8-Flash-Next / 3.8-Max</td><td>2026-04 / 2026-08-26</td><td>—</td><td>GDN + QSA（Qwen Sparse Attention，micro-block indexer）混合</td><td>3.8-Max 1M</td><td><a href="https://qwen.ai/blog?id=qwen3.8-flash-next">Qwen</a></td></tr>
-
-          <tr><td rowspan="7">DeepSeek</td><td>DeepSeek-V1（67B MoE）</td><td>2024-01</td><td>67B / 3.7B</td><td>MHA + RoPE（无 KV 压缩）</td><td>4K</td><td><a href="https://arxiv.org/abs/2405.04434">2405.04434</a></td></tr>
-          <tr><td>DeepSeek-V2 / V2.5</td><td>2024-05 / 09</td><td>236B / 21B</td><td>MLA 首次提出：KV 低秩联合压缩为潜向量（约 512 维），Cache 只存 latent；Q/K 拆解耦 RoPE</td><td>128K</td><td><a href="https://arxiv.org/abs/2405.04434">2405.04434</a></td></tr>
-          <tr><td>DeepSeek-V3</td><td>2024-12</td><td>671B / 37B</td><td>沿用 MLA（128 头）+ MTP</td><td>128K</td><td><a href="https://arxiv.org/abs/2412.19437">2412.19437</a></td></tr>
-          <tr><td>DeepSeek-R1</td><td>2025-01</td><td>同 V3</td><td>与 V3 相同 MLA 底座（纯 RL 推理）</td><td>128K</td><td><a href="https://arxiv.org/abs/2501.12948">2501.12948</a></td></tr>
-          <tr><td>V3.1 / V3.1-Terminus</td><td>2025-08-21 / 09-22</td><td>同 V3</td><td>仍是 MLA（后训练升级，未改注意力）</td><td>128K</td><td><a href="https://api-docs.deepseek.com/zh-cn/news/news250821/">DeepSeek 文档</a></td></tr>
-          <tr><td>V3.2-Exp / V3.2 正式</td><td>2025-09-29 / 12-01</td><td>同量级</td><td>DSA（DeepSeek Sparse Attention）：lightning indexer 打分、逐 query 动态 top-k 细粒度块；DSA≠NSA</td><td>128K 起</td><td><a href="https://arxiv.org/abs/2512.02556">2512.02556</a></td></tr>
-          <tr><td>DeepSeek-V4 / V4-Pro / V4.1-Flash</td><td>2026-04-24</td><td>V4-Pro 约 1.6T；V4.1-Flash 552B</td><td>混合注意力取代 MLA：CSA（压缩稀疏，indexer+top-k）与 HCA（重度压缩注意力）交错（Pro 61 层 / Flash 43 层）</td><td>100 万 token</td><td><a href="https://arxiv.org/abs/2606.19348">2606.19348</a>；<a href="https://www.deepseek.com/en/news/v4-preview/">DeepSeek</a></td></tr>
-
-          <tr><td rowspan="6">GLM<br>智谱 Z.ai</td><td>ChatGLM-1/2/3、GLM-130B</td><td>2023</td><td>6B–130B</td><td>MHA（GLM-130B 混合注意力掩码）</td><td>2K–128K</td><td><a href="https://arxiv.org/abs/2303.17516">2303.17516</a>；<a href="https://arxiv.org/abs/2406.12793">2406.12793</a></td></tr>
-          <tr><td>GLM-4（含 4-9B）</td><td>2024-01</td><td>9B 开源</td><td>GQA（论文明确用 GQA 替换 MHA 以减 KV Cache）</td><td>128K</td><td><a href="https://arxiv.org/abs/2406.12793">2406.12793</a></td></tr>
-          <tr><td>GLM-4.5 / 4.5-Air</td><td>2025-07-28（论文 2025-08-08）</td><td>355B / 32B；Air 106B / 12B</td><td>GQA + partial RoPE + QK-Norm（96 query 头）【非混合；细节取自论文全文】</td><td>128K</td><td><a href="https://arxiv.org/abs/2508.06471">2508.06471</a></td></tr>
-          <tr><td>GLM-4.6（含 4.6V）</td><td>2025-09-30</td><td>106B / 9B</td><td>延续 4.5 的 GQA（官方未发新注意力报告）</td><td>文本 200K / 视觉 128K</td><td><a href="https://glm-ai.chat/models/glm-4-6/">GLM 模型页</a></td></tr>
-          <tr><td>GLM-4.7</td><td>2025-12-22</td><td>355B 级</td><td>【未能核实】z.ai 研究页谈 SWA 交错 + GDN，官方未明示归属</td><td>—</td><td><a href="https://www.zhipuai.cn/zh/research/153">智谱研究页</a></td></tr>
-          <tr><td>GLM-5 / 5.1 / 5.2</td><td>2026-02</td><td>—</td><td><b>DSA</b>（论文摘要原文 "GLM-5 adopts DSA"）；第三方记载 5.1/5.2 亦用 DSA</td><td>—</td><td><a href="https://arxiv.org/abs/2602.15763">2602.15763</a>；<a href="https://arxiv.org/pdf/2611.03768">第三方 2611.03768</a></td></tr>
-
-          <tr><td rowspan="7">Kimi<br>月之暗面</td><td>Kimi K1（beta）</td><td>2024-10</td><td>—</td><td>未公开</td><td>—</td><td><a href="https://www.kimi.com/blog/">Kimi 博客</a></td></tr>
-          <tr><td>Kimi K1.5</td><td>2025-01-20</td><td>—</td><td>未公开（报告仅讲 RL，未披露底座）</td><td>长文本</td><td><a href="https://arxiv.org/abs/2501.12599">2501.12599</a></td></tr>
-          <tr><td>Kimi K2</td><td>2025-07-11（论文 2025-07-28）</td><td>1T 总 / 32B 激活（论文口径）</td><td><b>MLA</b>（与 DeepSeek-V3 同构；61 层、64 头；不是 MoBA；细节取自技术报告全文）</td><td>128K（YaRN）</td><td><a href="https://arxiv.org/abs/2507.20534">2507.20534</a></td></tr>
-          <tr><td>Kimi K2 Thinking</td><td>2025-09</td><td>同 K2</td><td>MLA</td><td>128K</td><td><a href="https://www.kimi.ai/blog/">Kimi 博客</a></td></tr>
-          <tr><td>Kimi K2.5</td><td>2026-01-27</td><td>同 K2</td><td>MLA（K2 底座继续预训练）</td><td>128K 级</td><td><a href="https://raw.githubusercontent.com/MoonshotAI/Kimi-K3/main/k3_tech_report.pdf">K3 技术报告 PDF</a></td></tr>
-          <tr><td>Kimi K3</td><td>2026-07-16</td><td>2.8T MoE</td><td>KDA（Kimi Delta Attention，门控线性注意力）混合 + Attention Residuals；周期性全局层 = Gated MLA with NoPE + 输出门控；原生视觉</td><td>100 万 token</td><td><a href="https://www.kimi.com/news/kimi-k3">Kimi</a></td></tr>
-          <tr><td>MoBA（机制，非模型）</td><td>2025-02-18</td><td>—</td><td>块级 MoE 化注意力：KV 切块按 query 路由选 top-k 块；已部署支撑 Kimi 长文</td><td>—</td><td><a href="https://arxiv.org/abs/2502.13189">2502.13189</a></td></tr>
-          <tr><td rowspan="5">InternLM<br>/ InternVL<br>上海 AI Lab</td><td>InternLM-1（7B）</td><td>2023</td><td>7B</td><td>MHA（32Q/32KV）+ RoPE</td><td>2K</td><td><a href="https://huggingface.co/internlm/internlm-7b">HF 模型卡</a></td></tr>
-          <tr><td>InternLM2 / 2.5</td><td>2024-01 / 07</td><td>7B / 20B</td><td>GQA（32Q/8KV）</td><td>32K</td><td><a href="https://huggingface.co/internlm/internlm2-7b">HF 模型卡</a></td></tr>
-          <tr><td>InternLM3（8B）</td><td>2025-06</td><td>8B</td><td>重度 GQA（32Q / 仅 2KV，16:1）</td><td>32K（可外推）</td><td><a href="https://huggingface.co/internlm/internlm3-8b-instruct">HF 模型卡</a></td></tr>
-          <tr><td>InternVL-1 / 1.5 / 2 / 2.5 / 3</td><td>2023-12 → 2025-04</td><td>1B–78B</td><td>注意力随所选 LLM 骨干（InternLM2.5 GQA / Qwen2.5 GQA / InternLM3 重度 GQA），本身不新设计注意力</td><td>32K+</td><td><a href="https://arxiv.org/abs/2504.10479">2504.10479</a></td></tr>
-          <tr><td>InternLM4</td><td>—</td><td>—</td><td>【未能核实】2026-11-04 无公开基座版（最新通用线 InternLM3，其后转向科学基座 Intern-S1/S2）</td><td>—</td><td><a href="https://internlm.intern-ai.org.cn/">InternLM 官网</a></td></tr>
-
-          <tr><td rowspan="4">Baichuan<br>百川</td><td>Baichuan-1（7B）</td><td>2023-06</td><td>7B</td><td>MHA + RoPE</td><td>4K</td><td><a href="https://huggingface.co/baichuan-inc/Baichuan-7B">HF 模型卡</a></td></tr>
-          <tr><td>Baichuan2-7B / 13B</td><td>2023-09</td><td>7B / 13B</td><td>7B = MHA；13B = MHA + ALiBi（xFormers 记忆高效注意力）</td><td>4K</td><td><a href="https://arxiv.org/abs/2309.10305">2309.10305</a></td></tr>
-          <tr><td>Baichuan-M1（医学）</td><td>2025-02</td><td>14B</td><td>全局 + 滑窗交错（仿 Gemma 2）+ K/V 短时卷积：全局层 2 头 / head_dim 256，滑窗层 8 头 / head_dim 128（窗 2K）【细节取自论文全文】</td><td>32K</td><td><a href="https://arxiv.org/abs/2502.12671">2502.12671</a></td></tr>
-          <tr><td>Baichuan-M2</td><td>—</td><td>—</td><td>【未能核实】</td><td>—</td><td>—</td></tr>
-
-          <tr><td rowspan="6">Phi<br>微软</td><td>Phi-1 / 1.5</td><td>2023-11 / 2024-02</td><td>1.3B</td><td>MHA（32Q/32KV）</td><td>2K</td><td><a href="https://huggingface.co/microsoft/phi-1_5">HF 模型卡</a></td></tr>
-          <tr><td>Phi-2</td><td>2023-12</td><td>2.7B</td><td>MHA</td><td>2K</td><td><a href="https://huggingface.co/microsoft/phi-2">HF 模型卡</a></td></tr>
-          <tr><td>Phi-3-mini（4k / 128k）</td><td>2024-04</td><td>3.8B</td><td>MHA + 滑窗 SWA（2047）</td><td>4K / 128K</td><td><a href="https://huggingface.co/microsoft/Phi-3-mini-4k-instruct">HF 模型卡</a></td></tr>
-          <tr><td>Phi-3-small / medium</td><td>2024</td><td>7B / 14B</td><td>small = GQA（32Q/8KV）；medium = GQA + SWA（40Q/10KV，窗 2047）</td><td>8K / 4K</td><td><a href="https://huggingface.co/microsoft/Phi-3-small-8k-instruct">HF 模型卡</a></td></tr>
-          <tr><td>Phi-4</td><td>2024-12</td><td>14B dense</td><td>GQA（40Q/10KV）</td><td>16K</td><td><a href="https://huggingface.co/microsoft/Phi-4">HF 模型卡</a></td></tr>
-          <tr><td>Phi-4-mini / reasoning</td><td>2025-02</td><td>3.8B</td><td>GQA（24Q/8KV）+ LongRoPE 大滑窗 262144</td><td>128K</td><td><a href="https://huggingface.co/microsoft/Phi-4-mini-instruct">HF 模型卡</a></td></tr>
-
-          <tr><td rowspan="5">Falcon<br>TII</td><td>Falcon-7B</td><td>2023-06</td><td>7B</td><td>MQA（71 Q 头共享单 KV）</td><td>2K</td><td><a href="https://huggingface.co/tiiuae/falcon-7b">HF 模型卡</a></td></tr>
-          <tr><td>Falcon-40B</td><td>2023-06</td><td>40B</td><td>MHA（128 Q 头独立 KV）</td><td>2K</td><td><a href="https://huggingface.co/tiiuae/falcon-40b">HF 模型卡</a></td></tr>
-          <tr><td>Falcon3-Mamba-7B</td><td>2024-12</td><td>7B</td><td>纯 SSM（Mamba，无注意力）</td><td>32K / infinite</td><td><a href="https://falcon-lm.github.io/blog/falcon-3/">Falcon 博客</a></td></tr>
-          <tr><td>Falcon3-1B/3B/7B/10B</td><td>2024-12-17</td><td>1–10B</td><td>Llama 式 GQA（10B：12Q/4KV，head_dim 256，FlashAttention-3；config 无滑窗字段）</td><td>8K / 32K</td><td><a href="https://huggingface.co/tiiuae/Falcon3-10B-Base">HF 模型卡</a></td></tr>
-          <tr><td>Falcon-H1（0.5–34B）</td><td>2025-05-07</td><td>0.5–34B</td><td>混合头：Attention + Mamba-2 并行拼接（34B 为 20Q/4KV GQA）</td><td>262K</td><td><a href="https://arxiv.org/abs/2507.22448">2507.22448</a></td></tr>
-
-          <tr><td rowspan="4">Grok<br>xAI</td><td>Grok-1</td><td>2024-03</td><td>314B MoE</td><td>未公开（开源权重，无技术报告细讲注意力）</td><td>—</td><td><a href="https://github.com/xai-org/grok-1">GitHub</a></td></tr>
-          <tr><td>Grok-2</td><td>2024-08</td><td>—</td><td>未公开</td><td>128K</td><td>—</td></tr>
-          <tr><td>Grok-3</td><td>2025-02</td><td>官方未披露</td><td>未公开（第三方 GQA 等均为推测）</td><td>128K–131K</td><td><a href="https://aiwiki.ai/wiki/grok_3">第三方 aiwiki</a></td></tr>
-          <tr><td>Grok 4 / Code Fast</td><td>2025–2026</td><td>—</td><td>未公开</td><td>—</td><td>—</td></tr>
-
-          <tr><td rowspan="3">MiniMax</td><td>MiniMax-Text-01</td><td>2025-01</td><td>456B 总 / 45.9B 激活（32 专家 / 2 激活）</td><td>Lightning 线性注意力 + 全注意力交错：80 层中 7 线性(0) + 1 全注意力(1) 周期；全注意力层 GQA 64Q/8KV</td><td>1M</td><td><a href="https://arxiv.org/abs/2502.04336">2502.04336</a></td></tr>
-          <tr><td>MiniMax-M1</td><td>2025-07</td><td>同 Text-01</td><td>同 Text-01（Lightning 线性 + 全 GQA 7:1 交错）</td><td>1M（对外 80K）</td><td><a href="https://huggingface.co/MiniMaxAI/MiniMax-M1-80k">HF 模型卡</a></td></tr>
-          <tr><td>MiniMax-M2</td><td>2025-11（论文 2026-05-26）</td><td>229.9B 总 / 9.8B 激活（256 专家 / 8 激活）</td><td>改回全层全注意力 GQA：62 层全注意力（48Q/8KV）+ RoPE + QK RMSNorm + MTP【弃用线性注意力；细节取自 HF config】</td><td>196K</td><td><a href="https://arxiv.org/abs/2605.26494">2605.26494</a></td></tr>
-
-          <tr><td rowspan="3">Hunyuan<br>腾讯混元</td><td>Hunyuan-Large（A52B）</td><td>2024-11</td><td>389B 总 / 52B 激活</td><td>GQA（64 层，80 Q 头 / 8 KV 头）+ KV-cache 压缩</td><td>256K</td><td><a href="https://arxiv.org/abs/2411.02265">2411.02265</a></td></tr>
-          <tr><td>Hunyuan-A13B</td><td>2024-11</td><td>~80B 总 / 13B 激活</td><td>GQA + QK-Norm（32Q/8KV，MoE 64 专家 / 8 top-k）</td><td>32K</td><td><a href="https://huggingface.co/tencent/Hunyuan-A13B-Instruct">HF 模型卡</a></td></tr>
-          <tr><td>Hunyuan-TurboS</td><td>2025-05</td><td>—</td><td>Mamba2-Transformer 混合 + MoE（128 层，64Q/8KV GQA + 16 Mamba2 组，32 专家）</td><td>长上下文</td><td><a href="https://arxiv.org/abs/2505.15431">2505.15431</a></td></tr>
-
-          <tr><td rowspan="4">加分系列</td><td>AI21 Jamba-1.5</td><td>2024-03 / 08</td><td>394B 总 / 94B 激活（Mini 12B）</td><td>Hybrid Transformer-Mamba + MoE：每 8 层块注意力:Mamba = 1:7，注意力层 GQA</td><td>256K</td><td><a href="https://arxiv.org/abs/2408.12570">2408.12570</a></td></tr>
-          <tr><td>OLMo-2（7B）</td><td>2024-11</td><td>7B</td><td>MHA（32Q/32KV）</td><td>4K</td><td><a href="https://huggingface.co/allenai/OLMo-2-1124-7B-Instruct">HF 模型卡</a></td></tr>
-          <tr><td>SmolLM2</td><td>2025-01</td><td>0.135–1.7B</td><td>MHA（Llama 架构 32Q/32KV）</td><td>8K</td><td><a href="https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct">HF 模型卡</a></td></tr>
-          <tr><td>Cohere Command R / R+</td><td>2024</td><td>35B / 104B</td><td>GQA【一方称】</td><td>128K</td><td><a href="https://huggingface.co/CohereForAI/c4ai-command-r-v01">HF 模型卡</a></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-  <!-- ============ 附录 A 来源列表 ============ -->
-  <section id="appA">
-    <h2>附录 A：主要来源列表（按主题分组）</h2>
-    <h3>里程碑 / 机制论文</h3>
-    <p class="src">
-      Transformer 1706.03762 ｜ MQA 1911.02150 ｜ Sparse 1904.10509 ｜ Longformer 2004.05150 ｜ BigBird 2007.14062 ｜ Linear Transformer 2006.16236 ｜ Performer 2009.14794 ｜ RFA 2103.02143 ｜ cosFormer 2202.08791 ｜ FA1 2205.14135 ｜ FA2 2307.08691 ｜ FA3 2407.08608 ｜ FA4 2603.05451 ｜ PagedAttention 2309.06180 ｜ GQA 2305.13245 ｜ RetNet 2307.08621 ｜ RWKV 2305.13048 ｜ Mamba 2312.00752 ｜ Mamba-2 2405.21060 ｜ Gated DeltaNet 2412.06464 ｜ DeepSeek-V2（MLA）2405.04434 ｜ Differential Transformer 2410.05258 ｜ NSA 2502.11089 ｜ MoBA 2502.13189 ｜ Kimi Linear / KDA 2510.26692 ｜ DSA（DeepSeek-V3.2）2512.02556
-    </p>
-    <h3>混合架构代表</h3>
-    <p class="src">
-      Zamba 2405.16712 ｜ Zamba2 2411.15242 ｜ Gemma 3 2503.19786 ｜ Llama 4 见 llama.com 与 vLLM 博客 2025-04-05 ｜ Qwen3-Next 见 Qwen 博客与 vLLM 博客 2025-09-11 ｜ Falcon-H1 2507.22448 ｜ Hunyuan-TurboS 2505.15431 ｜ MiniCPM-SALA 2602.11761 ｜ STILL 2602.02180 ｜ Superlinear Multi-Step Attention 2601.18401 ｜ Qwen3.8-Next 2608.30320 ｜ GLM-5 2602.15763
-    </p>
-    <h3>模型官方出处（节选，逐行链接见 §6 总表）</h3>
-    <p class="src">OpenAI（openai.com/index/...）｜ Anthropic（anthropic.com/index/...、platform.claude.com/docs）｜ Google DeepMind（blog.google）｜ Meta Llama（llama.com、HuggingFace meta-llama 模型卡）｜ Mistral AI（mistral.ai）｜ Qwen（qwen.ai/blog、qwenlm.github.io）｜ DeepSeek（arxiv.org/abs/2412.19437 等、api-docs.deepseek.com）｜ 智谱 GLM（arxiv.org/abs/2508.06471、2602.15763）｜ Kimi（kimi.com/news、arxiv.org/abs/2507.20534）｜ HuggingFace 各模型卡 ｜ vLLM 官方博客（blog.vllm.ai）。</p>
-    <p class="note">说明：GLM-4.5（GQA+partial RoPE+QK-Norm、96 头@5120）、Kimi K2（MLA、61 层 64 头）、MiniMax-M2（62 层全 GQA 48Q/8KV）、Baichuan-M1（全局 2 头 / 滑窗 8 头窗 2K）等架构细节，arXiv 摘要页不含对应短语，取自<b>论文全文 / HF config.json 机读</b>（见规格书更正第 19 条）。</p>
-  </section>
-
-  <!-- ============ 附录 B 更正与未核实清单 ============ -->
-  <section id="appB">
-    <h2>附录 B：更正记录与未能核实 / 未公开清单</h2>
-    <h3>B.1 以论文 / 官方为准的更正（20 条）</h3>
-    <div class="table-wrap">
-      <table>
-        <colgroup><col style="width:6%"><col style="width:94%"></colgroup>
-        <thead><tr><th>#</th><th>更正内容</th></tr></thead>
-        <tbody>
-          <tr><td>1</td><td>MoBA = arXiv:2502.13189（Moonshot）；2503.11370 是无关数学论文，未采用。</td></tr>
-          <tr><td>2</td><td>Zamba = arXiv:2405.16712；Zamba2 = 2411.15242；2408.10228 是无关论文，未采用。</td></tr>
-          <tr><td>3</td><td>差分注意力 Differential Transformer = arXiv:2410.05258；2406.06450 是无关数论论文，未采用。</td></tr>
-          <tr><td>4</td><td>Linear Transformer（Transformers are RNNs）= arXiv:2006.16236，非 2002.11296。</td></tr>
-          <tr><td>5</td><td>MQA 论文标题 = "Fast Transformer Decoding: One Write-Head is All You Need"，arXiv:1911.02150。</td></tr>
-          <tr><td>6</td><td>FlashAttention-4 = arXiv:2603.05451（2026-03-05，Blackwell B200）。</td></tr>
-          <tr><td>7</td><td>PagedAttention = 2023-09，arXiv:2309.06180（SOSP 2023）；口述的 2022 未采用。</td></tr>
-          <tr><td>8</td><td>Kimi K2 注意力 = MLA（技术报告 2507.20534 原文），不是 MoBA；MoBA 只支撑 Kimi 长文本服务，不写进 K2 权重。</td></tr>
-          <tr><td>9</td><td>GLM-4.5 / 4.6 = GQA + partial RoPE + QK-Norm（2508.06471），不是混合架构；GDN/SWA 混合探索见 GLM-5（2602.15763）。</td></tr>
-          <tr><td>10</td><td>Qwen3 基座 = GQA（128K 版与 SWA 窗 2048 交错；0.6/1.7/4B 纯 GQA）；GDN 线性混合始于 Qwen3-Next（2025-09）。</td></tr>
-          <tr><td>11</td><td>Falcon-3（1B/3B/7B/10B）= Llama 式 GQA（config 无 sliding_window 字段），无「滑窗+全局」混合；真正「滑窗+全局交错+K/V 短时卷积」的是 Baichuan-M1（2502.12671）；「Attention+Mamba-2 并行拼接」代表是 Falcon-H1（2507.22448）。</td></tr>
-          <tr><td>12</td><td>MiniMax Text-01 / M1 = Lightning 线性注意力 + 全注意力（GQA 64Q/8KV）按 7:1 交错（2502.04336）；MiniMax-M2 改回 62 层全注意力 GQA（48Q/8KV）。</td></tr>
-          <tr><td>13</td><td>InternLM3 = 重度 GQA（32Q/2KV）；InternLM4 基座【未能核实】（2026-11-04 无公开证据）。</td></tr>
-          <tr><td>14</td><td>Claude 3.7 Sonnet 发布时间 = 2025-02-24（官方页 anthropic.com/index/claude-3-7-sonnet），非调研表中的 2024-09。</td></tr>
-          <tr><td>15</td><td>闭源前沿（GPT-4 起、Claude 全系、Gemini 旗舰、Grok 全系）：注意力一律标注【未公开】，不填充任何推测。</td></tr>
-          <tr><td>16</td><td>Llama 4 原官方博客页 about.fb.com/news/2025/04/the-llama-4-herd/ 已死链；出处改用 llama.com / HF 模型卡 / vLLM 博客。</td></tr>
-          <tr><td>17</td><td>GPT-5.6 家族：官方页 openai.com/index/introducing-gpt-5-6/ 两次抓取失败；「GPT-5.6 Sol」仅第三方对比图旁证 → 该行标注【未能核实官方页】，日期写「2026 年中（待官方确认）」，注意力 = 未公开。</td></tr>
-          <tr><td>18</td><td>GLM-5 注意力 = DSA（2602.15763 摘要原文 "GLM-5 adopts DSA"）；不写「消融比较 GDN 与 SWA」；第三方论文 2611.03768 记载 GLM-5.1/5.2 亦用 DSA。</td></tr>
-          <tr><td>19</td><td>GLM-4.5、Kimi K2、MiniMax-M2、Baichuan-M1 的架构细节取自论文全文 / HF config.json 机读（arXiv 摘要页不含对应短语），出处链接指向对应 arXiv 论文页。</td></tr>
-          <tr><td>20</td><td>DSA 机制主出处 = DeepSeek-V3.2 报告（2512.02556）；arXiv:2603.13430 是 Intel 第三方系统分析论文，仅作补充引用并注明第三方。</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <h3>B.2 未能核实 / 未公开清单</h3>
-    <p>① GPT-5.6 家族官方页无法访问；② InternLM4 基座无公开证据；③ GLM-4.7 注意力归属官方未明示；④ Baichuan-M2 无公开资料；⑤ Grok 全系注意力未公开（Grok-3 第三方 GQA 说法为推测）；⑥ Gemini 3 Pro 的「5:1 局部滑窗」为二手推测；⑦ MoBA 长文服务具体上限未公开【一方称】；⑧ GPT-3.5 / o 系列 / GPT-5 起、Claude 全系、Gemini 旗舰注意力均未公开。</p>
-  </section>
-
-</div>
-
-<button id="toTop" aria-label="回到顶部" title="回到顶部">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+<button id="tocToggle" aria-expanded="false">
+  <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  文档目录
 </button>
 
+<div class="layout">
+  <nav id="toc" aria-label="文档目录">
+    <div class="toc-title">本页目录</div>
+    <a href="#overview">1 总览</a>
+    <a href="#timeline">2 版本×注意力时间线</a>
+    <a href="#qwen" class="lvl2">3.1 Qwen</a>
+    <a href="#deepseek" class="lvl2">3.2 DeepSeek</a>
+    <a href="#glm" class="lvl2">3.3 GLM</a>
+    <a href="#kimi" class="lvl2">3.4 Kimi</a>
+    <a href="#minimax" class="lvl2">3.5 MiniMax</a>
+    <a href="#gemma" class="lvl2">3.6 Gemma</a>
+    <a href="#internvl" class="lvl2">3.7 InternVL</a>
+    <a href="#vision" class="lvl2">3.8 视觉侧四篇</a>
+    <a href="#compare">4 横向对比</a>
+    <a href="#logic">5 演进逻辑</a>
+    <a href="#table">6 全版本总表</a>
+    <a href="#refs">附录 A 来源</a>
+    <a href="#errata">附录 B 更正与未核实</a>
+  </nav>
+
+  <main>
+    <div class="legend-box">
+      <span>● 主力 / 当前采用</span>
+      <span>○ 历史版本或局部层采用</span>
+      <span>— 未使用</span>
+      <span><span class="tag u">已查证</span> 有官方/arXiv 来源</span>
+      <span><span class="tag v">一方称/未公开</span> 仅厂商口径或未公开细节</span>
+      <span><span class="tag n">未核实</span> 未能找到可靠来源</span>
+    </div>
+
+    <section id="overview">
+      <h2>1 总览：11 个系列的注意力地图</h2>
+      <p class="section-lead">注意力在 2022–2026 的演化不是一条线，而是三条并行路线（KV 压缩 / 稀疏化 / 线性化）在不同家族、不同代际被独立落地。先看地图，再看版本，再看切换点。</p>
+
+      <h3>1.1 模型地图：11 个系列各自的注意力主线</h3>
+      <div class="series-grid">
+        <div class="series-card"><h4>Qwen（阿里）</h4><p class="sc-line">标准路线走满 GQA，再转身做 GDN 线性 + Gated Attention 3:1 混合，最新到 QSA 稀疏索引。</p><p class="sc-meta">qwen1 … qwen1_5 / qwen2 / qwen2_5 / qwen3 / qwen3_5 / qwen3_6 / qwen3_8 + Qwen3-Next / Qwen3.8-Flash-Next</p></div>
+        <div class="series-card"><h4>DeepSeek</h4><p class="sc-line">MLA 首秀并冻结维度，V3.2 叠 DSA 独立 indexer，V4 换 MQA+DSA+HCA/CSA，V4.1 把 KV 压到 890 字节/token。</p><p class="sc-meta">deepseek_v1 / v2 / v3 / v3_2 / v4 / v4_1 / r1</p></div>
+        <div class="series-card"><h4>GLM（智谱）</h4><p class="sc-line">双向 GLM → MHA → MQA → GQA+QK-Norm → MLA+DSA → KDA+DSA 混合+文本 NoPE。</p><p class="sc-meta">glm_130b / chatglm_6b / chatglm2_3 / glm_4 / glm_4v / glm_z1 / glm_4_5 / glm_5</p></div>
+        <div class="series-card"><h4>Kimi（Moonshot）</h4><p class="sc-line">K2 系全 MLA（不是 MoBA），K3 才换 69 KDA + 24 Gated MLA、NoPE 直出 1M。</p><p class="sc-meta">moonshot_8b / moonshot_32b_a32b (404) / kimi_k2_0905 / kimi_k2_thinking / kimi_k2_5 / kimi_k2_6 / kimi_k2_7_code / kimi_k3 / kimi_k3_1_pro</p></div>
+        <div class="series-card"><h4>MiniMax</h4><p class="sc-line">路线切换最频繁：Lightning 7:1 线性 → 全 GQA 反转 → MSA 块稀疏索引，三代全落地为开源权重。</p><p class="sc-meta">minimax_text_01 / minimax_visual_01 / minimax_m1 / minimax_m2 / m2_1 / m2_5 / m2_7 / minimax_m3_vl / minimax_m3_1_flash</p></div>
+        <div class="series-card"><h4>Gemma（Google）</h4><p class="sc-line">GQA + 滑窗/全局交替：1:1 → 5:1 → 4:1，softcap → QK-Norm，最终 per-layer 异构 head_dim + K=V 绑定。</p><p class="sc-meta">gemma-1 / gemma-2 / gemma-3 / gemma-3n / gemma-4</p></div>
+        <div class="series-card"><h4>InternVL</h4><p class="sc-line">视觉 token 与文本 token 同一因果序列自注意力，全程无 cross-attn；语言侧注意力随底座（InternLM2 → Qwen2.5 → InternLM3 → Qwen3）换代。</p><p class="sc-meta">internvl-1_5 / internvl-2 / internvl-2_5 / internvl-3 / internvl-3_5</p></div>
+        <div class="series-card"><h4>CLIP</h4><p class="sc-line">双塔：视觉 ViT 双向 MSA，文本塔因果 MSA；InfoNCE 对比，无 cross-attn。</p><p class="sc-meta">CLIP/index.md</p></div>
+        <div class="series-card"><h4>BLIP</h4><p class="sc-line">ViT 双向 + 文本塔可切换：ITC 双向，ITM/ITG 走图像引导 cross-attn（is_decoder=True）。Q-Former 属 BLIP-2，不在原版。</p><p class="sc-meta">BLIP/index.md</p></div>
+        <div class="series-card"><h4>SigLIP</h4><p class="sc-line">双塔双向 MSA，sigmoid 损失替代 softmax 对比，MHA pooling head 而非 CLS。</p><p class="sc-meta">Siglip/index.md</p></div>
+        <div class="series-card"><h4>YOLOS</h4><p class="sc-line">纯 encoder 双向 MSA：patch token + 100 个 detection token 同序列全局交互，无 decoder、无 cross-attn。</p><p class="sc-meta">YOLOS/index.md</p></div>
+      </div>
+
+      <h3>1.2 谁用什么注意力（矩阵）</h3>
+      <p>● 主力 / 当前采用，○ 历史版本或局部层采用，— 未使用。行是系列，列是机制。</p>
+      <div class="matrix-wrap">
+      <table class="matrix">
+        <colgroup>
+          <col style="width:108px">
+          <col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:52px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px"><col style="width:46px">
+        </colgroup>
+        <thead><tr>
+          <th>系列</th><th>MHA</th><th>MQA</th><th>GQA</th><th>SWA</th><th>MLA</th><th>DSA</th><th>NSA</th><th>CSA/HCA</th><th>MSA</th><th>QSA</th><th>线性</th><th>MoBA</th><th>双向</th><th>交叉</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Qwen</td><td class="m-part">○</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-part">○</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td></tr>
+          <tr><td>DeepSeek</td><td class="m-part">○</td><td class="m-none">—</td><td class="m-part">○</td><td class="m-part">○</td><td class="m-main">●</td><td class="m-main">●</td><td class="m-part">○</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td></tr>
+          <tr><td>GLM</td><td class="m-part">○</td><td class="m-part">○</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-part">○</td><td class="m-none">—</td></tr>
+          <tr><td>Kimi</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-part">○</td><td class="m-none">—</td><td class="m-none">—</td></tr>
+          <tr><td>MiniMax</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td></tr>
+          <tr><td>Gemma</td><td class="m-part">○</td><td class="m-part">○</td><td class="m-main">●</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td></tr>
+          <tr><td>InternVL</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td></tr>
+          <tr><td>CLIP</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td></tr>
+          <tr><td>BLIP</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-main">●</td></tr>
+          <tr><td>SigLIP</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td></tr>
+          <tr><td>YOLOS</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-none">—</td><td class="m-main">●</td><td class="m-none">—</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="cmp-note">注 ① Qwen 的 QSA 指 Qwen3.8-Flash-Next（2026-08）的 micro-block 索引器。② Kimi 的 MoBA 列仅指 2025-02 的服务端部署论文 arXiv:2502.13189，不是 K2 / K2.5 / K2.6 / K2.7 开源权重的架构。③ DeepSeek 的 NSA 列仅指 2025-02 的论文方案 arXiv:2502.11089，V3.2 权重实际用的是 DSA。④ GLM 的「双向自注意力」仅指 GLM-130B（2022），其后全为因果。</p>
+
+      <h3>1.3 三条主线速读</h3>
+      <h4>主线一 · 压缩 KV：MHA → MQA → GQA → MLA → CSA/HCA</h4>
+      <p>最早的省 KV 思路是「头数砍共享」：MQA（所有 Q 头共享 1 个 KV 头）由 Google 在 2019 年提出<sup class="src">[9]</sup>，ChatGLM2（2023-06）是开源大模型里最早的 MQA 落地；GQA 把共享粒度放宽到每组 8–16 个 Q 头，Qwen2（2024-06）把它下放到 0.5B 小模型，Gemma 2（2024-06）、GLM-4（2024-01）同期跟进。DeepSeek-V2（2024-05）把 KV 压成低秩潜变量（MLA），576 维/token 比 MHA 省 93.3%<sup class="src">[2]</sup>，Kimi K2（2025-07）与 GLM-5（2026-02）直接沿用。DeepSeek-V4（2026-04）再沿序列维压缩 KV（CSA/HCA），V4.1（2026-09）跨层复用 + FP4 把常驻 KV 压到 890 字节/token。</p>
+      <h4>主线二 · 稀疏化：SWA → NSA/DSA → MSA/QSA</h4>
+      <p>Gemma 2（2024-06）用「滑窗 4096 / 全局 8192 逐层 1:1 交替」把局部注意力做成标准层；Gemma 3（2025-03）把比例压到 5:1、窗口缩到 512/1024。DeepSeek-V3.2（2025-09）引入独立 Lightning Indexer，逐 query 选 top-2048 token（DSA）<sup class="src">[4]</sup>；MiniMax-M3（2026-06）把 KV 切成 128-token 块、按 GQA 组独立选 top-16 块（MSA）<sup class="src">[13]</sup>；Qwen3.8-Flash-Next（2026-08）用 micro-block 索引器（QSA）。注意 NSA（块级、复用主表示）与 DSA（token 级、独立 indexer）是两篇不同论文，NSA 未用于任何已发布权重。</p>
+      <h4>主线三 · 线性化：Lightning → GDN → KDA</h4>
+      <p>MiniMax-Text-01（2025-01）最早把 Lightning 块递归线性注意力与全注意力按 7:1 混排<sup class="src">[11]</sup>；Qwen3-Next（2025-09）首次把 Gated DeltaNet 线性层与 Gated Attention 按 3:1 混排，Qwen3.5（2026-02）把这套混合沿用到主系列；Kimi K3（2026-07）用 KDA（delta-rule + 通道级遗忘门）承担 69/93 层，配 24 层 Gated MLA 做周期召回，并把位置编码换成 NoPE 直接外推 1M<sup class="src">[10]</sup>；GLM-5.3-Flash（2026-08）跟进为 34 KDA + 11 DSA 每 4 层交错。Qwen3.5、K3、GLM-5.3-Flash 三者在 2026 年独立收敛到「线性层做主力 + 周期全/稀疏层做召回 + NoPE 外推」。</p>
+
+      <h3>1.4 两张图：上下文长度与每 token KV 等效维度</h3>
+      <div class="chart" id="chart-ctx" style="height:500px"><div class="chart-fallback">图表库未加载，数据见下方表格。</div></div>
+      <p class="chart-note">图 1 · 代表性模型上下文长度（原生值；扩展能力见图注）<sup class="src">[10]</sup> · Qwen3-Next 可扩 1M；Qwen3.5/3.8 经 YaRN 外推约 1M；Kimi K2 系为 YaRN 外推 262K。</p>
+      <div class="chart" id="chart-kv"><div class="chart-fallback">图表库未加载，数据见下方表格。</div></div>
+      <p class="chart-note">图 2 · 每 token KV 缓存等效维度（越低越省；MLA/GQA 为等效维数，V4.1 进一步以 FP4 压到 890 字节/token）</p>
+    </section>
+
+    <section id="timeline">
+      <h2>2 模型版本 × 注意力更替时间线</h2>
+      <p class="section-lead">这不是论文时间线，而是「哪个模型版本真的换了什么注意力」。按发布时间正序。</p>
+      <div class="timeline">
+        <div class="tl-item"><div class="tl-year">2022-08</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">GLM-130B：双向 GLM 填充式 + MHA 96/96<span class="tag u">已查证</span></div><div class="tl-body">家族起点：双向注意力 + span 自回归填充，非纯因果；head_dim 128、70 层、hidden 12288。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2023-03</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">ChatGLM-6B：prefix-LM 双支路 + 2D-RoPE（MHA 32/32）<span class="tag u">已查证</span></div><div class="tl-body">上下文双向 + 生成支路因果；2D-RoPE 同时编码序列位置与 span 内相对位置。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2023-06</div><div class="tl-axis"><span class="tl-dot teal"></span></div><div class="tl-card"><div class="tl-head">ChatGLM2-6B：MHA → MQA 32Q/2KV<span class="tag u">已查证</span></div><div class="tl-body">KV cache 压到 1/16；2D-RoPE 回归 1D-RoPE；Post-LN RMSNorm；上下文 config 给到 32K。ChatGLM3 与之逐字段一致（仅 seq_length 8192）。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2023-09</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">Qwen1：纯 MHA + LogN/动态 NTK<span class="tag u">已查证</span></div><div class="tl-body">融合 c_attn 投影（d→3d 三等分）；LogN 注意力缩放 + 动态 NTK 硬撑长上下文；训练 2K/8K，推理外推 32K。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2024-01</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">GLM-4-9B：MQA → GQA 32Q/2KV + partial RoPE 0.5<span class="tag u">已查证</span></div><div class="tl-body">128 维 head_dim 只旋转前 64 维；4×RMSNorm（pre+post 双残差）；32B-0414 扩到 48Q/2KV。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2024-02</div><div class="tl-axis"><span class="tl-dot amber"></span></div><div class="tl-card"><div class="tl-head">Gemma 1：2B=MQA / 7B=MHA（同代两套）<span class="tag u">已查证</span></div><div class="tl-body">纠正「全系 MQA」误传：2B 是 8Q/1KV，7B 是完整 MHA 16/16；head_dim 256、θ=1e4、8K、无滑窗/softcap/QK-Norm。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2024-05</div><div class="tl-axis"><span class="tl-dot rose"></span></div><div class="tl-card"><div class="tl-head">DeepSeek-V2：MLA 首秀，KV 576 维/token<span class="tag u">已查证</span></div><div class="tl-body">kv_lora 512 + q_lora 1536；RoPE 只在 64 维旋转段；论文口径 KV cache 较 MHA -93.3%、训练省 42.5%、吞吐 5.76×。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2024-06</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">Qwen2：GQA 下放全系最小 0.5B 14Q/2KV<span class="tag u">已查证</span></div><div class="tl-body">引入 sliding_window + max_window_layers 字段但 use_sliding_window=false（机制在、未启用）；首个 MoE 57B-A14B。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2024-06</div><div class="tl-axis"><span class="tl-dot amber"></span></div><div class="tl-card"><div class="tl-head">Gemma 2：GQA groups=2 + 1:1 滑窗(4096)/全局(8192) + softcap<span class="tag u">已查证</span></div><div class="tl-body">奇数层 sliding、偶数层 full；attn softcap 50 / final softcap 30；query_pre_attn_scalar 与 head_dim 解耦。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2024-12</div><div class="tl-axis"><span class="tl-dot rose"></span></div><div class="tl-card"><div class="tl-head">DeepSeek-V3：MLA 维度冻结（512/1536）+ aux-loss-free 路由<span class="tag u">已查证</span></div><div class="tl-body">MLA 不是 V3 新引入，V2 已确立；V3 的变化在路由：sigmoid + e_score_correction_bias + noaux_tc，256 专家 top-8、共享 1。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2025-01</div><div class="tl-axis"><span class="tl-dot teal"></span></div><div class="tl-card"><div class="tl-head">MiniMax-Text-01：Lightning 线性 : 全注意力 = 7:1<span class="tag u">已查证</span></div><div class="tl-body">80 层：70 层块递归线性（block 256）+ 10 层全 GQA（落在索引 7,15,…,79）；64Q/8KV、θ=1e7、1M 训练/4M 外推。论文 arXiv:2501.08313。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2025-03</div><div class="tl-axis"><span class="tl-dot amber"></span></div><div class="tl-card"><div class="tl-head">Gemma 3：5:1 交错 + QK-Norm 取代 softcap + 双频 RoPE<span class="tag u">已查证</span></div><div class="tl-body">每 6 层第 6 层 full；full θ=1e6 / sliding θ=1e4；窗 512（270M/1B）/1024（4B/12B/27B）；linear RoPE ×8 到 128K。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2025-05</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">Qwen3：回归全注意力 + QK-Norm + head_dim 显式 128<span class="tag u">已查证</span></div><div class="tl-body">基座 40K 全注意力（sliding_window=null）；逐头 Q/K RMSNorm（RoPE 前）。2025-07 的 Qwen3-2507（262K）才全注意力层与 SWA 窗 2048 交错——两种口径都成立。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2025-07</div><div class="tl-axis"><span class="tl-dot rose"></span></div><div class="tl-card"><div class="tl-head">GLM-4.5 / Kimi K2：GQA 96Q/8KV+QK-Norm ／ MLA 1.04T-A32B<span class="tag u">已查证</span></div><div class="tl-body">GLM-4.5 是 Dense→MoE、GQA+QK-Norm（不是 GDN/线性混合）；K2 明确是 MLA（kv 512 + q_lora 1536），不是 MoBA。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2025-09</div><div class="tl-axis"><span class="tl-dot teal"></span></div><div class="tl-card"><div class="tl-head">Qwen3-Next / DeepSeek-V3.2：GDN 3:1 首秀 ／ DSA<span class="tag u">已查证</span></div><div class="tl-body">Qwen3-Next 80B-A3B：48 层 Gated DeltaNet + Gated Attention 3:1；V3.2-Exp：独立 Lightning Indexer 64×128，逐 query 选 top-2048 token。NSA≠DSA。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2025-10</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">MiniMax-M2：弃线性，62 层全 GQA 48Q/8KV + QK-RMSNorm<span class="tag u">已查证</span></div><div class="tl-body">路线反转：从 7:1 Lightning 回到全 Softmax GQA；θ=5e6、192K/204K、256 专家 top-8、A9.8B。M2.1/M2.5/M2.7 同 config。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-01</div><div class="tl-axis"><span class="tl-dot"></span></div><div class="tl-card"><div class="tl-head">Kimi K2.5：MLA 文本塔 + MoonViT-3D 视觉塔<span class="tag u">已查证</span></div><div class="tl-body">文本塔与 K2 逐字段一致（仍 MLA，不是 MoBA）；视觉塔 27 层/1152/16 头/双向/轴向 2D-RoPE，SigLIP 初始化；NaViT patch packing。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-02</div><div class="tl-axis"><span class="tl-dot rose"></span></div><div class="tl-card"><div class="tl-head">Qwen3.5 / GLM-5：GDN 进主系列 ／ MLA+DSA 744B-A40B<span class="tag u">已查证</span></div><div class="tl-body">Qwen3.5 把 GDN 3:1 混合产品化到 0.8B–397B；GLM-5 在 MLA 之上叠 DSA（indexer 32×128、top-k=2048），78 层、hidden 6144、202752 上下文。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-04</div><div class="tl-axis"><span class="tl-dot amber"></span></div><div class="tl-card"><div class="tl-head">Gemma 4：per-layer head_dim（256/512）+ K=V 绑定 + 26B-A4B MoE<span class="tag u">已查证</span></div><div class="tl-body">sliding 层 head_dim=256、full 层 global_head_dim=512；12B/26B/31B full 层 attention_k_eq_v=true（v_proj=None）；26B 真 MoE 128 专家 top-8 与 dense MLP 并行相加。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-06</div><div class="tl-axis"><span class="tl-dot teal"></span></div><div class="tl-card"><div class="tl-head">MiniMax-M3：MSA 块稀疏（128-token 块、top-16）<span class="tag u">已查证</span></div><div class="tl-body">Index 4 头×128 给每个 GQA 组独立打分选块；Main 分支精算；60 层、64Q/4KV、1M；论文口径算力 -28.4×、prefill 14.2×、decode 7.6×。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-07</div><div class="tl-axis"><span class="tl-dot rose"></span></div><div class="tl-card"><div class="tl-head">Kimi K3：69 KDA + 24 Gated MLA、NoPE 直出 1M<span class="tag u">已查证</span></div><div class="tl-body">2.78T/104.2B；93 层；KDA 是 delta-rule + 通道级遗忘门；Gated MLA 保留 kv 512/q 1536 但 NoPE；AttnRes 伪查询跨层；Stable LatentMoE 896+2 top-16。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-08</div><div class="tl-axis"><span class="tl-dot teal"></span></div><div class="tl-card"><div class="tl-head">GLM-5.3-Flash / Qwen3.8-Flash-Next：KDA+DSA 混合 ／ QSA<span class="tag v">一方称/未公开</span></div><div class="tl-body">GLM-5.3-Flash：34 KDA + 11 DSA（每 4 层 1 DSA）+ 文本 NoPE；Qwen3.8-Flash-Next：GA → QSA micro-block 索引器 + Gated Residual 4 分支，125B/6B。</div></div></div>
+        <div class="tl-item"><div class="tl-year">2026-09</div><div class="tl-axis"><span class="tl-dot rose"></span></div><div class="tl-card"><div class="tl-head">DeepSeek-V4.1-Flash：纯 CSA2 + FP4 KV，890 字节/token<span class="tag u">已查证</span></div><div class="tl-body">kv_source_layer_ids=[2,8,14,20] 跨层复用；MQA 64/1、head_dim 512；Engram ~196B 条件记忆；CED 非对称（552B 主干，prefill 8B/decode 16B）。</div></div></div>
+      </div>
+    </section>
+
+    <section id="qwen">
+      <h2>3.1 Qwen</h2>
+      <p>Qwen 家族在注意力演进上的角色是「<strong>标准 Transformer 系走完 GQA 全程，再转身做线性/全注意力混合</strong>」：Qwen1→Qwen3 三代把 MHA→GQA→全注意力回归（+QK-Norm）这条标准路线走满；Qwen3-Next（2025-09）首次实验 Gated DeltaNet 线性 + Gated Attention 3:1 混合，Qwen3.5（2026-02）把这套架构沿用到主系列并冻结图纸——3.5/3.6/3.8 三代 config 逐字段相同，换代只在训练工艺与推理行为；Qwen3.8-Flash-Next（2026-08）又在混合架构上把全注意力一路换成 QSA 稀疏索引。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen1</td><td>2023-09</td><td>1.8B–72B</td><td>纯 MHA，融合 c_attn，LogN + 动态 NTK</td><td>2K/8K 训，外推 32K</td><td>heads 16–64；无 kv_heads；kv_channels=128；rotary_pct=1.0；rope_theta=1e4（72B=1e6）；use_dynamic_ntk=true（72B=false）</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen1.5</td><td>2024-02</td><td>0.5B–72B</td><td>MHA 为主，32B 首次 GQA（40Q/8KV）；分立 q/k/v/o</td><td>全系 32768</td><td>kv_heads 16/16/32/40/<strong>8</strong>/64；head_dim 64/128；rope_theta=1e6；sliding_window=32768 但 use_sliding_window=false</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen2</td><td>2024-06</td><td>0.5B–72B + 57B-A14B MoE</td><td>GQA 全系（最小 0.5B 14Q/2KV）；引入 SWA 字段但未启用；首个 MoE</td><td>32768</td><td>heads 14/12/28/28/64；kv_heads 2/2/4/4/8；head_dim=hidden/heads；sliding_window 32768/131072/65536；use_sliding_window=false；MoE 64 experts top-8</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen2.5</td><td>2024-12</td><td>0.5B–72B</td><td>文本塔与 Qwen2 完全同构（GQA 全系延续）；2.5-VL 视觉窗 112</td><td>32768；VL 128K</td><td>GQA 14Q·2KV（0.5B）…64Q·8KV（72B）；max_window_layers 21/70；VL fullatt_block_indexes=[7,15,23,31]</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen3</td><td>2025-05</td><td>Dense 0.6B–32B + MoE 30B/235B</td><td>GQA 全系 + 逐头 Q/K RMSNorm（QK-Norm）+ head_dim 显式 128；回归全注意力</td><td>40960；VL 262144</td><td>heads 16–64；kv_heads Dense=8 / MoE=4；head_dim=128；sliding_window=null；rope_theta=1e6；MoE 128 experts top-8 无共享</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen3-Next</td><td>2025-09</td><td>80B-A3B</td><td>Gated DeltaNet 线性 + Gated Attention 3:1 混合（架构实验首秀）</td><td>256K，可扩 1M</td><td>48 层（12 组×4）；512 专家 top-10；Zero-Centered RMSNorm；MTP；QK-LayerNorm</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen3.5</td><td>2026-02</td><td>0.8B/9B/27B + 35B/122B/397B MoE</td><td>GDN 线性 + Gated Attention 3:1（GA 带输出门 swish）；partial_rotary 0.25</td><td>262144 → YaRN ~1M</td><td>27B：hidden 5120/64 层；GA 24Q·4KV·head256；GDN QK16·V48·head128、conv kernel 4；full_attention_interval=4；rope_theta=1e7；vocab 248320；MoE 256 top-8 + shared 512</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen3.6 / 3.8</td><td>2026-04 / 08</td><td>27B Dense + 35B/2.4T-A95B MoE</td><td>架构图纸与 3.5 逐字段相同（27B）；换代在 thinking 控制 + FP8</td><td>262144 → YaRN ~1M</td><td>27B 同 3.5；2.4T-A95B：hidden 8192/92 层（23×4）；GA 64Q·4KV·head256；GDN QK16·V<strong>128</strong>·head128；MoE 512 top-10 + shared</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen3.8-Flash-Next</td><td>2026-08-26</td><td>125B 总参 / 6B 激活 + 51B n-gram embedding</td><td>GDN + QSA（micro-block 索引器）+ Gated Residual 4 分支</td><td>超长上下文</td><td>GDN 3/4 层 + QSA 1/4 层；论文 arXiv:2608.30320</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Qwen3-Max</td><td>2025-09/10</td><td>&gt;1T（闭源）</td><td>闭源，架构细节未公开</td><td>262K</td><td>未公开（官方称遵循 Qwen3 设计范式 + global-batch load balancing）</td><td><span class="tag v">未公开</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 1</span>Qwen1 → Qwen1.5：融合 c_attn → 分立投影；32B 首次 GQA；动态 NTK → 静态 θ=1e6</h3>
+      <p>Qwen1 的融合 QKV 投影 <code>c_attn: Linear(hidden, 3·kv_channels·num_heads)</code> 沿特征维三等分，Qwen1.5 换成分立 q/k/v_proj（带 bias）+ o_proj（无 bias）。GQA 把多个 Q 头共享同一对 K/V 头，运行时 <code>repeat_kv</code> 把 K/V 从 KV 头复制到 Q 头数再做缩放点积注意力。Qwen1 靠 remote code + 动态 NTK/LogN 硬撑长上下文工程上不可持续，Qwen1.5 整体换血到原生 qwen2 模板，32K 原生窗口直接获得。</p>
+      <div class="kv">num_key_value_heads=8（仅 32B；其余尺寸=Q 头数） · rope_theta=1e6 · sliding_window=32768 但 use_sliding_window=false（遗留字段）</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 2</span>Qwen1.5 → Qwen2：GQA 下放到全系最小尺寸；引入 SWA 字段；首个 MoE</h3>
+      <p>GQA 从仅 32B 下放到全系——最小 0.5B 即 14Q·2KV（7:1），72B 64Q·8KV（8:1）。SWA 层按 <code>layer_types</code> 分层：当层索引 <code>i &gt;= max_window_layers</code> 时为 sliding_attention，否则 full_attention；但 config 里 <code>use_sliding_window=false</code>，<code>__post_init__</code> 把 <code>sliding_window</code> 置 None，机制保留在源码供开关使用。</p>
+      <div class="kv">0.5B num_key_value_heads=2 · sliding_window=32768（小）/131072（大）· MoE 57B-A14B：num_experts=64, num_experts_per_tok=8</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 3</span>Qwen2.5 → Qwen3：滑窗字段 → 全注意力回归；QK-Norm；head_dim 显式 128</h3>
+      <p>Qwen2/Qwen2.5 的 <code>sliding_window</code> 字段在 Qwen3 全部置 <code>null</code>，注意力回归全因果注意力；新增逐头 Q/K RMSNorm：</p>
+      <div class="fml">q = q_norm(W_q x)　k = k_norm(W_k x)　# 在 RoPE 之前，head_dim=128
+attn_scale = 128^-0.5（固定）</div>
+      <p>两种口径都成立：Qwen3 基座（max_position 40960）是 <code>sliding_window=null</code> 全注意力；2025-07 的 Qwen3-2507 长上下文版（262144）才全注意力层与 SWA 窗 2048 交错。</p>
+      <div class="kv">全部八档 sliding_window=null · head_dim=128（显式字段）· Dense kv_heads=8 · MoE kv_heads=4 · rope_theta=1e6</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 4</span>Qwen3 → Qwen3-Next / Qwen3.5：全注意力 → GDN 线性 + Gated Attention 3:1（家族最大分水岭）</h3>
+      <p>Qwen3 及之前全是标准 softmax 注意力；Qwen3-Next（2025-09）首次把 <strong>Gated DeltaNet 线性注意力（3/4 层）与 Gated Attention（1/4 层）按 3:1 交错</strong>，Qwen3.5（2026-02）把这套混合架构产品化到主系列。</p>
+      <div class="fml"># GDN（线性层，3/4）：训练 chunk 并行 / 解码单 token 递归
+h_t = A·h_{t-1} + (v_t ⊙ sigmoid(g_t))·(σ(q_t) k_tᵀ)
+y_t = h_t · σ(q_t)
+# 前置 causal conv1d（kernel=4）做局部归纳
+
+# Gated Attention（全注意力层，1/4）：带输出门的 GQA
+attn = softmax(Q Kᵀ / √d) V
+y  = attn * sigmoid(gate)   # attn_output_gate=swish
+# RoPE 只作用在 head_dim 256 的前 25%（partial_rotary_factor=0.25）</div>
+      <div class="kv">0.8B：24 层 layer_types=[L,L,L,F]×6
+27B：GA 24Q/4KV/head256 · GDN QK16/V48/head128 · linear_conv_kernel_dim=4
+full_attention_interval=4 · rope_theta=1e7 · vocab=248320（padded）</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 5</span>Qwen3.5 → 3.6 → 3.8：图纸冻结，行为换代</h3>
+      <p>三代 config 逐字段相同（27B 均为 64 层 / hidden 5120 / GA 24Q·4KV·head256 / GDN QK16·V48·head128 / vocab 248320 / 262144→YaRN 约 1M）。换代集中在：3.6 稳定化 + Thinking Preservation（可选保留历史思考块）；3.8 Flexible Thinking Control（思考可关 + reasoning_effort 三档）+ 首个官方 FP8 + 开放 2.4T-A95B。2.4T-A95B 的 GDN V 头数从 27B 的 48 升到 128，MoE 从 256 top-8 升到 512 top-10。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 6</span>Qwen3.8 → Qwen3.8-Flash-Next：GA → QSA 稀疏索引 + Gated Residual 4 分支</h3>
+      <p>Qwen3.5/3.6/3.8 的全注意力层是 Gated Attention（GQA 全 softmax）；Qwen3.8-Flash-Next 把全注意力一路换成 <strong>QSA（Qwen Sparse Attention）</strong>——用压缩轻量索引器在 micro-block 粒度选重要上下文，GDN 继续压历史。同时引入 <strong>Gated Residual（GR）</strong> 把残差流扩成 4 分支动态门控读写。QSA 类似 DeepSeek 的 Lightning Indexer，主注意力只在选中块上算。</p>
+      <div class="kv">GDN 3/4 层 + QSA 1/4 层 · 125B 总参 / 6B 激活 · 51B n-gram embedding 表 · arXiv:2608.30320</div>
+      </div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「八档全部 <code>sliding_window=null</code>、<code>use_sliding_window=false</code>——Qwen3 注意力从 Qwen2/Qwen2.5 的滑窗回到全注意力」+「head_dim 统一 128」。<span class="q-src">bayon-note/qwen3/index.md §1</span></div>
+      <div class="quote">「每 4 层 = 3×Gated DeltaNet（线性）+ 1×Gated Attention（全注意力）」+「线性注意力与全注意力头配置不同：Gated Attention 用 GQA，线性注意力用独立的 K/V 头，depthwise conv kernel 4」。<span class="q-src">bayon-note/qwen3_5/index.md §1.1</span></div>
+      <div class="quote">「核心结构配置三代完全一致，代际差异全部体现在：训练/后处理、推理行为控制（thinking）、量化与生态支持。换句话说：换代的不是图纸，而是工艺与用法。」<span class="q-src">bayon-note/Qwen-27B架构对比-3.5-3.6-3.8.md §一</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>Qwen3.8-6B-Flash：HF/ModelScope 仓库暂不可达（401/404），全部规格「待确认」，禁止编造。<span class="tag n">未核实</span></li>
+        <li>Qwen3.5-122B-A10B / 397B-A17B 的精确 hidden/层数：本地 config 未逐一拉取。<span class="tag v">未公开</span></li>
+        <li>Qwen3-Max（闭源）：架构细节未公开；仅知 &gt;1T 参数、36T token 预训练。<span class="tag v">未公开</span></li>
+        <li>Qwen3-Next 详细 config（hidden_size、GDN 头配置逐项）：笔记无独立目录，联网仅确认 48 层 3:1、512 专家选 10。<span class="tag v">未公开</span></li>
+        <li>Qwen3-2507 长上下文版 SWA 窗 2048 交错的 config 细节：笔记未逐字段核对。<span class="tag v">未公开</span></li>
+      </ul>
+    </section>
+
+    <section id="deepseek">
+      <h2>3.2 DeepSeek</h2>
+      <p>DeepSeek 家族在注意力演进上的角色是「<strong>低成本推理 + 稀疏化连续路线</strong>」：V1 是 LLaMA 式 Dense（67B 首引 GQA）；V2 首次提出 MLA 多头潜在注意力，确立家族骨架；V3/R1 沿用 MLA 维度冻结、把路由去辅助损失；V3.2 引入 DSA 逐 query 动态 top-k 稀疏注意力；V4 全面重构（MQA + DSA + HCA/CSA 混合 + mHC 超连接 + 1M）；V4.1 把 KV 存储压到极限（CSA2 跨层复用 + FP4，890 字节/token）。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>DeepSeek-LLM（V1）</td><td>2024-01</td><td>7B / 67B Dense</td><td>7B=MHA；67B=GQA 64Q/8KV（不是全系 MHA）</td><td>4096（无外推）</td><td>hidden 4096/8192；layers 30/95；heads 32/64；kv_heads 32（7B）/8（67B）；head_dim=128；rope_theta=1e4；vocab=102400</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V2</td><td>2024-05</td><td>236B / 21B MoE</td><td><strong>MLA 首秀</strong>：KV 低秩联合压缩 512，Q 低秩 1536；KV cache 仅 576 维/token</td><td>163840（YaRN ×40）</td><td>hidden=5120；layers=60；heads=128；kv_lora_rank=512；q_lora_rank=1536；qk_nope=128；qk_rope=64；v_head=128；160 experts top-6 + 2 shared</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V3 / R1</td><td>2024-12 / 2025-01</td><td>671B / ≈37B MoE</td><td>MLA 维度与 V2 完全一致；路由改 aux-loss-free；MTP×1</td><td>163840</td><td>hidden=7168；layers=61；kv_lora=512/q_lora=1536；256 experts top-8 + 1 shared；scoring_func=sigmoid；topk_method=noaux_tc；MTP×1</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V3.1</td><td>2025-08</td><td>≈V3</td><td>同 V3（仅量化加 scale_fmt=ue8m0）</td><td>163840</td><td>config 与 V3 逐字段一致</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V3.2-Exp</td><td>2025-09</td><td>671B / ≈37B MoE</td><td>MLA + <strong>DSA</strong>：独立 Lightning Indexer 逐 query 选 top-2048</td><td>163840</td><td>MLA 字段同 V3；新增 index_n_heads=64 / index_head_dim=128 / index_topk=2048；model_type deepseek_v32</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V4-Flash-Base（预览）</td><td>2026-04</td><td>4096 / 43 层</td><td>MQA 64Q/1KV head_dim=512 + DSA top-512 + 滑窗 128；mHC 超连接；Hash MoE</td><td>1M（YaRN ×16 + HCA/CSA）</td><td>heads=64/kv_heads=1；q_lora=o_lora=1024；index_topk=512；sliding_window=128；hc_mult=4/sinkhorn_iters=20；compress_ratios 4/128 交替</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V4（论文）</td><td>2026-04-24</td><td>V4-Pro 1.6T/49B；V4-Flash 284B/13B</td><td>CSA（先沿序列维压缩 KV 再 DSA）+ HCA（激进压缩但 dense）交错；mHC；Muon</td><td>1,048,576</td><td>32T token 预训练；1M 上下文仅需 V3.2 的 27% 单 token FLOPs、10% KV cache</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>V4.1-Flash</td><td>2026-09</td><td>552B MoE（CED）</td><td>纯 CSA2 跨层 KV 复用 + FP4 KV；全局 KV 压到 890 字节/token（V4-Flash 的 1/4）</td><td>1M</td><td>hidden=5120/layers=40；MQA 64/1/head512；kv_source_layer_ids=[2,8,14,20]；index_source_layer_ids=[2,8,14,20,24,28,32,36]；engram_layer_ids=[1,14] ~196B；MTP×3；expert_dtype=fp4</td><td><span class="tag u">已查证</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 1</span>V1（67B GQA）→ V2：MLA 多头潜在注意力（家族架构分水岭）</h3>
+      <p>V1 67B 用 GQA（64Q/8KV）；V2 换成 MLA——不直接投影出逐头 K/V，而是把 KV 压成低秩潜变量再缓存，解码时再扩回多头。</p>
+      <div class="fml"># Q 侧低秩分解
+x → q_a_proj(5120→1536) → q_a_layernorm → q_b_proj(1536 → 128 heads × (128+64))
+#   切出 qk_nope(128) 与 qk_rope(64)
+
+# KV 侧低秩压缩 + 位置分量分离
+x → kv_a_proj_with_mqa(5120 → 576)
+#   切出 512 维 kv_nope + 64 维 k_rot
+#   kv_nope → kv_a_layernorm → kv_b_proj(512 → 128 heads × (128+128)) 还原逐头 K-nope 与 V
+
+# KV cache = 512 + 64 = 576 维 / 层 / token（逐头扩展在 attn 前即时完成）
+# RoPE 只作用在 64 维旋转段，nope 分量不旋转</div>
+      <p>论文口径：KV cache 较标准 MHA 压缩 93.3%；训练成本较 67B 基线省 42.5%；最大生成吞吐 5.76×。</p>
+      <div class="kv">kv_lora_rank=512 · q_lora_rank=1536 · qk_nope_head_dim=128 · qk_rope_head_dim=64 · v_head_dim=128
+KV 缓存对照：标准 MHA 32768 → GQA 2048 → MLA 576 维</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 2</span>V2 → V3：MLA 维度冻结；路由去辅助损失</h3>
+      <p>MLA 维度完全冻结（kv_lora 512 / q_lora 1536 / nope 128 / rope 64 / v_head 128）——MLA 不是 V3 新引入。V3 的变化在路由：从 V2 的 <code>group_limited_greedy + aux_loss_alpha=0.001</code>，换成 aux-loss-free（sigmoid 打分 + <code>e_score_correction_bias</code> 修正 + 分组限选 <code>noaux_tc</code>）。256 专家分 8 组，组内 top2 求和 → 组级分 → topk_group=4 组选中 → 组内再选 top-8。R1 config 与 V3 逐字段一致，差异全在训练（冷启动 SFT + GRPO 类 RL）。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 3</span>V3 → V3.2：全注意力 → DSA 逐 query 动态稀疏</h3>
+      <p>V3 全注意力（MLA 在全历史上算）；V3.2 引入 <strong>DSA（DeepSeek Sparse Attention）</strong>——新增独立的 Lightning Indexer（64 头 / 每头 128 维），对每个 query 从历史里打分选出 top-2048 个 token，折叠成稀疏掩码后主 MLA 只在子集上算。Indexer 是与主 MLA 分离的轻量投影（自己的 wq_b / wk 投影），输入在训练时与主计算图 detach。注意力从 O(seq²) 降到每 query O(2048)。</p>
+      <div class="fml"># DSA ≠ NSA
+# NSA（arXiv:2502.11089，2025-02）：块级固定选择
+#   compression block（32-64 token 合并摘要）+ selection top-k blocks + sliding window
+#   复用主注意力表示打分；预训练时稀疏开
+# DSA（arXiv:2512.02556，2025-12）：token 级逐 query 动态选择
+#   独立 Lightning Indexer 对每个 query 选 top-2048
+#   indexer 与主图分离
+# NSA 是论文方案，未用于 V3.2 权重</div>
+      <div class="kv">index_n_heads=64 · index_head_dim=128 · index_topk=2048 · layer_types 默认全 61 层 indexed_attention
+model_type: deepseek_v3 → deepseek_v32</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 4</span>V3.2 → V4：MLA → MQA + DSA + HCA/CSA 混合；mHC；1M</h3>
+      <p>V3.2 的 MLA（KV 低秩压缩 576 维）换成 <strong>MQA（64Q/1KV，head_dim=512）+ DSA(top-512) + 滑窗 128</strong>；残差从标准 RMSNorm 换成 mHC（Manifold-Constrained Hyper-Connections）。</p>
+      <div class="fml"># CSA（Compressed Sparse Attention）
+#   先把 KV cache 沿序列维压缩（每 m 个 token 压成一条）
+#   再在压缩序列上做 DSA（Lightning Indexer 打分 top-k）
+#   加一路 Sliding Window KV，最后送进 Shared Key-Value MQA
+# HCA（Heavily Compressed Attention）：更激进压缩 KV cache，但保留 dense attention
+#   CSA 与 HCA 交错混合在不同层（compress_ratios 交替 4/128）
+# mHC：残差映射约束到双随机矩阵流形（Birkhoff polytope），谱范数 ≤1
+#   hc_mult=4 通道扩展 + Sinkhorn 20 迭代门控</div>
+      <div class="kv">num_key_value_heads=1（MQA）· head_dim=512 · index_topk=512 · sliding_window=128
+hc_mult=4 / hc_sinkhorn_iters=20 · max_position=1048576
+V4-Pro 1M 上下文仅需 V3.2 的 27% 单 token 推理 FLOPs、10% KV cache</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 5</span>V4 → V4.1-Flash：CSA+HCA 混合 → 纯 CSA2 跨层复用 + FP4 KV；CED 非对称</h3>
+      <p>V4 的 CSA+HCA 混合换成 <strong>纯 CSA2</strong>——引入跨层 KV 缓存复用（kv_source_layer_ids=[2,8,14,20] 四个源层的 KV 被下游层复用）+ FP4 主 KV 缓存。架构从标准因果 LM 换成 CED（Causal Encoder-Decoder）非对称：prefill 每 token 仅激活 8B，decode 激活 16B（552B 主干）。全局 KV 缓存（常驻 HBM）压到 890 字节/token ≈ V4-Flash 的 1/4（3,514→890）；SWA Bounded Replay 把常驻 KV（SSD/主机）压到 V4-Flash 的约 1/8。</p>
+      <div class="kv">kv_source_layer_ids=[2,8,14,20] · compress_ratios 逐层（前 2 层 0，3-20 层 2，21-37 层 1，末 3 层 0）
+expert_dtype=fp4 · hidden=5120 / layers=40 · n_routed_experts=384/top-6
+engram_layer_ids=[1,14] / engram_vocab=16M / ~196B · MTP×3 + DSpark</div>
+      </div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「每层只存 <code>kv_lora_rank(512) + qk_rope_head_dim(64) = 576</code> 维/token；官方论文口径 KV cache 较标准注意力压缩 93.3%（arXiv:2405.04434）。」<span class="q-src">bayon-note/deepseek_v2/index.md §4.1</span></div>
+      <div class="quote">「MLA 维度 V2→V3 保持一致（均为 Q/KV 双低秩），并非 V3 新引入。」<span class="q-src">bayon-note/deepseek_v3/index.md §7</span></div>
+      <div class="quote">「DeepseekV32Indexer……对每个查询从历史里打分选出 top-<code>index_topk=2048</code> 个 token……注意力从 O(seq²) 降到每查询 O(2048)。」<span class="q-src">bayon-note/deepseek_v3_2/index.md §4.1</span></div>
+      <div class="quote">「全局 KV 缓存（常驻 HBM）压到 <strong>890 字节/token ≈ V4-Flash 的 1/4</strong>……SWA Bounded Replay 把常驻 KV 缓存压到 V4-Flash 的约 1/8。」<span class="q-src">bayon-note/deepseek_v4_1/index.md §3.2</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>DeepSeek-V4 主仓（deepseek-ai/DeepSeek-V4）：笔记记录 2026-10-31 拉取 404；V4-Flash-Base（4096/43 层）与论文版 V4-Flash（284B/13B）的关系待确认。<span class="tag v">未公开</span></li>
+        <li>DeepSeek-V4.1-Pro：待发布；笔记记录 V4-Pro 自 2026-09-14 起按 V4.1-Flash 计费路由。<span class="tag v">未公开</span></li>
+        <li>V4.1-Flash-1017（2026-10-17 升级）config 细节未逐一核实。<span class="tag v">未公开</span></li>
+        <li>本地 transformers 尚无 deepseek_v41 模块（2026-11-03 核查，config 标注 5.6.0，本地为 5.21.0.dev0）。<span class="tag n">未核实</span></li>
+      </ul>
+    </section>
+
+    <section id="glm">
+      <h2>3.3 GLM（智谱）</h2>
+      <p>GLM 家族从 2022 年的双向 GLM-130B 出发，经 ChatGLM 对话化、GLM-4 定型 GQA-Dense、GLM-4.5 切 MoE+QK-Norm，到 2026-02 的 GLM-5 一步跨到 <strong>MLA + DSA 稀疏注意力</strong>，再到 5.3-Flash 的 <strong>KDA 线性 + DSA 混合</strong>——是一条「双向 → 因果、Dense → MoE、稠密 GQA → MLA 稀疏 / 线性混合」的路线。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>GLM-130B</td><td>2022-08</td><td>130B Dense</td><td>双向 GLM blank infilling（非纯因果）+ MHA 96/96</td><td>2048</td><td>Q/KV=96/96；head_dim 128；layers 70；hidden 12288</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>ChatGLM-6B</td><td>2023-03</td><td>6.2B Dense</td><td>prefix-LM 双支路 + 2D-RoPE + MHA 32/32</td><td>2048</td><td>Q/KV=32/32；head_dim 128；layers 28；hidden 4096</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>ChatGLM2/3-6B</td><td>2023-06 / 10</td><td>6B Dense</td><td>因果 1D-RoPE + <strong>MQA 32Q/2KV</strong>（KV 1/16）；Post-LN RMSNorm</td><td>32K（GLM2 config）/ 8K（GLM3 seq_length）</td><td>Q/KV=32/2；kv_channels=128；layers 28；hidden 4096；GLM3 仅 seq_length=8192</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-4-9B</td><td>2024-01</td><td>≈9B Dense</td><td><strong>GQA 32Q/2KV</strong> + partial rotary 0.5 + 4×RMSNorm（pre+post）</td><td>8K 基座 / 128K 推理</td><td>Q/KV=32/2；head_dim 128；rope_theta=1e4；layers 40；hidden 4096</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-4-32B-0414 / GLM-Z1</td><td>2025-04</td><td>≈32B Dense</td><td>同 GLM-4-9B（GQA 48Q/2KV），去掉 QKV bias；Z1 config 逐字段一致（差异在 CoT RL）</td><td>32768</td><td>Q/KV=48/2；head_dim 128；rope_theta=1e4；layers 61；hidden 6144</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-4V-9B</td><td>2024</td><td>Dense + ViT</td><td>文本塔复用 GLM-4-9B（GQA 32/2）；跨模态融合在共享文本解码器自注意力内（无独立融合层）</td><td>8K 文本塔</td><td>文本 Q/KV=32/2；视觉 ViT 63 层/hidden 1792/patch 14/16 头/8×8→100 token/tile</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-4.5 / 4.5-Air</td><td>2025-07</td><td>MoE 355B-A32B / 106B-A12B</td><td><strong>GQA 96Q/8KV + QK-Norm + partial RoPE 0.5 + θ=1e6</strong>（不是 GDN/线性混合）；2×RMSNorm 前置；MTP×1</td><td>131072</td><td>Q/KV=96/8；head_dim 128；rope_theta=1e6；layers 92；hidden 5120；160 experts top-8 + 1 shared；qk_norm=true</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-4.6 / 4.6V / 4.7 / 4.7-Flash</td><td>2025-09 ~ 2026-01</td><td>MoE 同 4.5 系</td><td>延续 GLM-4.5 的 GQA+QK-Norm 血统；4.6 上下文 200K；4.7/4.7-Flash 细节未公开</td><td>200K（4.6V 文本 200K + 视觉 128K）</td><td>4.6 与 4.5 逐项相同；4.7/4.7-Flash 层数/专家/词表未逐字段核验</td><td><span class="tag v">未公开</span></td></tr>
+          <tr><td>GLM-5</td><td>2026-02-12</td><td>MoE 744B-A40B</td><td><strong>MLA + DSA</strong>：KV 低秩 512，Q 低秩 2048；indexer 32×128 选 top-2048</td><td>202,752</td><td>MLA 64 头：q_lora=2048/kv_lora=512/qk_nope=192/v=256；DSA index_n_heads=32/index_head_dim=128/index_topk=2048；layers 78；hidden 6144；256 experts top-8 + 1 shared；vocab 154880</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-5.2</td><td>2026-06-16</td><td>同 GLM-5</td><td>同 MLA+DSA，新增 <strong>IndexShare</strong>（每 4 层共享 indexer）+ KVShare</td><td>1M</td><td>同 GLM-5；1M 上下文 per-token FLOPs 降 2.9×；MTP 接受长度 +20%</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>GLM-5.3-Flash</td><td>2026-08-25</td><td>MoE 320B-A18B + 原生多模态</td><td><strong>MLA + KDA 34 层 + DSA 11 层（每 4 层 1 DSA）混合</strong>；文本 NoPE（qk_rope_head_dim=0）；mHC；IndexPool</td><td>1M，最大输出 128K</td><td>MLA 64 头=64KV：q_lora=1536/kv_lora=512/v=256/qk_nope=256/qk_rope=0；DSA index_topk=2048/index_n_heads=32/index_kpool=16；layers 45（3 dense + 42 MoE）；hidden 4096；288 experts top-8 + 1 shared</td><td><span class="tag u">已查证</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 A</span>ChatGLM-6B → ChatGLM2/3：MHA 2D-RoPE → MQA 1D-RoPE</h3>
+      <p>MHA 32 头 + 2D-RoPE + LayerNorm 换成 MQA 32Q/2KV + 1D-RoPE（original_rope=true）+ RMSNorm Post-LN + SwiGLU。MQA 把所有 query 头共享同一组 KV 头（2 个），KV cache 显存直接压到 1/16。综述口径提速 ≈42%。ChatGLM2 与 ChatGLM3 架构超参逐字段完全一致，唯一 config 差异是 <code>seq_length</code>，GLM3 的升级在 function call / Agent 后训练，不在注意力。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 B</span>ChatGLM3 → GLM-4：MQA → GQA + partial rotary 0.5</h3>
+      <p>MQA 32Q/2KV 换成 GQA（9B：32Q/2KV，16:1；32B：48Q/2KV，24:1）；位置编码从全量 1D-RoPE 换成 partial rotary 0.5（128 维 head_dim 只旋转前 64 维，后 64 维不转）；归一化从 RMSNorm Post-LN 换成 4×RMSNorm（pre+post 双残差）。注意 GLM-4-9B 的 GQA 比例数字与 ChatGLM2/3 的 MQA 相同（都是 32/2），但语义上 MQA=所有头共享 2 个 KV，GQA=每组头共享 2 个 KV。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 C</span>GLM-4 → GLM-4.5：Dense GQA → MoE GQA + QK-Norm + MTP</h3>
+      <p>Dense GQA 换成 MoE + GQA 96Q/8KV + QK-Norm；归一化从 4×RMSNorm（pre+post）简化为 2×RMSNorm 前置；路由从无换成 sigmoid 路由 + norm_topk_prob + scaling 2.5（去 softmax）；新增 MTP。QK-Norm 对 Q/K 各自做 RMSNorm(head_dim)，稳定长上下文下注意力 logits 的范围。96 个注意力头是典型值的 2.5×（hidden 5120）——论文指出虽然不改善训练 loss，但一致提升 MMLU/BBH 等推理基准。</p>
+      <div class="quote" style="margin-top:10px">官方论文原文（arXiv:2508.06471 §2.1）：「In the self-attention component, we employ Grouped-Query Attention with partial RoPE. Furthermore, we utilize 2.5 times more attention heads (96 heads for a 5120 hidden dimension). Counterintuitively, while this increased head count does not improve training loss compared to models with fewer heads, it consistently improves performance on reasoning benchmarks such as MMLU and BBH. We also incorporate QK-Norm.」<span class="q-src">bayon-note/glm_4_5/index.md</span></div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 D</span>GLM-4.5 → GLM-5：GQA → MLA + DSA 稀疏注意力</h3>
+      <p>GQA 96/8 稠密注意力换成 MLA（多头潜在注意力）+ DSA（DeepSeek Sparse Attention）。</p>
+      <div class="fml"># MLA：KV 通过低秩投影压缩到 512 维潜向量再缓存（KV LoRA 512）
+#   Q 侧再压到 2048 维（Q LoRA）
+#   解码时再展开回 64 个头 ×（QK 192 + V 256）
+# DSA：在 MLA 之上加一个 indexer（32 头 × 128 维）
+#   先对每个 query 检索 top-k=2048 个最相关 KV 条目
+#   再只在这 2048 个条目上算稀疏注意力
+# 论文口径：90% 长上下文注意力条目冗余，长序列算力降 1.5–2×</div>
+      <div class="kv">MLA 64 头 · q_lora_rank=2048 · kv_lora_rank=512 · qk_nope_head_dim=192 · v_head_dim=256
+DSA index_n_heads=32 · index_head_dim=128 · index_topk=2048
+hidden 6144 · layers 78（3 dense + 75 MoE）· 256 experts top-8 + 1 shared · vocab 154880</div>
+      <div class="quote" style="margin-top:10px">「Compared with MLA, DSA introduces an additional indexer that retrieves the top-k most relevant key-value entries and computes attention sparsely over the retrieved subset. The retrieved top-k results are critical for RL stability.」<span class="q-src">arXiv:2602.15763 §2.1.1 / glm5.ai</span></div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 E</span>GLM-5 → GLM-5.2：IndexShare / KVShare 效率优化</h3>
+      <p>DSA 每层独立 indexer 换成 IndexShare（同一份 indexer 跨每 4 层稀疏注意力复用）+ KVShare。相邻层的 indexer 检索目标高度相似，跨 4 层共享一个 indexer 把 indexer 计算成本摊薄 4×。1M 上下文下 per-token FLOPs 降 2.9×；MTP 接受长度 +20%（消融 4.56→5.10→5.29→5.47）。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 F</span>GLM-5.2 → GLM-5.3-Flash：MLA+DSA → KDA 线性 + DSA 混合 + 文本 NoPE</h3>
+      <p>全 MLA+DSA 换成 MLA + KDA 线性注意力（34 层）+ DSA（11 层）混合，每 4 层交错（idx%4==3 为 DSA）；文本侧 NoPE（qk_rope_head_dim=0 强制）；mHC 流形约束超连接（hc_mult=4）。KDA（Kimi Delta Attention 风格的线性注意力，带 causal conv1d kernel=4 + forget gate + 门控 RMSNorm）承担大部分层的序列混合，状态递推固定大小；每 4 层插一层 DSA 稀疏注意力保留全局检索能力；IndexPool 把索引器 4 个缓存向量压成 1 个。相比 GLM-5.3 注意力算力 / KV cache 分别降 3.01× / 4.44×。</p>
+      </div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「GLM-4.5 是家族首个 MoE：sigmoid 路由（非 softmax）+ 共享专家 + top-8；归一化从 4×RMSNorm 双残差简化为 2×RMSNorm 前置；QK-Norm 稳定长上下文；MTP 提升训练密度与投机解码。」<span class="q-src">bayon-note/GLM-全家族版本对比与演进.md §2.6</span></div>
+      <div class="quote">「MLA（Q LoRA 2048 / KV LoRA 512 / 64 头 / QK dim 192 / V dim 256）+ DSA 稀疏注意力（indexer 32 头 × 128，top-k 2048；长序列算力降 1.5–2×；90% 长上下文注意力条目冗余）。」<span class="q-src">bayon-note/glm_5/index.md</span></div>
+      <div class="quote">「5.3-Flash 是 GLM-5 家族的轻量原生多模态分支：从 744B 砍到 320B、激活 18B，用 KDA 线性注意力（34 层）承担大部分层、DSA 稀疏注意力每 4 层插一层（11 层），叠加 mHC 超连接与 IndexPool 索引压缩，在 1M 上下文下把算力和 KV cache 同时压到 1/3–1/4。」<span class="q-src">bayon-note/GLM-全家族版本对比与演进.md §2.10</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>GLM-130B：无公开 HF 权重，config 细节仅来自论文附录 Table 11。<span class="tag v">未公开</span></li>
+        <li>GLM-4.6V / 4.7 / 4.7-Flash：config 细节（层数、专家数、词表）未从公开 config 逐字段核验。<span class="tag v">未公开</span></li>
+        <li>GLM-5 本体：本地 transformers 无对应模块（glm5_next 对应 5.3-Flash，不是 GLM-5 本体）；路由算法与归一化细节技术报告未展开。<span class="tag v">未公开</span></li>
+        <li>GLM-5 位置编码：技术报告未明确说明 GLM-5 本体用 RoPE 还是 NoPE（5.3-Flash 明确为文本 NoPE）。<span class="tag n">未核实</span></li>
+        <li>GLM-5.1：第三方论文 arXiv:2611.03768 记载 GLM-5/5.1/5.2 用 DSA；笔记未单独立目录，本调研未直接访问该论文。<span class="tag n">未核实</span></li>
+      </ul>
+    </section>
+
+    <section id="kimi">
+      <h2>3.4 Kimi（Moonshot）</h2>
+      <p>Kimi 家族从 Moonlight-16B-A3B（2025-02）确立 DeepSeek-V3 系 MLA-MoE 文本塔模板，K2 系（2025-07 起）在该模板上做 1T 级规模跃迁与模态扩展，直到 2026-07 的 <strong>K3 才完成第一次注意力范式换代</strong>——从全 MLA 换成 KDA 混合线性注意力 + 周期性 Gated MLA（NoPE）。早期「Moonshot-8B / 32B-A32B」经多通道核验为 404（不存在或已下架）。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Moonshot-8B / 32B-A32B</td><td>—（404）</td><td>不存在或已下架</td><td>未能核实（hf-mirror / ModelScope 多通道核验均 404，无 config 留痕）</td><td>—</td><td>不臆造任何数字；最接近的真实锚点是 Moonlight-16B-A3B</td><td><span class="tag n">未核实</span></td></tr>
+          <tr><td>Moonlight-16B-A3B</td><td>2025-02/03</td><td>MoE 16B-A3B</td><td>MLA（DeepSeek-V3 式），kv_lora 512，无 q_lora</td><td>8192</td><td>Q/KV=16/16；qk_nope 128/qk_rope 64/v 128；rope_theta=50000；layers 27；hidden 2048；64 routed + 2 shared top-6</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Kimi-K2-Base</td><td>2025-07-11</td><td>MoE 1.04T-A32B</td><td><strong>MLA</strong>：kv_lora 512 + 新增 q_lora 1536；论文明确 follows DeepSeek-V3 MLA 设计</td><td>131072</td><td>Q/KV=64/64；qk_nope 128/qk_rope 64/v 128；q_lora=1536/kv_lora=512；rope_theta=50000；layers 61；hidden 7168；384 routed + 1 shared top-8</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>K2-0905 / K2-Thinking</td><td>2025-09</td><td>同 Base</td><td>文本塔与 Base 同架构（MLA）；0905 经 YaRN ×64 扩到 262144；Thinking INT4 长 CoT</td><td>262144（YaRN factor=64）</td><td>同 Base；rope_scaling YaRN factor 64/original_max 4096/beta_fast=32（Thinking beta_fast=1.0）；唯一 config 差异 eos_token_id=163586</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>K2.5（含 VL）</td><td>2026-01-27</td><td>同 K2 + 视觉塔</td><td>文本塔 = K2 MLA；视觉塔 MoonViT-3D（27 层/1152/16 头/双向/轴向 2D-RoPE，SigLIP 初始化）；NaViT</td><td>262144</td><td>文本同 K2；视觉 16 头/hidden 1152/27 层；INT4（注意力/共享专家/dense lm_head/视觉塔免量化）</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>K2.6</td><td>2026-04-20</td><td>同 K2.5</td><td>文本塔 = K2.5 MLA；config diff 唯一为 eos=163586；通用多模态</td><td>262144</td><td>同 K2.5（7168/61/MLA kv 512+q 1536/384+1 top-8/YaRN 262144/MoonViT-3D/INT4）</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>K2.7-Code</td><td>2026-06-12</td><td>同 K2.6</td><td>文本塔 = K2.6 MLA；preserve_thinking 强制思维链；FP8 + 原生 INT4（QAT）</td><td>262144</td><td>同 K2.6；笔记原文明确：不是线性注意力（KDA 属 Kimi-Linear/K3 家族，本模型未引入）</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Kimi-K3</td><td>2026-07</td><td>MoE 2.78T/104.2B</td><td><strong>69 KDA + 24 Gated MLA（NoPE），3:1 + 末端一层全局</strong>；AttnRes（伪查询跨层，block 12）；Stable LatentMoE；NoPE 直接外推 1M</td><td>1M（NoPE）</td><td>Q/KV=96/96（KDA 头亦 96，head_dim 128）；Gated MLA 保留 kv 512/q 1536 但 NoPE；layers 93；hidden 7168；896 routed + 2 shared top-16（latent 3584）；词表 163840；权重 MXFP4/激活 MXFP8</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>K3.1-Pro</td><td>2026-10-24（官网展示）</td><td>3 万亿参数级（官网口径）</td><td>未能核实：无官方 HF 仓库、无 config、无技术报告；是否继承 K3 的 KDA/AttnRes/Stable LatentMoE 待确认</td><td>1M（官网口径）</td><td>全部待确认</td><td><span class="tag n">未核实</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 A</span>Moonlight-16B-A3B → Kimi-K2：MLA 加 q 侧低秩 + 规模跃迁</h3>
+      <p>MLA（kv_lora 512，无 q_lora）换成 MLA + q 侧低秩压缩（q_lora 1536）。在 DeepSeek-V3 式 KV 低秩压缩（kv_a_proj_with_mqa → 512 维潜向量缓存）基础上，新增 q_a_proj(7168→1536) → RMSNorm → q_b_proj 的 q 侧低秩瓶颈，进一步压计算；KV cache 仍只存 512 维潜向量 + 64 维 rope 段，解码时 kv_b_proj 展开。动机：固定激活参数量下扩大路由专家总数（64→384，稀疏度 48）可降低 loss。</p>
+      <div class="quote" style="margin-top:8px">「employing Multi-head Latent Attention (MLA) as the attention mechanism, with a model hidden dimension of 7168」——K2 技术报告 §2.3 原文，<strong>不是 MoBA</strong>。<span class="q-src">arXiv:2507.20534 §2.3</span></div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 B</span>K2-Base → K2-0905 / Thinking / K2.5 / K2.6 / K2.7-Code：同 MLA 文本塔，仅工程/模态/发布换新</h3>
+      <p>这一系列全部沿用 K2-Base 的 MLA（64/64、kv_lora 512、q_lora 1536、qk_nope 128/qk_rope 64/v 128、rope_theta 50000），无任何线性注意力 / MoBA / 滑窗引入。</p>
+      <div class="fml"># MoBA 问题三方核验结论
+# MoBA 论文（arXiv:2502.13189，2025-02）是 Moonshot 研究院 block-sparse 注意力工作
+#   论文摘要称 "MoBA has already been deployed to support Kimi's long-context requests"
+#   这是服务端长上下文推理部署，不等于开源 K2 权重的架构
+# K2 技术报告（arXiv:2507.20534 §2.3）：employing Multi-head Latent Attention (MLA)
+# K2.5 DeepWiki：Kimi K2.5 uses Multi-head Latent Attention as its attention mechanism
+# K2.6 / K2.7-Code 官方模型卡：same architecture as Kimi-K2.5 / K2.5/K2.6
+# 结论：K2 / K2-0905 / Thinking / K2.5 / K2.6 / K2.7-Code 全部用 MLA，不是 MoBA，也不是 KDA</div>
+      <p>各版本差异：K2-0905 YaRN factor=64 把上下文从 131072 扩到 262144，权重 fp8 e4m3；K2-Thinking config 与 0905 逐字段一致，仅 eos=163586、YaRN beta_fast=1.0，差异在长 CoT SFT + RL；K2.5 加 MoonViT-3D 视觉塔（双向全注意力、轴向 2D-RoPE、SigLIP-SO-400M 初始化）+ PatchMerger，early-fusion 联合预训练约 15T；K2.6 config diff 唯一为 eos=163586；K2.7-Code config 与 K2.6 几乎零差异，差异在 preserve_thinking、Modified MIT、FP8+INT4 QAT。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 C</span>K2.7-Code → Kimi-K3：全 MLA → KDA 混合线性 + 周期性 Gated MLA（NoPE）</h3>
+      <p>全 MLA（64 头，kv 512 + q 1536，RoPE + YaRN 外推 262K）换成混合注意力：69 KDA + 24 Gated MLA（3:1）+ NoPE，直接外推 1M。</p>
+      <div class="fml"># KDA（Kimi Delta Attention）：delta-rule 递推 + 通道级遗忘门
+#   q/k/v 投影 ShortConv → Swish → L2Norm
+#   分块并行（chunk 间递推、chunk 内 UT 变换）
+#   全秩输出门；K3 版加 lower-bounded decay（scaled sigmoid 替代负 Softplus）
+#   KV cache 从 O(n·d) 降为固定大小递归状态
+
+# Gated MLA：保留 K2 系 MLA 低秩压缩（kv 512 / q 1536）
+#   但全部加 NoPE（位置由 KDA 循环门控隐式编码，不再用 RoPE）
+#   加通道级全秩输出门逐 token 调制全局读出
+#   每 4 层插一层（24 层）保留全局交互能力
+
+# AttnRes（Attention Residuals）：伪查询 w 对 embedding + 各 block 输出加权检索
+#   block 12，替代标准残差累加</div>
+      <div class="quote" style="margin-top:8px">「We introduce Kimi K3, a 2.8T parameter Mixture-of-Experts model with 104 billion activated parameters, native vision capabilities, and a 1-million-token context window. Kimi K3 is built on Kimi Delta Attention and Attention Residuals, which improve information flow across sequence length and model depth. Together with Stable LatentMoE, which effectively activates 16 of 896 routed experts per token ... these advances yield an approximately 2.5× improvement in overall scaling efficiency over Kimi K2.」<span class="q-src">arXiv:2607.24653 摘要</span></div>
+      <div class="kv">layers 93（1 dense + 69 KDA + 24 Gated MLA）· Q/KV=96/96 · 无 rope_theta（NoPE）
+Stable LatentMoE：896 routed + 2 shared top-16（latent 3584，稀疏度 56）
+dense_inter 33792 / moe_inter 3072（latent）· SiTU-GLU β₁=4/β₂=25
+权重 MXFP4 / 激活 MXFP8（QAT，无 BF16 发布）</div>
+      </div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「文本塔注意力为 MLA（无滑窗、全因果、Q/KV 均 64 头）：q_a_proj(7168→1536) → RMSNorm → q_b_proj(1536→64×(128+64))；kv_a_proj_with_mqa(7168→512+64) 拆出 512 维潜向量 + 64 维 RoPE 段，缓存只存潜向量，解码时 kv_b_proj(512→64×(128+128)) 展开；RoPE 只加在 64 维 rope 部分；YaRN mscale 修正。不是线性注意力（KDA 属 Kimi-Linear/K3 家族，本模型未引入）。」<span class="q-src">bayon-note/kimi_k2_7_code/index.md 注意力小节</span></div>
+      <div class="quote">「K3 在 K2 的 MLA 模板上做 1T 级规模跃迁，直到 K3 才完成第一次注意力范式换代：从全 MLA 换成 KDA 混合线性注意力 + 周期性 Gated MLA（NoPE）。」<span class="q-src">bayon-note/Kimi-全家族版本对比与演进.md §2.7</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>Moonshot-8B / Moonshot-32B-A32B：经 hf-mirror 组织列表 19 个仓库、全文搜索、ModelScope 直连均 404；Wayback 不可达；是否 MHA/GQA、参数量、上下文——全部未能核实，不臆造数字。<span class="tag n">未核实</span></li>
+        <li>Kimi-K3.1-Pro：仅 moonshot.ai 首页一句定位（3 万亿参数级、1M 上下文、长程 coding / 3D 创作 / 金融研究 / 复杂 agent）；无官方 HF 仓库、无 config、无技术报告。<span class="tag n">未核实</span></li>
+        <li>K2.8 Preview（2026-09-11）：HF 无官方权重仓库，搜索 0 命中，不臆造配置。<span class="tag n">未核实</span></li>
+        <li>Kimi-Linear-48B-A3B：KDA 混合线性注意力前身小模型，本地 models/kimi_linear/ 有等价实现，但笔记未展开其独立 config 细节。<span class="tag v">未公开</span></li>
+        <li>K2.5 论文 arXiv:2602.02276：笔记引用但本调研未直接精读；其视觉塔细节以 config 与笔记为准。<span class="tag v">未公开</span></li>
+      </ul>
+    </section>
+
+    <section id="minimax">
+      <h2>3.5 MiniMax</h2>
+      <p>MiniMax 家族是 2025–2026 年间<strong>注意力机制路线切换最频繁、实验最激进</strong>的开源 MoE 系列：从 Lightning 块递归线性注意力（7:1 混合）→ 全 Softmax GQA → MSA 块稀疏索引，三代注意力路线在不到两年内全部落地为开源权重模型，每一次切换都对应一次上下文窗口与激活参数的重新权衡。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Text-01 / VL-01</td><td>2025-01</td><td>456B / ≈45.9B 激活，MoE 32 top-2</td><td><strong>Lightning 线性 : 全注意力 = 7:1</strong>：80 层中 70 层块递归线性（block 256）+ 10 层全 GQA（索引 7,15,…,79）</td><td>1M 训练 / 4M 外推</td><td>80 层/hidden 6144；Q 64/KV 8（GQA 8:1）；head_dim 128；rotary_dim 64；rope_theta 1e7；attn_type_list=7×0+1×1 循环；Lightning 层不挂 RoPE</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>M1</td><td>2025-06 论文 / 09 开源</td><td>同 Text-01</td><td>同 Text-01 的 7:1 Lightning 混合；差异全在训练（CISPO RL）</td><td>1M</td><td>与 Text-01 完全相同（80 层/64Q-8KV/head_dim 128/rope_theta 1e7/attn_type_list 7:1）</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>M2</td><td>2025-10-27</td><td>≈229.9B / ≈9.8B 激活，MoE 256 top-8</td><td><strong>全 Softmax GQA（路线反转，弃用 Lightning）</strong>：62 层全部标准 causal self-attn + GQA；QK-RMSNorm</td><td>196608（公开 204K）</td><td>62 层/hidden 3072；Q 48/KV 8（GQA 6:1）；head_dim 128；rotary_dim 64；rope_theta 5e6；attn_type_list 全 1；use_qk_norm=true；256 experts top-8/inter 1536；MTP×3</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>M2.1 / M2.5 / M2.7</td><td>2025-12 ~ 2026-03</td><td>同 M2</td><td>同 M2：62 层全 GQA 48Q/8KV + QK-Norm；M2.7 仅 max_position 196608→204800</td><td>196608 → 204800（M2.7）</td><td>M2.1/M2.5 与 M2 完全相同；M2.7 仅 max_position_embeddings 扩窗 + dtype=bfloat16</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>M3（M3-VL）</td><td>2026-06</td><td>60 层（前 3 dense + 后 57 MoE），第三方 ≈428B/≈23B</td><td><strong>MSA 块稀疏</strong>：Index 分支 4 头×128 给每个 GQA 组独立打分选 top-16 块（+1 局部）；Main 分支精算；前 3 层 dense full</td><td>1M</td><td>60 层/hidden 6144；Q 64/KV 4（GQA 16:1）；head_dim 128；rotary_dim 64；rope_theta 5e6；sparse block=128/topk_blocks=16/local=1；index_n_heads=4/index_head_dim=128；128 experts top-4 + 1 shared；per-head QK-Norm + GemmaNorm；MTP×7</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>M3.1-Flash</td><td>2026-10-19</td><td>同 M3 底座</td><td>同 M3 的 MSA，但 60 层全部并入稀疏路径（取消前 3 层 full）；去 MTP；MxFP8 + NVFP4</td><td>1M（保留）</td><td>5 处 diff：num_mtp_modules 取消；sparse_attention_freq 全 60 层=1；rope_theta 1e7；视觉 image_size 672；quantization MxFP8 + MoE NVFP4</td><td><span class="tag v">未公开</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 1</span>Text-01/M1（7:1 Lightning 线性）→ M2（全 Softmax GQA）</h3>
+      <p>从「70 层 Lightning 块递归线性 + 10 层全 Softmax」的混合架构，完全切换为 62 层全部标准 Softmax GQA，线性注意力分支被彻底弃用。</p>
+      <div class="fml"># Lightning 层：长序列切成 block_size=256 的块
+#   块内做精确因果注意力（带对角衰减掩码）
+#   块间用固定大小递归状态 S（d×d）压缩：
+#     S ← S·γ_block + (K·key_decay)ᵀ V
+#   逐头指数衰减 slope_rate_h = base^h
+#   块间状态固定为 d×d，与序列长度无关——1M 近线性成本的来源
+# M2 全 Softmax：回到经典二次复杂度
+#   靠 QK-RMSNorm（q/k 投影后逐层归一化）稳定长文本训练
+#   靠 256 专家 top-8（小专家 inter 仅 1536）把每 token 激活压到 9.8B</div>
+      <p>笔记原文：「M2 全部回到二次 Softmax 注意力，靠 256 专家压激活量、靠 QK-Norm 与 192K 上下文撑长文本。这是一次明确的架构路线再选择。」线性注意力虽省长上下文成本，但在智能体/代码场景的精确检索能力上不及全 Softmax；M2 选择用更密的专家（256 vs 32）和 QK-Norm 来补偿退回到二次注意力带来的成本。</p>
+      <div class="kv">Text-01：attn_type_list 7:1 循环 · KV 近线性（固定状态吸收）· 激活 A46B · 路由 softmax top-2 · 残差门控 α·h+β·s
+M2：attn_type_list 全 1 · KV 二次但上下文 1M→192K · 激活 A10B · 路由 sigmoid + e_score_correction_bias top-8 · 朴素残差
+rope_theta：1e7 → 5e6</div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 2</span>M2（全 Softmax GQA）→ M3（MSA 块稀疏索引）</h3>
+      <p>从 62 层全 Softmax GQA，切换为 MSA（MiniMax Sparse Attention）块稀疏索引——前 3 层仍 full attention（用于多模态 token 早期融合），后 57 层用 Index 分支选块 + Main 分支精算。</p>
+      <div class="fml"># MSA（据 arXiv:2606.13392）
+# Index 分支：4 个专用头（dim 128）
+#   给每个 GQA 组独立打分所有 128-token 的 KV 块
+#   选 top-16 块 + 强制保留最近 1 个局部块
+# Main 分支：只在选中块上做精确 Softmax
+#   避免对全历史做二次注意力
+# 论文口径（109B 参数模型）：1M 上下文每 token 注意力算力降 28.4×
+#   prefill 提速 14.2×、decode 提速 7.6×（H800）</div>
+      <p>MSA 是对 Text-01 线性化（省成本但损失精度）与 M2 全 Softmax（精度高但成本二次）两条路线的折中收敛——保留 Softmax 精度（Main 分支精算），同时用块稀疏把 1M 成本拉回近线性。</p>
+      <div class="kv">上下文：M2 192K/204K → M3 1M 回归
+Q/KV 头：M2 48Q/8KV（6:1）→ M3 64Q/4KV（16:1）
+专家：M2 256 top-8 无共享 → M3 128 top-4 + 1 常驻共享
+QK-Norm：per-layer（M2）→ per-head + GemmaNorm（M3）
+M3.1-Flash：60 层全稀疏（去前 3 层 full）· 去 MTP · θ 1e7 · 视觉 672 · MxFP8+NVFP4</div>
+      </div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「核心是 Lightning Attention 线性注意力 : 全 Softmax 注意力 = 7 : 1 的混合架构——用块递归线性注意力把百万级上下文的训练/推理成本压到近线性，每 token 只激活约 45.9B（≈A46B）参数。」<span class="q-src">bayon-note/minimax_text_01/index.md 开篇</span></div>
+      <div class="quote">「与 M1 的路线彻底反转：放弃 Lightning 线性注意力、62 层全改标准 GQA Softmax，专家从 32 暴增到 256、top-8，引入 sigmoid 路由偏置、QK-Norm、MTP 与 FP8 发布，主打智能体与代码。」<span class="q-src">bayon-note/minimax_m2/index.md 开篇</span></div>
+      <div class="quote">「MSA 是 M3 的招牌，用索引分支先选块、主分支再精确算的两阶段稀疏注意力替代二次 Softmax……Index 分支：4 个专用 index 头，把 KV 切成 128-token 的块并打分。」<span class="q-src">bayon-note/minimax_m3_vl/index.md §4.1</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>M3 总参数量：笔记未单列（config 未给出 total params）；第三方 minimax-ai.chat 口径 ≈428B/≈23B 激活，与 MSA 论文中 109B-parameter model（可能为内部 ablation）不一致。<span class="tag n">未核实</span></li>
+        <li>M3.1-Flash：公开搜索引擎（2026-11-05）未检索到独立报道；其存在性、发布日期、config 细节均来自用户笔记（笔记称源自官方 config + minimaxai.co 官方博客 2026-10-19）。<span class="tag v">未公开</span></li>
+        <li>M2 的 mlp_intermediate_size=8192：本地原生模块不消费，为远端代码字段，细节待确认。<span class="tag v">未公开</span></li>
+        <li>M2.1 / M2.5 / M2.7 的 bos/eos token id：config 未单列。<span class="tag v">未公开</span></li>
+        <li>Text-01 论文 arXiv 编号纠偏：实际为 <strong>2501.08313</strong>（不是 2502.04336）；M2 = 2605.26494；MSA = 2606.13392。<span class="tag u">已查证</span></li>
+      </ul>
+    </section>
+
+    <section id="gemma">
+      <h2>3.6 Gemma（Google）</h2>
+      <p>Gemma 家族是 Google 基于 Gemini 技术的开放权重小模型线，其注意力演进主线是<strong>从小模型打样 → GQA + 滑窗/全局交替 + softcap 稳定化 → 双频 RoPE + QK-Norm + 多模态 → 端侧 MatFormer 效率 → 收敛为 per-layer 维度 + QKV-Norm + K=V 绑定的真 MoE</strong>。Gemma 2 是 GQA + 滑窗交替的范式定义者，Gemma 3 的 5:1 交错 + QK-Norm 直接影响了后续多个开源模型，Gemma 4 则首次引入 per-layer 异构注意力维度与 MoE。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Gemma 1</td><td>2024-02</td><td>2B（18 层）/ 7B（28 层）</td><td>纯全局全注意力：<strong>2B=MQA（8Q/1KV），7B=MHA（16Q/16KV）</strong>（同代两套）；无滑窗/softcap/QK-Norm</td><td>8192</td><td>2B：8Q/1KV/head_dim 256；7B：16Q/16KV/head_dim 256；rope_theta=1e4；scaling=head_dim^-0.5=1/16</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Gemma 2</td><td>2024-06</td><td>2B / 9B / 27B</td><td><strong>GQA groups=2</strong>（2B 8/4、9B 16/8、27B 32/16）+ <strong>1:1 滑窗(4096)/全局(8192) 逐层交替</strong> + attn softcap 50 / final softcap 30 + query_pre_attn_scalar + pre+post 4×RMSNorm</td><td>8192</td><td>层数 26/42/46；heads 8/16/32；kv_heads 4/8/16；head_dim 256/256/128；sliding_window=4096；attn_logit_softcapping=50.0；final_logit_softcapping=30.0；rope_theta=1e4</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Gemma 3</td><td>2025-03</td><td>270M–27B</td><td>GQA + <strong>5:1 交错</strong>（每 6 层第 6 层 full）+ <strong>双频 RoPE</strong>（full 1e6 / sliding 1e4）+ <strong>per-head Q/K RMSNorm 取代 softcap</strong>；挂 SigLIP 视觉塔</td><td>32K / 128K</td><td>层数 18/26/34/48/62；heads 4/4/8/16/32；kv_heads 1/1/4/8/16；sliding_window 512/512/1024/1024/1024；rope_theta=1e6（global）/rope_local_base_freq=1e4；attn/final softcapping=null；use_qk_norm=true；大尺寸 linear RoPE factor 8.0</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Gemma 3n</td><td>2025-05</td><td>E2B / E4B（MatFormer 嵌套）</td><td>GQA 4:1（8Q/2KV）+ 4:1 交错（窗 512）+ <strong>末段 KV 共享</strong>（后 10/15 层无 k/v 权重）+ AltUp/LAuReL/PLE + 原生音频</td><td>32K（端侧回退）</td><td>层数 30/35；heads 8/kv_heads 2；head_dim 256；sliding_window=512；num_kv_shared_layers=10/15；altup_num_inputs=4；laurel_rank=64；rope_theta=1e6/local 1e4</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>Gemma 4</td><td>2026-04</td><td>E2B/E4B/12B/26B-MoE/31B</td><td><strong>per-layer 异构 head_dim</strong>（sliding 256 / full global_head_dim 512）+ KV 头按层类型 + <strong>K=V 绑定</strong>（attention_k_eq_v=true，12B/26B/31B full 层）+ Q/K/V head-wise RMSNorm scaling=1.0 + proportional RoPE（full 1e6 partial 0.25）+ 26B 真 MoE（128 专家 top-8 与 dense MLP 并行相加）</td><td>128K / 256K</td><td>层数 35/42/48/30/60；heads 8/8/16/16/32；sliding KV 头 1/2/8/8/16；full KV 头 继承或 1/2/4；head_dim=256/global_head_dim=512；sliding_window 512/512/1024/1024/1024；attention_k_eq_v：E2B/E4B=false，12B/26B/31B=true；final softcap=30；26B：num_experts=128/top_k_experts=8/moe_intermediate=704</td><td><span class="tag u">已查证</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 1</span>Gemma 1（MQA/MHA 混合）→ Gemma 2（GQA + 1:1 滑窗/全局交替 + softcap）</h3>
+      <p>从「2B MQA / 7B MHA 纯全局全注意力」切换为全家族统一 GQA（groups=2）+ 滑窗 4096 与全局 8192 逐层 1:1 交替，并引入双 soft-capping 与 pre+post 双 RMSNorm。</p>
+      <div class="fml"># GQA：每个 KV 头被 2 个 Q 头共享，KV cache 相对 MHA 减半
+# sliding 层滑出窗口的旧 K/V 可被 HybridCache 回收
+# 1:1 交替：奇数层（1,3,5...）sliding_attention（窗 4096）
+#   偶数层 full_attention（全局），源码按 layer_types[i] 默认规则生成
+# softcap：tanh(s/50)·50 作用于每个注意力层 logits
+#          tanh(s/30)·30 作用于最终 LM head logits
+# query_pre_attn_scalar：显式 Q 缩放 = scalar^-0.5，与 head_dim 解耦
+#   （27B head_dim 缩到 128 但 scalar=144 而非 256）</div>
+      <p>官方口号「competitive alternatives to models that are 2-3 times bigger」——靠 GQA 降推理成本、滑窗降 KV、softcap + 双 norm 支撑更深网络（2B 26 层、27B 46 层 vs Gemma 1 18/28 层）。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 2</span>Gemma 2（1:1 + softcap）→ Gemma 3（5:1 + 双 RoPE + QK-Norm）</h3>
+      <p>从「1:1 滑窗/全局交替 + softcap 50/30」切换为 5:1 交错（每 6 层第 6 层 full）+ 双频 RoPE + QK-Norm 取代 softcap。</p>
+      <div class="fml"># 5:1 交错：5 层 sliding（窗 512 小尺寸 / 1024 大尺寸）+ 1 层 full
+#   local 层占比从 50% 提到 83%——KV cache 随长上下文爆炸的问题被进一步压缩
+# 双频 RoPE：full 层 θ=1e6（长程外推），sliding 层 θ=1e4（局部精度）
+#   大尺寸另套 rope_scaling linear factor 8.0 扩到 128K
+# QK-Norm：Q/K 逐头 RMSNorm（在 RoPE 之前）
+#   官方明确 "Gemma 3 以 QK-Norm 取代了 Gemma 2 的 soft-capping 机制"
+#   attn/final softcap 字段全部为 null</div>
+      <p>Gemma 3 要把上下文从 8K 扩到 128K、语言从英语为主扩到 140+ 语言、训练量到 14T token。softcap 在长上下文 + 多模态下数值上不够稳，QK-Norm 是更干净的归一化方案；5:1 交错让绝大多数层只看局部 1024 token，只有 1/6 的层付全历史成本。</p>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">切换 3</span>Gemma 3（云端通用）→ Gemma 3n（端侧 MatFormer）→ Gemma 4（per-layer 维度 + 真 MoE）</h3>
+      <p>Gemma 3n 是端侧专版：在 GQA 4:1（8Q/2KV）+ 4:1 交错（窗 512）基础上，叠加 MatFormer 嵌套（逐层 FFN 数组）、AltUp 四路线、LAuReL 低秩残差、PLE 逐层嵌入、前 10 层高斯 top-k 激活稀疏、末段 KV 共享（后 10/15 层无 k/v 权重）——上下文从 128K 回退到 32K。Gemma 4 把效率思路收敛为真 MoE + per-layer 异构注意力。</p>
+      <div class="fml"># Gemma 4 注意力
+# sliding 层：head_dim=256，Q/K/V/O 独立投影
+#   default RoPE θ=1e4 全维度旋转，sliding_window 512/1024
+# full 层：global_head_dim=512，Q 投影翻倍（如 26B：hidden 2816 → 16×512=8192）
+#   KV 投影用 num_global_key_value_heads（如 26B 为 2，即 2×512=1024）
+#   K=V 绑定时 v_proj=None（V 直接复用 K 省一半投影参数）
+#   proportional RoPE θ=1e6，partial_rotary 0.25（只旋转 0.25×512=128 维）
+# 26B-A4B 注意力参数 ≈1.11B（sliding 25 层×34.6M + full 5 层×48.9M）
+#   MoE 专家参数 ≈22.84B（占总参 86%）</div>
+      <div class="kv">维度：统一 head_dim（Gemma 1-3n）→ per-layer（sliding 256 / full 512）
+KV 头：全层统一 → 按层类型不同
+K=V：无绑定 → 12B/26B/31B full 层 K=V
+归一化：query_pre_attn_scalar（Gemma 2/3）→ Q/K/V head-wise RMSNorm + scaling=1.0
+稀疏：dense（G1-G3）→ 激活稀疏（3n）→ 真 MoE 128×Top-8 + dense 并行（G4 26B）
+上下文：32K（3n）→ 128K/256K（G4）</div>
+      </div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「We alternate between a local sliding window attention and global attention <strong>in every other layer</strong>」；「GQA with num_groups=2, based on ablations showing increased speed at inference time while maintaining downstream performance」。<span class="q-src">bayon-note/gemma-2/index.md §4.1 引论文</span></div>
+      <div class="quote">「Gemma 3 以 QK-Norm 取代了 Gemma 2 的 soft-capping 机制」；Google Developers Blog：「5-to-1 interleaved attention …… each containing 5 local attention layers with a sliding window」。<span class="q-src">bayon-note/gemma-3/index.md §4.4</span></div>
+      <div class="quote">「Gemma 4 的注意力与 Gemma 2/3 最大的不同：每个解码层可以有不同的 head 维度与 KV 头数（full 层用 global 配置），并引入 Q/K/V head-wise RMSNorm，取代了 Gemma 2/3 的 query_pre_attn_scalar=256（Gemma 4 config 中已无此字段，注意力 scaling=1.0）。」<span class="q-src">bayon-note/gemma-4/index.md §5 开篇</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>Gemma 3n 的 arXiv 编号：笔记标注 2505.05146，公开搜索未直接命中该编号。<span class="tag n">未核实</span></li>
+        <li>Gemma 4 12B encoder-free：config 中 vision_config 为空对象，图像 patch 与原始音频特征直接投影进文本塔——具体投影层数未在笔记展开。<span class="tag v">未公开</span></li>
+        <li>Gemma 3 小尺寸滑窗 512 vs 论文 1024：笔记 config 实测 270M/1B sliding_window=512、4B/12B/27B=1024；论文正文以 1024 为示例值——两者不矛盾（小尺寸窗更短）。<span class="tag u">已查证</span></li>
+        <li>Gemma 1 的 7B 注意力：笔记明确 7B 为完整 MHA（16 KV 头），并非 GQA；部分二手资料误称 Gemma 1 全系 MQA——以笔记 config 实测为准。<span class="tag u">已查证</span></li>
+      </ul>
+    </section>
+
+    <section id="internvl">
+      <h2>3.7 InternVL</h2>
+      <p>InternVL 是上海 AI Lab OpenGVLab 从 2023 年底起的开源多模态大模型（MLLM）系列。系列骨架从 1.5 起恒定为 <strong>ViT（InternViT）→ pixel shuffle → MLP projector → LLM</strong> 三段式直连（无桥接语言模型、无 cross-attention），视觉 token 与文本 token 在同一条因果序列里走同一套自注意力。代际差异几乎全部落在训练范式、底座规模与推理策略，而不在注意力算法本身。</p>
+
+      <h3>版本演进表</h3>
+      <div class="table-wrap">
+      <table class="cmp ver-table">
+        <colgroup><col style="width:12%"><col style="width:9%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:25%"><col style="width:8%"></colgroup>
+        <thead><tr><th>版本</th><th>时间</th><th>尺寸</th><th>语言侧 / 视觉侧注意力</th><th>上下文</th><th>关键 config</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>InternVL 1.0</td><td>2023-12</td><td>6B ViT + 8B QLLaMA 桥 + LLaMA</td><td>LLaMA 因果 MHA；桥接用 8B QLLaMA；InternViT-6B 224px 固定双向 MSA</td><td>224px 固定</td><td>—</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL 1.5</td><td>2024-04</td><td>2B / 26B（+Mini-4B）</td><td>语言：InternLM2 16Q/8KV（2B）、48Q/8KV（20B）GQA；视觉：InternViT-300M（1024/24L/16H）或 6B（3200/45L/25H/RMS+QK-Norm）<strong>双向自注意力</strong>，448px 动态 tile</td><td>4K 训 / 8K（Mini）；1–12 tile 训、40 tile 测</td><td>dynamic_image_size=true；force_image_size=448；downsample_ratio=0.5；max_dynamic_patch=12；ps_version=v2；select_layer=-1</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL 2.0</td><td>2024-07-02</td><td>1B–108B（8 尺寸）</td><td>语言：7 种底座（Qwen2 14Q/2KV、InternLM2 16Q/8KV、Phi-3 32Q/32KV=MHA、Yi、Llama-3、InternLM2-102B）；视觉：同 1.5 两档双向 MSA，连续学习升级</td><td>8K</td><td>同 1.5；template=internvl2</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL 2.5</td><td>2024-12</td><td>1B–78B（7 尺寸）</td><td>语言：Qwen2.5（14Q/2KV…64Q/8KV）或 InternLM2.5（16Q/8KV…48Q/8KV）全 GQA；视觉：InternViT-300M/6B-V2.5 双向 MSA（增量 NTP 全参数训练）</td><td>4K–32K</td><td>同 1.5；template=internvl2_5；vocab 151674</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL 3.0</td><td>2025-04</td><td>1B–78B（7 尺寸）</td><td>语言：Qwen2.5 全系 GQA + <strong>InternLM3-8B 32Q/2KV 重度 GQA</strong>（KV cache 仅 MHA 的 1/16）；视觉：InternViT-V2.5 <strong>LayerScale(0.1) + mean pooling + V2PE</strong>，双向 MSA</td><td>32K</td><td>image_seq_length=256；image_token_id=151667；vision_feature_layer=-1；layer_scale_init_value=0.1；use_mean_pooling=true；use_absolute_position_embeddings=true</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL 3.5</td><td>2025-08</td><td>1B–241B-A28B（9 尺寸，含 3 个 MoE）</td><td>语言：Qwen3 全系（16Q/8KV…64Q/8KV）+ GPT-OSS-20B（MoE，32 专家 top-4，12 层 sliding(128)+12 层 full 交替）+ Qwen3-30B-A3B/235B-A22B（128 专家 top-8，全 full）；视觉：同 3.0 InternViT 双向 MSA；<strong>ViR 按 tile 语义动态压缩 256→64 token</strong></td><td>40K</td><td>image_token_id=151671；ViR：256 token/tile 保留或压到 64（1/4；论文/博客称 1/4 或 1/16 两档）；DvD 分置 GPU ~4.05×</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL3.5-Flash</td><td>2025-09 下旬</td><td>同 3.5 家族</td><td>同 3.5；<strong>ViR patch router</strong>：每个 patch 按语义丰富度路由到不同 pixel shuffle 压缩率，视觉 token 数再降 50%</td><td>同 3.5</td><td>—</td><td><span class="tag u">已查证</span></td></tr>
+          <tr><td>InternVL 4</td><td>—</td><td colspan="2">截至 2026-11-05 无公开证据：nexgpu（2026-09-27）「line still stops at 3.5 — there is no InternVL4」；internvl.github.io 首页未列 InternVL4</td><td>—</td><td>—</td><td><span class="tag n">未核实</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>结构要点：为什么全程没有 cross-attention</h3>
+      <p>InternVL 1.0 用 8B QLLaMA 中间语言模型做桥接（视觉特征先过一个小型 LLaMA 再喂主 LLM）；1.5 彻底删除桥接，改为 pixel shuffle + MLP 直连 LLM。视觉 token 与文本 token 从此在同一条因果序列里走同一套自注意力，<strong>不存在视觉-语言 cross-attention</strong>——这与 BLIP（文本 token 对图像特征做 cross-attn）形成对照。视觉塔 InternViT 本身是双向 MSA（300M 规格无 QK-Norm；6B 规格 RMS+QK-Norm），3.0 起加 LayerScale 0.1、mean pooling、V2PE。</p>
+
+      <h3>切换点</h3>
+      <div class="sw"><h3><span class="sw-badge">①</span>1.0 → 1.5：砍桥接，定三段式骨架</h3>
+      <p>视觉塔 InternViT-6B 从 224px 固定升到 448px 连续学习；发现倒数第四层特征最好，直接裁掉最后 3 层（48→45）。1.0 的桥接既增参数又增推理延迟，且视觉特征被 QLLaMA 二次编码损失信息；直连更简单、可迁移。每 tile 1024 patch → pixel shuffle 后 256 token。</p></div>
+      <div class="sw"><h3><span class="sw-badge">②</span>1.5 → 2.0 → 2.5：渐进扩展底座，注意力算法不变</h3>
+      <p>2.0 从单一 InternLM2 扩到 7 种开源底座（Qwen2 / InternLM2 / Phi-3 / Yi / Llama-3 / InternLM2-102B），GQA 比例随底座而异（Phi-3 是 MHA，其余 GQA）；新增视频、医疗影像、多图。2.5 视觉塔 V1.5→V2.5 用 NTP 损失在更丰富数据上增量预训练（全参数不冻结），语言底座换到 Qwen2.5/InternLM2.5（GQA 比例整体收紧），首次引入 CoT 思维链——后两者是推理策略，不是注意力算法改动。</p></div>
+      <div class="sw"><h3><span class="sw-badge">③</span>2.5 → 3.0：原生多模态预训练 + 视觉塔结构级更新</h3>
+      <p>视觉塔三个 config 可证新特性：LayerScale(0.1)（每个 MHSA 与 MLP 分支输出乘 0.1 残差缩放，稳定深层训练）、mean pooling（分类侧用均值池化替代 CLS）、V2PE（Variable Visual Position Encoding，视觉 token 位置增量 δ 可调，配合头/序列并行支持 32K）。语言侧统一用 base 模型初始化，首次引入 InternLM3-8B（9B 型号，32Q/2KV 重度 GQA）。预训练范式从「MLP warmup 对齐 + 多阶段微调」改为原生多模态预训练——文本 50B + 多模态 150B 单阶段交错、全参数联合（配比 1:3），loss 只在文本 token 上。</p></div>
+      <div class="sw"><h3><span class="sw-badge">④</span>3.0 → 3.5：Cascade RL + ViR + MoE</h3>
+      <p>后训练从 MPO（离线）换成 Cascade RL（MPO 离线热身 + GSPO 在线精修）。推理效率上 ViR（Visual Resolution Router）按语义为每个 tile 动态选压缩率——256 token/tile 保留或压到 64 token（1/4；论文/博客称 1/4 或 1/16 两档）；DvD 把 ViT 与 LLM 分置不同 GPU，最高约 4.05× 加速。底座首次上 MoE：GPT-OSS-20B-A4B（32 专家 top-4，12 层 sliding(128)+12 层 full 交替）、Qwen3-30B-A3B（128 专家 top-8）、Qwen3-235B-A22B（128 专家 top-8）。1B 底座从 Qwen2.5-0.5B 换成 Qwen3-0.6B（1024/28L/16Q/8KV，max_pos 40960）。InternVL3.5-Flash（2025-09 下旬）是 3.5 代内分支（patch router 按语义丰富度再降 50% 视觉 token），不是 InternVL4。</p></div>
+
+      <h3>笔记口径</h3>
+      <div class="quote">「架构主线（ViT–MLP–LLM、448 tile、pixel shuffle、masked_scatter 注入）从 1.5 到 3.5 始终未变。」<span class="q-src">bayon-note/InternVL-全家族版本对比与演进.md §结论速览</span></div>
+      <div class="quote">「整条链路没有交叉注意力桥接模块：视觉 token 与文本 token 在同一条因果序列里走同一套注意力，这正是 1.5 相对 1.0 最关键的结构简化。」<span class="q-src">bayon-note/internvl-1_5/index.md §2 端到端</span></div>
+      <div class="quote">「语言预训练与多模态对齐合并进同一预训练阶段：纯文本语料与多模态语料交错混合、全部参数联合优化；loss 只在文本 token 上计算。」<span class="q-src">bayon-note/internvl-3/index.md §5.3 原生多模态预训练</span></div>
+
+      <h3>未公开 / 未核实</h3>
+      <ul class="note-list">
+        <li>InternVL 3.5 发布具体日期：笔记留空；联网核验为 arXiv v1 = 2025-08-25，官方博客 = 2025-08-26。<span class="tag u">已查证</span></li>
+        <li>InternVL 3.5 各尺寸 SFT 数据量：笔记未给（沿用 3.0 的 21.7M？）。<span class="tag n">未核实</span></li>
+        <li>6B 视觉塔是否同步加 LayerScale(0.1)：笔记只明确 300M 规格加，6B 规格未能逐字段核实。<span class="tag v">未公开</span></li>
+        <li>InternVL 4：截至 2026-11-05 无公开证据。<span class="tag n">未核实</span></li>
+        <li>InternLM4 基座：截至 2026-11-04 无公开证据（笔记未提及）。<span class="tag n">未核实</span></li>
+      </ul>
+    </section>
+
+    <section id="vision">
+      <h2>3.8 视觉侧四篇：CLIP / BLIP / SigLIP / YOLOS</h2>
+      <p>视觉侧四篇不是一个系列，而是四种「注意力如何组织图像-文本关系」的范式样本：CLIP 双塔对比、BLIP 文本塔可切换自/交叉注意力、SigLIP 双塔双向 + sigmoid 损失、YOLOS 纯 encoder 把检测重述为序列自注意力。它们共同回答一个问题：跨模态到底需不需要 cross-attention。</p>
+
+      <div class="sw"><h3><span class="sw-badge">CLIP</span>双塔：视觉 ViT 双向 MSA，文本塔因果 MSA，无 cross-attn</h3>
+      <p>CLIP（OpenAI，2021，arXiv:2103.00020）是双塔视觉语言模型的奠基之作：图像与文本各自编码到同一个 512 维向量空间，用对称 InfoNCE 对比损失对齐。视觉塔（CLIPVisionModel）是 12 层双向 Transformer——每个 patch token 可以关注所有其他 patch token（包括 CLS），没有 causal mask，池化取 [CLS]；文本塔（CLIPTextModel）是 12 层因果 Transformer（GPT-2 式 decoder）——每个 token 只能关注自身及之前 token，池化取 [EOS]。两塔独立前向，只在投影后算余弦相似度，<strong>没有 cross-attention</strong>。视觉 768→512、文本 512→512，L2 归一化后余弦 × 可学习温度 logit_scale（初始 2.6592 ≈ ln(1/0.07)）；不做 hard-negative 挖掘，靠大 batch（32768 级）提供负样本。现代 MLLM 的视觉塔大多直接或间接继承自 CLIP。</p>
+      <div class="quote">「视觉塔（CLIPVisionModel）：12 层双向 Transformer → 池化取 [CLS] 状态；文本塔（CLIPTextModel）：12 层因果 Transformer（GPT-2 式）→ 池化取 [EOS] 状态。」<span class="q-src">bayon-note/CLIP/index.md §4.1</span></div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">BLIP</span>ViT 双向 + 文本塔可切换：ITC 双向，ITM/ITG 走图像引导 cross-attn</h3>
+      <p>BLIP（Salesforce，ICML 2022，arXiv:2201.12086）是统一多模态框架：同一套文本参数（MED）以三种模式支持图文检索（ITC）、图文匹配（ITM）、图像描述生成（ITG）。视觉塔 ViT-B（12L/768/12H，patch 16，384px）是双向 MSA；文本塔 12L/768/8H、max_pos 512，<code>is_decoder</code> 可切换。</p>
+      <div class="fml"># BlipTextLayer 在 is_decoder=True 时加入 cross-attention
+# ITC（单模态编码器）：文本 token 双向 self-attn，cross-attn 关闭 → 图文对比
+# ITM（图像引导编码器）：文本 token 双向 self-attn + cross-attn（图像特征作 encoder_hidden_states）
+#   → 256 维融合头二分类（细粒度 token 级匹配，区别于 ITC 的全局余弦对齐）
+# ITG（图像引导解码器）：文本 token 因果 self-attn + cross-attn
+#   → 自回归生成 caption / VQA 答案
+# CapFilt：Captioner（ITG）生成候选描述，Filter（ITC/ITM）保留与图像匹配者</div>
+      <p><strong>Q-Former 属 BLIP-2（arXiv:2301.12597），不是 BLIP 原版（2201.12086）</strong>。BLIP-2 的 Q-Former 是 32 个可学习 query embedding，Transformer 层交替做 self-attention（query 间）与 cross-attention（query 对冻结 CLIP 视觉特征），输出固定长度视觉 token 喂给冻结 LLM。与 BLIP 原版的区别：BLIP 原版的 cross-attention 是文本 token 对图像特征（文本侧发起）；Q-Former 的 cross-attention 是可学习 query 对图像特征（query 侧发起）。</p>
+      <div class="quote">「BlipTextLayer 在 is_decoder=True 时加入 cross-attention，由此同一套 Transformer 权重可切换为：单模态编码器（ITC）、图像引导编码器（ITM/VQA）、图像引导解码器（ITG）。」<span class="q-src">bayon-note/BLIP/index.md §4.1</span></div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">SigLIP</span>双塔双向 MSA + sigmoid 损失 + MHA pooling head</h3>
+      <p>SigLIP（Google，2023，arXiv:2303.15343）是双塔视觉语言编码器，核心创新是用逐对 sigmoid 损失替代 CLIP 的 softmax 对比损失，摆脱 batch 内负样本耦合，训练更稳、收敛更快。视觉塔与文本塔都是双向自注意力 Encoder（非 causal），与 CLIP 视觉塔一致；差异在损失与池化。</p>
+      <div class="fml"># Sigmoid 损失（v1 核心）：对 batch 内 (图像, 文本) 每对独立算
+#   log(1 + exp(-y·(sim·t + b)))，不做 softmax 归一化
+#   可学习温度 t 初始化 log(10)；可学习偏置 b 初始化 -10（BiC）
+# MHA pooling head：视觉塔输出用多头注意力池化聚合，而非 CLS 式取 CLS
+# SigLIP 2 NaFlex：position_embedding 视为 16×16 网格
+#   forward 时双线性插值到实际 patch 网格，不足 256 patch 用第一行复制填充
+#   训练目标叠加 decoder loss + global-local / masked prediction loss（推理模型不含这些分支）</div>
+      <div class="quote">「两版都有 SiglipMultiheadAttentionPoolingHead，视觉塔输出用多头注意力池化聚合，而非 CLIP 式的取 CLS。」<span class="q-src">bayon-note/Siglip/index.md §4.3</span></div>
+      </div>
+
+      <div class="sw"><h3><span class="sw-badge">YOLOS</span>纯 encoder 双向 MSA：patch token + 100 个 detection token 同序列，无 decoder、无 cross-attn</h3>
+      <p>YOLOS（华中科技大学，NeurIPS 2021，arXiv:2106.00666）是第一个「纯 ViT、零 CNN 归纳偏置」的目标检测器。<strong>常见误解：以为它和 DETR 一样有解码器交叉注意力——实际上它没有。</strong>论文原文（§2.1）明确：</p>
+      <div class="quote">「The body of YOLOS is basically the same as ViT, which consists of a stack of Transformer encoder layers only. [PATCH] tokens and [DET] tokens are treated equally and they perform global interactions inside Transformer encoder layers.」<span class="q-src">arXiv:2106.00666 §2.1 / bayon-note/YOLOS/index.md §1</span></div>
+      <p>与 DETR 的对比：DETR 是 CNN backbone → encoder → decoder（object queries 对 encoder 输出做 cross-attention）→ 集合预测；YOLOS 是纯 ViT encoder，100 个 detection token 与 1728 个 patch token（ViT-B，512×864）在同一个 MSA 序列里全局交互，detection token 通过自注意力「吸收」patch 信息，末尾 100 个 token 直接过共享 MLP 头输出分类（N+1 类，含 no-object）+ 框回归（cx, cy, w, h，sigmoid 归一化）。位置编码技巧：初始位置编码按输入分辨率双线性插值；<code>use_mid_position_embeddings=True</code> 时除最后一层外每层输出后再叠加一次插值后的位置编码（共 11 组），弥补深层自注意力对位置信息的稀释。</p>
+      </div>
+
+      <h3>四篇横向对照</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:14%"><col style="width:24%"><col style="width:24%"><col style="width:24%"><col style="width:14%"></colgroup>
+        <thead><tr><th>模型</th><th>视觉侧注意力</th><th>文本侧注意力</th><th>跨模态注意力</th><th>池化</th></tr></thead>
+        <tbody>
+          <tr><td>CLIP</td><td>ViT 双向 MSA</td><td>文本塔因果 MSA（GPT-2 式）</td><td>无（双塔独立，InfoNCE 对齐）</td><td>视觉 [CLS]，文本 [EOS]</td></tr>
+          <tr><td>BLIP 原版</td><td>ViT 双向 MSA</td><td>可切换：双向（ITC）/ 因果+cross-attn（ITM/ITG）</td><td>有：文本 token 对图像特征 cross-attn</td><td>视觉 [CLS] + post_layernorm</td></tr>
+          <tr><td>BLIP-2 Q-Former</td><td>冻结 CLIP ViT 双向 MSA</td><td>Q-Former 32 query 自注意力 + cross-attn</td><td>有：query 对图像特征 cross-attn</td><td>Q-Former 输出固定长度 token</td></tr>
+          <tr><td>SigLIP 1/2</td><td>ViT 双向 MSA（+ NaFlex 插值）</td><td>文本塔双向 MSA</td><td>无（双塔独立，sigmoid 对齐）</td><td>MHA pooling head（非 CLS）</td></tr>
+          <tr><td>YOLOS</td><td colspan="2">纯 encoder 双向 MSA（patch + det token 同序列）</td><td>无（detection token 与 patch token 同序列自注意力）</td><td>末尾 100 det token 过 MLP 头</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section id="compare">
+      <h2>4 横向对比</h2>
+      <h3>4.1 GQA 分组数跨模型对比</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:24%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:20%"></colgroup>
+        <thead><tr><th>模型</th><th>Q 头</th><th>KV 头</th><th>比例</th><th>年份</th><th>备注</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen2.5-72B</td><td>64</td><td>8</td><td>8:1</td><td>2024-12</td><td>Qwen GQA 上沿</td></tr>
+          <tr><td>Qwen3 Dense</td><td>32–64</td><td>8</td><td>4–8:1</td><td>2025-05</td><td>MoE 版 kv_heads=4</td></tr>
+          <tr><td>Qwen1.5-32B</td><td>40</td><td>8</td><td>5:1</td><td>2024-02</td><td>Qwen 家族首次 GQA</td></tr>
+          <tr><td>GLM-4-9B</td><td>32</td><td>2</td><td>16:1</td><td>2024-01</td><td>partial RoPE 0.5</td></tr>
+          <tr><td>GLM-4-32B-0414</td><td>48</td><td>2</td><td>24:1</td><td>2025-04</td><td>去 QKV bias</td></tr>
+          <tr><td>GLM-4.5</td><td>96</td><td>8</td><td>12:1</td><td>2025-07</td><td>2.5× 头数@5120 hidden + QK-Norm</td></tr>
+          <tr><td>MiniMax-M2</td><td>48</td><td>8</td><td>6:1</td><td>2025-10</td><td>use_qk_norm=true</td></tr>
+          <tr><td>MiniMax-M3</td><td>64</td><td>4</td><td>16:1</td><td>2026-06</td><td>MSA 块稀疏之上</td></tr>
+          <tr><td>Gemma 2（groups=2）</td><td>8–32</td><td>4–16</td><td>2:1</td><td>2024-06</td><td>2B 8/4、9B 16/8、27B 32/16</td></tr>
+          <tr><td>Gemma 3-27B</td><td>32</td><td>16</td><td>2:1</td><td>2025-03</td><td>窗 1024</td></tr>
+          <tr><td>Gemma 4（per-layer）</td><td>8–32</td><td>1/2/4/8/16 按层类型</td><td>不一</td><td>2026-04</td><td>sliding 与 full 各自独立 KV 头数</td></tr>
+          <tr><td>InternLM2 / 2.5</td><td>16–48</td><td>8</td><td>2–6:1</td><td>2024</td><td>InternVL 1.5/2.0 底座</td></tr>
+          <tr><td>InternLM3-8B</td><td>32</td><td>2</td><td>16:1</td><td>2025-04</td><td>重度 GQA，KV cache 仅 MHA 1/16</td></tr>
+          <tr><td>Kimi K2（MLA）</td><td>64</td><td>64</td><td>—</td><td>2025-07</td><td>MLA 不复用 GQA 语义，kv_lora 512 才是 KV 压缩单元</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="cmp-note">读表结论：GQA 的「KV 头数」从 2024 年的 2（GLM-4 9B/32B、InternLM3）到 2025-2026 的 4–8 不等——GLM-4.5 反而放宽到 8 个 KV 头（12:1），用更多 KV 头换推理基准；Kimi K2 名义上 64/64，但 MLA 的 512 维潜变量才是真正的 KV 压缩单元，GQA 头数在这里没有物理意义。</p>
+
+      <h3>4.2 MLA 潜维与解耦 RoPE</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:22%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:14%"><col style="width:22%"></colgroup>
+        <thead><tr><th>模型</th><th>kv_lora</th><th>q_lora</th><th>qk_nope</th><th>qk_rope</th><th>备注</th></tr></thead>
+        <tbody>
+          <tr><td>DeepSeek V2 / V3 / R1</td><td>512</td><td>1536</td><td>128</td><td>64</td><td>V2 首秀；V3 冻结维度</td></tr>
+          <tr><td>Kimi K2 / K2.5 / K2.6 / K2.7</td><td>512</td><td>1536</td><td>128</td><td>64</td><td>与 DeepSeek V3 同范式；v_head=128</td></tr>
+          <tr><td>GLM-5</td><td>512</td><td>2048</td><td>192</td><td>—</td><td>Q 侧抬到 2048，V=256；叠 DSA indexer 32×128 top-2048</td></tr>
+          <tr><td>GLM-5.3-Flash</td><td>512</td><td>1536</td><td>256</td><td>0（NoPE）</td><td>v_head=256；64 头=64 KV 强制相等；视觉侧 axial 2D-RoPE</td></tr>
+          <tr><td>Kimi K3 Gated MLA</td><td>512</td><td>1536</td><td>128</td><td>0（NoPE）</td><td>保留 kv/q 低秩但 NoPE；配 69 层 KDA</td></tr>
+          <tr><td>Moonlight-16B-A3B</td><td>512</td><td>无</td><td>128</td><td>64</td><td>MLA 早期形态，Q 侧未低秩</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="cmp-note">读表结论：MLA 的 512 潜维是 2024–2026 的事实标准（DeepSeek V2/V3、Kimi K2/K3、GLM-5/5.3 全沿用）；变化的是 Q 侧——GLM-5 把 q_lora 抬到 2048、GLM-5.3-Flash/Kimi K3 把 qk_rope 直接压到 0（NoPE），位置信息改由 KDA 循环门控或视觉侧 2D-RoPE 承担。</p>
+
+      <h3>4.3 混合层比例与交错规则</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:24%"><col style="width:18%"><col style="width:34%"><col style="width:24%"></colgroup>
+        <thead><tr><th>模型</th><th>线性 : 全/稀疏</th><th>交错规则</th><th>备注</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen3-Next / 3.5 / 3.6 / 3.8</td><td>3:1（GDN:GA）</td><td>full_attention_interval=4（每 4 层 3 GDN + 1 GA）</td><td>27B：GA 24Q/4KV/head256；GDN QK16/V48/head128</td></tr>
+          <tr><td>Kimi K3</td><td>69 KDA : 24 Gated MLA ≈ 3:1</td><td>每 4 层 1 Gated MLA + 末端一层全局</td><td>93 层；NoPE</td></tr>
+          <tr><td>GLM-5.3-Flash</td><td>34 KDA : 11 DSA ≈ 3:1</td><td>每 4 层第 4 层为 DSA（idx%4==3）</td><td>45 层；IndexPool 把 4 缓存向量压 1</td></tr>
+          <tr><td>MiniMax Text-01 / M1</td><td>7:1（Lightning:全 GQA）</td><td>attn_type_list 7×0 + 1×1 循环；全层落在索引 7,15,…,79</td><td>80 层；1M 训练 / 4M 外推</td></tr>
+          <tr><td>Gemma 2</td><td>1:1（滑窗:全局）</td><td>奇数层 sliding（窗 4096）、偶数层 full</td><td>源码按 layer_types 默认规则生成</td></tr>
+          <tr><td>Gemma 3</td><td>5:1（滑窗:全局）</td><td>每 6 层第 6 层 full（位置 6,12,…）</td><td>窗 512（270M/1B）/1024（其余）</td></tr>
+          <tr><td>Gemma 3n</td><td>4:1（滑窗:全局）</td><td>每 5 层第 5 层 full</td><td>窗 512；末段 KV 共享</td></tr>
+          <tr><td>Gemma 4</td><td>5:1 / 6:1</td><td>E2B 每 5 层 1 full；其余每 6 层 1 full</td><td>full 层 global_head_dim=512、K=V 绑定</td></tr>
+          <tr><td>MiniMax-M3</td><td>3 dense full : 57 稀疏</td><td>前 3 层 dense full（多模态早期融合），后 57 层 MSA</td><td>M3.1-Flash 把前 3 层也并入稀疏</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="cmp-note">读表结论：2025-09 之前的「滑窗/全局交替」（Gemma 系）局部层占比 50%→83%；2025-09 之后的「线性/全注意力混合」（Qwen3-Next、Kimi K3、GLM-5.3-Flash）线性层占比统一收敛到约 75%（3:1）——这是 2026 年的事实默认比例。</p>
+
+      <h3>4.4 稀疏分支设计对比</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:14%"><col style="width:18%"><col style="width:24%"><col style="width:22%"><col style="width:22%"></colgroup>
+        <thead><tr><th>方案</th><th>选择粒度</th><th>indexer</th><th>选择目标</th><th>落地权重</th></tr></thead>
+        <tbody>
+          <tr><td>DSA（DeepSeek）</td><td>token 级</td><td>独立 Lightning Indexer（64×128 或 32×128），与主图 detach</td><td>逐 query top-2048（V3.2/GLM-5）或 top-512（V4）</td><td>DeepSeek V3.2 / V4 / GLM-5 / GLM-5.2 / GLM-5.3-Flash</td></tr>
+          <tr><td>NSA</td><td>block 级（32–64 token）</td><td>复用主表示打分</td><td>compression + selection top-k blocks + sliding window 三分支</td><td><strong>未用于任何发布权重</strong>（arXiv:2502.11089 论文方案）</td></tr>
+          <tr><td>MSA（MiniMax）</td><td>128-token 块</td><td>index 4 头×128，按 GQA 组独立打分</td><td>top-16 块 + 1 局部块（强制保留最近）</td><td>MiniMax-M3 / M3.1-Flash</td></tr>
+          <tr><td>QSA（Qwen）</td><td>micro-block</td><td>压缩轻量索引器</td><td>micro-block 粒度选重要上下文</td><td>Qwen3.8-Flash-Next</td></tr>
+          <tr><td>HCA / CSA（DeepSeek V4）</td><td>序列维压缩</td><td>CSA 先压 KV 再 DSA；HCA 更激进压缩但 dense</td><td>compress_ratios 4/128 交替（V4）；V4.1 纯 CSA2 跨层复用 [2,8,14,20]</td><td>DeepSeek V4 / V4.1-Flash</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="cmp-note">读表结论：2025-02 的 NSA（块级、复用主表示）是论文方案未落地；2025-09 的 DSA（token 级、独立 indexer）成为 2025-2026 的稀疏事实标准；MSA/QSA 在块粒度与 GQA 组独立打分上做工程变体；HCA/CSA 则把「压缩」从 token 选择前移到序列维压缩，V4.1 更进一步跨层复用 KV。</p>
+    </section>
+
+    <section id="logic">
+      <h2>5 演进逻辑与 trade-off</h2>
+      <h3>主线：从 MHA 到线性混合的演化链</h3>
+      <p>2022–2026 的注意力演化可以拉成一条主线：<strong>MHA</strong>（1 份 KV/头，标准 Transformer）→ <strong>MQA</strong>（全共享 1 份 KV，ChatGLM2 2023-06 落地）→ <strong>GQA</strong>（分组共享，Qwen2/Gemma 2/GLM-4 同期 2024-01~06 落地）→ <strong>MLA</strong>（低秩潜变量，DeepSeek-V2 2024-05 首秀，Kimi K2/GLM-5 沿用）→ <strong>CSA/HCA/NSA/DSA/MSA/QSA</strong>（稀疏访问，2025-09 起）→ <strong>线性混合</strong>（Lightning/GDN/KDA，2025-01 起）。注意这不是线性替代关系：GQA 没有被 MLA 取代（Qwen、Gemma、MiniMax、InternVL 仍以 GQA 为底座），MLA 也没有被线性混合取代（K3 保留 24 层 Gated MLA 做周期召回，GLM-5.3-Flash 保留 MLA 64 头）。</p>
+
+      <h3>三个分歧点</h3>
+      <ul class="ul-tight">
+        <li><strong>压缩在哪一侧</strong>：是压 KV 头数（MQA/GQA）、压潜维（MLA 512）、还是压序列长度（CSA/HCA 沿序列维压缩、SWA 滑窗）？DeepSeek 选潜维 + 序列维双压；Gemma 选滑窗交替；Qwen3 一度回归全注意力（靠 QK-Norm 稳定）再转向 GDN。</li>
+        <li><strong>稀疏是「选块」还是「选 token」，indexer 独立还是复用主表示</strong>：NSA（2025-02 论文）选块、复用主表示，未落地；DSA（2025-09）选 token、独立 indexer，成为事实标准；MSA 在块粒度上按 GQA 组独立打分；QSA 进一步把块细化到 micro-block。</li>
+        <li><strong>线性层占比与「保留多少全注意力层」</strong>：MiniMax Text-01 用 7:1（线性为主、全注意力仅 10/80 层）；Qwen3-Next/3.5、Kimi K3、GLM-5.3-Flash 统一收敛到 3:1（约 75% 线性层 + 25% 全/稀疏层）；DeepSeek V4/V4.1 完全不做线性层，走 MQA+CSACA+HCA 路线。</li>
+      </ul>
+
+      <h3>trade-off 三角：KV 压缩 ↔ 表达力 ↔ 硬件效率</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:18%"><col style="width:30%"><col style="width:30%"><col style="width:22%"></colgroup>
+        <thead><tr><th>方案</th><th>KV 收益</th><th>付出的代价</th><th>代表模型</th></tr></thead>
+        <tbody>
+          <tr><td>MHA</td><td>无压缩</td><td>KV 最大、O(n²) 算力</td><td>原始 Transformer、Gemma 1-7B、Qwen1</td></tr>
+          <tr><td>MQA</td><td>KV 头压到 1（1/16–1/64）</td><td>表达力损失，小模型质量下降明显</td><td>ChatGLM2/3、Gemma 1-2B</td></tr>
+          <tr><td>GQA</td><td>KV 头压到 2–8（2–16:1）</td><td>质量损失小，工程实现成熟</td><td>Qwen2/2.5/3、GLM-4/4.5、Gemma 2/3、InternLM</td></tr>
+          <tr><td>MLA</td><td>KV 压到 576 维/token（较 MHA -93.3%）</td><td>解码时 kv_b_proj 即时展开有开销；Q 侧低秩增加投影层数</td><td>DeepSeek V2/V3/V3.2、Kimi K2 系、GLM-5</td></tr>
+          <tr><td>SWA 交替</td><td>滑窗层 KV 随窗口线性增长且可回收</td><td>长程依赖只能靠 1/2 或 1/6 的 full 层</td><td>Gemma 2/3/3n/4、Qwen3-2507</td></tr>
+          <tr><td>DSA / MSA / QSA</td><td>每 query 只看 top-k（2048/16 块），O(n·k)</td><td>indexer 额外算力、gather 不友好、top-k 误选会漏召回</td><td>DeepSeek V3.2/V4、GLM-5/5.2/5.3-Flash、MiniMax M3、Qwen3.8-Flash-Next</td></tr>
+          <tr><td>CSA / HCA / CSA2</td><td>沿序列维压缩 KV（每 m token 压 1 条）+ 跨层复用</td><td>压缩损失不可逆；FP4 KV 精度损失</td><td>DeepSeek V4 / V4.1-Flash（890 字节/token）</td></tr>
+          <tr><td>线性混合（Lightning/GDN/KDA）</td><td>每 token 缓存恒定（递归状态 d×d），近 O(n)</td><td>状态容量上限小，精确检索能力弱，必须配周期全/稀疏层</td><td>MiniMax Text-01/M1、Qwen3-Next/3.5/3.6/3.8、Kimi K3、GLM-5.3-Flash</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>2026 年的收敛形态</h3>
+      <p>Qwen3.5（2026-02）、Kimi K3（2026-07）、GLM-5.3-Flash（2026-08）三者独立收敛到同一种形态：<strong>线性层（GDN/KDA）做主力（约 75%）+ 周期全/稀疏层（Gated MLA/DSA/GA）做召回 + NoPE 直接外推长上下文</strong>。Qwen 保留 1/4 的 Gated Attention（GQA 带输出门）；Kimi K3 保留 24/93 的 Gated MLA 并叠加 AttnRes 伪查询跨层；GLM-5.3-Flash 保留 11/45 的 DSA 每 4 层交错。DeepSeek 走了另一条路（V4/V4.1 不做线性层，把 MQA + CSA/HCA + FP4 KV 推到 890 字节/token），MiniMax 在 M3 用 MSA 块稀疏做折中——这三条路在「KV 压缩 ↔ 表达力 ↔ 硬件效率」三角上各自选了一个角。</p>
+
+      <p>与笔记模型无关的机制（Zamba 的 Mamba2 混合、Hyena 长卷积、差分注意力 DiffAttn）只作一句话背景：它们在原理上与 GDN/KDA 同属线性/状态空间家族，但没有出现在 bayon-note 覆盖的 11 个系列任何已发布权重里。</p>
+    </section>
+
+    <section id="table">
+      <h2>6 全版本总表（11 系列 × 全部版本）</h2>
+      <p class="section-lead">11 个系列全部版本，一行一条。出处列写 arXiv 号或官方页简称，完整链接见附录 A。</p>
+      <div class="table-wrap">
+      <table class="cmp big-table">
+        <colgroup><col style="width:11%"><col style="width:18%"><col style="width:10%"><col style="width:18%"><col style="width:24%"><col style="width:11%"><col style="width:8%"></colgroup>
+        <thead><tr><th>系列</th><th>版本</th><th>时间</th><th>尺寸</th><th>注意力算法</th><th>上下文</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen</td><td>Qwen1</td><td>2023-09</td><td>1.8B–72B</td><td>纯 MHA，融合 c_attn，LogN + 动态 NTK</td><td>2K/8K 训，外推 32K</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen1.5</td><td>2024-02</td><td>0.5B–72B</td><td>MHA 为主，32B 首次 GQA 40Q/8KV；静态 θ=1e6</td><td>32K</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen2</td><td>2024-06</td><td>0.5B–72B + 57B-A14B MoE</td><td>GQA 全系（最小 0.5B 14Q/2KV）；SWA 字段未启用</td><td>32K</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen2.5</td><td>2024-12</td><td>0.5B–72B</td><td>文本塔同 Qwen2 GQA；2.5-VL 视觉窗 112</td><td>32K；VL 128K</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen3</td><td>2025-05</td><td>Dense 0.6B–32B + MoE 30B/235B</td><td>GQA 全系 + QK-Norm + head_dim 128；回归全注意力（sliding_window=null）</td><td>40K；VL 262K</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen3-Next</td><td>2025-09</td><td>80B-A3B</td><td>GDN 线性 + Gated Attention 3:1（架构实验首秀）</td><td>256K，可扩 1M</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen3.5</td><td>2026-02</td><td>0.8B/9B/27B + 35B/122B/397B MoE</td><td>GDN + GA 3:1（GA 带输出门 swish）；partial_rotary 0.25</td><td>262K → YaRN ~1M</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen3.6 / 3.8</td><td>2026-04 / 08</td><td>27B Dense + 35B/2.4T-A95B MoE</td><td>架构同 3.5 冻结；2.4T GDN V 头 128、512 专家 top-10</td><td>262K → ~1M</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen3.8-Flash-Next</td><td>2026-08</td><td>125B/6B 激活 + 51B n-gram embedding</td><td>GDN + QSA（micro-block 索引器）+ Gated Residual 4 分支</td><td>超长上下文</td><td>u</td></tr>
+          <tr><td>Qwen</td><td>Qwen3-Max</td><td>2025-09/10</td><td>&gt;1T 闭源</td><td>闭源，架构细节未公开</td><td>262K</td><td>v</td></tr>
+          <tr><td>DeepSeek</td><td>V1</td><td>2024-01</td><td>7B / 67B Dense</td><td>7B=MHA；67B=GQA 64Q/8KV</td><td>4096</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V2</td><td>2024-05</td><td>236B/21B MoE</td><td>MLA 首秀：kv_lora 512/q_lora 1536；KV cache 576 维/token</td><td>160K（YaRN ×40）</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V3 / R1</td><td>2024-12 / 2025-01</td><td>671B/≈37B MoE</td><td>MLA 维度冻结；aux-loss-free 路由；MTP×1</td><td>160K</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V3.1</td><td>2025-08</td><td>≈V3</td><td>同 V3（仅量化加 scale_fmt=ue8m0）</td><td>160K</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V3.2-Exp</td><td>2025-09</td><td>671B/≈37B MoE</td><td>MLA + DSA：独立 Lightning Indexer 64×128 逐 query top-2048</td><td>160K</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V4-Flash-Base（预览）</td><td>2026-04</td><td>4096/43 层</td><td>MQA 64Q/1KV head_dim 512 + DSA top-512 + 滑窗 128；mHC</td><td>1M</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V4（论文）</td><td>2026-04</td><td>Pro 1.6T/49B；Flash 284B/13B</td><td>CSA + HCA 交错；mHC；Muon</td><td>1M</td><td>u</td></tr>
+          <tr><td>DeepSeek</td><td>V4.1-Flash</td><td>2026-09</td><td>552B MoE（CED）</td><td>纯 CSA2 跨层 KV 复用 [2,8,14,20] + FP4 KV；890 字节/token</td><td>1M</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-130B</td><td>2022-08</td><td>130B Dense</td><td>双向 GLM blank infilling + MHA 96/96</td><td>2048</td><td>u</td></tr>
+          <tr><td>GLM</td><td>ChatGLM-6B</td><td>2023-03</td><td>6.2B Dense</td><td>prefix-LM 双支路 + 2D-RoPE + MHA 32/32</td><td>2048</td><td>u</td></tr>
+          <tr><td>GLM</td><td>ChatGLM2/3-6B</td><td>2023-06 / 10</td><td>6B Dense</td><td>因果 1D-RoPE + MQA 32Q/2KV（KV 1/16）</td><td>32K / 8K</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-4-9B</td><td>2024-01</td><td>≈9B Dense</td><td>GQA 32Q/2KV + partial rotary 0.5 + 4×RMSNorm</td><td>8K / 128K 推理</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-4-32B-0414 / GLM-Z1</td><td>2025-04</td><td>≈32B Dense</td><td>GQA 48Q/2KV；Z1 config 逐字段一致（差异在 CoT RL）</td><td>32K</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-4V-9B</td><td>2024</td><td>Dense + ViT</td><td>文本塔复用 GLM-4-9B GQA 32/2；无独立跨模态融合层</td><td>8K</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-4.5 / 4.5-Air</td><td>2025-07</td><td>MoE 355B-A32B / 106B-A12B</td><td>GQA 96Q/8KV + QK-Norm + partial RoPE 0.5 + θ=1e6；MTP×1</td><td>131K</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-4.6 / 4.6V / 4.7 / 4.7-Flash</td><td>2025-09 ~ 2026-01</td><td>MoE 同 4.5 系</td><td>延续 GQA+QK-Norm；4.6 上下文 200K；4.7/4.7-Flash 细节未公开</td><td>200K</td><td>v</td></tr>
+          <tr><td>GLM</td><td>GLM-5</td><td>2026-02</td><td>MoE 744B-A40B</td><td>MLA（q_lora 2048/kv_lora 512/qk 192/v 256）+ DSA indexer 32×128 top-2048</td><td>202,752</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-5.2</td><td>2026-06</td><td>同 GLM-5</td><td>同 MLA+DSA，新增 IndexShare（每 4 层共享 indexer）+ KVShare</td><td>1M</td><td>u</td></tr>
+          <tr><td>GLM</td><td>GLM-5.3-Flash</td><td>2026-08</td><td>MoE 320B-A18B + 原生多模态</td><td>MLA + KDA 34 层 + DSA 11 层（每 4 层 1 DSA）；文本 NoPE；mHC；IndexPool</td><td>1M</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>Moonshot-8B / 32B-A32B</td><td>—（404）</td><td>不存在或已下架</td><td>未能核实（hf-mirror / ModelScope 多通道 404，无 config 留痕）</td><td>—</td><td>n</td></tr>
+          <tr><td>Kimi</td><td>Moonlight-16B-A3B</td><td>2025-02/03</td><td>MoE 16B-A3B</td><td>MLA（kv_lora 512，无 q_lora）</td><td>8K</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>Kimi-K2-Base</td><td>2025-07</td><td>MoE 1.04T-A32B</td><td>MLA：kv_lora 512 + 新增 q_lora 1536；64/64 头；θ=50000</td><td>131K</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>K2-0905 / K2-Thinking</td><td>2025-09</td><td>同 Base</td><td>文本塔同 MLA；0905 YaRN ×64 到 262K；Thinking INT4 长 CoT</td><td>262K</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>K2.5（含 VL）</td><td>2026-01</td><td>同 K2 + 视觉塔</td><td>文本塔 = K2 MLA；视觉 MoonViT-3D（27 层/1152/16 头/双向/轴向 2D-RoPE）；NaViT</td><td>262K</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>K2.6</td><td>2026-04</td><td>同 K2.5</td><td>文本塔 = K2.5 MLA；config diff 唯一为 eos=163586</td><td>262K</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>K2.7-Code</td><td>2026-06</td><td>同 K2.6</td><td>文本塔 = K2.6 MLA；preserve_thinking；FP8+INT4 QAT</td><td>262K</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>Kimi-K3</td><td>2026-07</td><td>MoE 2.78T/104.2B</td><td>69 KDA + 24 Gated MLA（NoPE）3:1 + 末端一层全局；AttnRes；Stable LatentMoE</td><td>1M（NoPE 直出）</td><td>u</td></tr>
+          <tr><td>Kimi</td><td>K3.1-Pro</td><td>2026-10</td><td>3T 级（官网口径）</td><td>未能核实：无官方 HF 仓库、无 config、无技术报告</td><td>1M（官网）</td><td>n</td></tr>
+          <tr><td>MiniMax</td><td>Text-01 / VL-01</td><td>2025-01</td><td>456B/≈45.9B，MoE 32 top-2</td><td>Lightning 线性 : 全注意力 = 7:1（80 层）；64Q/8KV；θ=1e7</td><td>1M 训 / 4M 外推</td><td>u</td></tr>
+          <tr><td>MiniMax</td><td>M1</td><td>2025-06 论文 / 09 开源</td><td>同 Text-01</td><td>同 7:1 Lightning；差异全在训练（CISPO RL）</td><td>1M</td><td>u</td></tr>
+          <tr><td>MiniMax</td><td>M2</td><td>2025-10</td><td>≈229.9B/≈9.8B，MoE 256 top-8</td><td>全 Softmax GQA 48Q/8KV + QK-RMSNorm；路线反转弃 Lightning</td><td>196K（公开 204K）</td><td>u</td></tr>
+          <tr><td>MiniMax</td><td>M2.1 / M2.5 / M2.7</td><td>2025-12 ~ 2026-03</td><td>同 M2</td><td>同全 GQA；M2.7 仅 max_position 196608→204800</td><td>196K / 204K（M2.7）</td><td>u</td></tr>
+          <tr><td>MiniMax</td><td>M3（M3-VL）</td><td>2026-06</td><td>60 层（前 3 dense + 后 57 MoE）</td><td>MSA 块稀疏：index 4 头×128 选 top-16 块+1 局部；64Q/4KV</td><td>1M</td><td>u</td></tr>
+          <tr><td>MiniMax</td><td>M3.1-Flash</td><td>2026-10</td><td>同 M3 底座</td><td>同 M3 MSA，但 60 层全稀疏（去前 3 层 full）；去 MTP；MxFP8+NVFP4</td><td>1M</td><td>v</td></tr>
+          <tr><td>Gemma</td><td>Gemma 1</td><td>2024-02</td><td>2B / 7B</td><td>2B=MQA（8Q/1KV），7B=MHA（16Q/16KV）；无滑窗/softcap/QK-Norm</td><td>8K</td><td>u</td></tr>
+          <tr><td>Gemma</td><td>Gemma 2</td><td>2024-06</td><td>2B / 9B / 27B</td><td>GQA groups=2 + 1:1 滑窗(4096)/全局(8192) + softcap 50/30</td><td>8K</td><td>u</td></tr>
+          <tr><td>Gemma</td><td>Gemma 3</td><td>2025-03</td><td>270M–27B</td><td>GQA + 5:1 交错 + 双频 RoPE（full 1e6/sliding 1e4）+ QK-Norm 取代 softcap</td><td>32K / 128K</td><td>u</td></tr>
+          <tr><td>Gemma</td><td>Gemma 3n</td><td>2025-05</td><td>E2B / E4B（MatFormer）</td><td>GQA 4:1（8Q/2KV）+ 4:1 交错（窗 512）+ 末段 KV 共享 + AltUp/LAuReL/PLE</td><td>32K</td><td>u</td></tr>
+          <tr><td>Gemma</td><td>Gemma 4</td><td>2026-04</td><td>E2B/E4B/12B/26B-A4B MoE/31B</td><td>per-layer head_dim（sliding 256/full 512）+ K=V 绑定 + QKV head-wise RMSNorm + 26B 真 MoE</td><td>128K / 256K</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL 1.0</td><td>2023-12</td><td>6B ViT + 8B QLLaMA 桥 + LLaMA</td><td>LLaMA 因果 MHA；桥接用 QLLaMA；InternViT-6B 224px 双向 MSA</td><td>224px</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL 1.5</td><td>2024-04</td><td>2B / 26B（+Mini-4B）</td><td>语言 InternLM2 GQA；视觉 InternViT-300M/6B 双向 MSA，448px 动态 tile；无 cross-attn</td><td>4K/8K</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL 2.0</td><td>2024-07</td><td>1B–108B（8 尺寸）</td><td>7 种底座（Qwen2/InternLM2/Phi-3/Yi/Llama-3/InternLM2-102B）；视觉同 1.5 双向 MSA</td><td>8K</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL 2.5</td><td>2024-12</td><td>1B–78B（7 尺寸）</td><td>语言 Qwen2.5/InternLM2.5 全 GQA；视觉 V2.5 双向 MSA（NTP 全参数训练）</td><td>4K–32K</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL 3.0</td><td>2025-04</td><td>1B–78B（7 尺寸）</td><td>语言 Qwen2.5 + InternLM3-8B 32Q/2KV 重度 GQA；视觉 LayerScale 0.1 + mean pooling + V2PE 双向 MSA</td><td>32K</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL 3.5</td><td>2025-08</td><td>1B–241B-A28B（9 尺寸含 3 MoE）</td><td>语言 Qwen3 全系 GQA + GPT-OSS-20B MoE + Qwen3 MoE；视觉同 3.0；ViR 256→64 token</td><td>40K</td><td>u</td></tr>
+          <tr><td>InternVL</td><td>InternVL3.5-Flash</td><td>2025-09</td><td>同 3.5 家族</td><td>同 3.5；ViR patch router 再降 50% 视觉 token</td><td>同 3.5</td><td>u</td></tr>
+          <tr><td>视觉侧</td><td>CLIP（ViT-B/L 多尺寸）</td><td>2021</td><td>ViT-B/32、B/16、L/14、L/14@336 + ResNet 系</td><td>视觉 ViT 双向 MSA；文本塔因果 MSA（GPT-2 式）；InfoNCE；无 cross-attn</td><td>—</td><td>u</td></tr>
+          <tr><td>视觉侧</td><td>BLIP base / large</td><td>2022</td><td>ViT-B / large</td><td>ViT 双向 MSA；文本塔可切换：ITC 双向，ITM/ITG 走图像引导 cross-attn（is_decoder=True）</td><td>—</td><td>u</td></tr>
+          <tr><td>视觉侧</td><td>SigLIP 1 / 2</td><td>2023 / 2025</td><td>ViT-B / so400m-patch14-384 / naflex</td><td>双塔双向 MSA；sigmoid 损失替代 softmax 对比；MHA pooling head（非 CLS）</td><td>—</td><td>u</td></tr>
+          <tr><td>视觉侧</td><td>YOLOS-tiny / small / base</td><td>2021</td><td>ViT-B：12L/768/12H，patch 16，512×864</td><td>纯 encoder 双向 MSA：1 CLS + 1728 patch + 100 det token = 1829 token 同序列；无 decoder、无 cross-attn</td><td>—</td><td>u</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="cmp-note">状态列：u = 已查证（有官方/arXiv 来源）；v = 一方称/未公开；n = 未核实。</p>
+    </section>
+
+    <section id="refs" class="refs">
+      <h2>附录 A 来源清单</h2>
+      <div class="refs-group">Qwen</div>
+      <ol>
+        <li>Qwen Technical Report（2309.16609）· Qwen2 论文（2407.10671）· Qwen2.5（2412.05105）· Qwen3（2505.09388）· Qwen3-Next（2509.11076）· Qwen3.5 技术报告（2602.07974）· Qwen3.6（2604.16030）· Qwen3.8（2608.12258）· Qwen3.8-Flash-Next（2608.30320）· Qwen3-Max 官方公告（2025-09/10）</li>
+        <li>bayon-note：qwen1、qwen1_5、qwen2、qwen2_5、qwen3、qwen3_5、Qwen-27B架构对比-3.5-3.8、Qwen3-2507 联网补</li>
+      </ol>
+      <div class="refs-group">DeepSeek</div>
+      <ol>
+        <li>DeepSeek-LLM 论文（2401.06066）· DeepSeek-V2（2405.04434）· DeepSeek-V3（2412.19437）· R1（2501.12948）· DeepSeek-V3.2-Exp（2512.02556）· DeepSeek-V4 技术报告（2604.22042）· DeepSeek-V4.1-Flash 技术报告（2609.08390）</li>
+        <li>NSA 论文（2502.11089，块级稀疏，未用于发布权重）</li>
+        <li>bayon-note：deepseek_v1、deepseek_v2、deepseek_v3、deepseek_v3_2、deepseek_v4（未确认）、deepseek_v4_1</li>
+      </ol>
+      <div class="refs-group">GLM（智谱）</div>
+      <ol>
+        <li>GLM-130B（2210.02414）· ChatGLM-6B（2303.14070）· ChatGLM2（2406.12717）· ChatGLM3（2406.12717 同族）· GLM-4-9B 官方技术报告 · GLM-Z1（2508.06471 同系）· GLM-4.5（2508.06471）· GLM-5 技术报告（2602.15763）· GLM-5.2 官方公告 · GLM-5.3-Flash 官方发布博客</li>
+        <li>第三方对 GLM-5/5.1/5.2 DSA 的综述（2611.03768，本调研未直接精读）</li>
+        <li>bayon-note：glm_130b、chatglm_6b、chatglm2_3、glm_4、glm_4v、glm_z1、glm_4_5、glm_5、GLM-全家族版本对比与演进</li>
+      </ol>
+      <div class="refs-group">Kimi（Moonshot）</div>
+      <ol>
+        <li>MoBA（2502.13189，服务端部署论文，不是 K2/K2.5/K2.6/K2.7 开源架构）· Kimi K2 技术报告（2507.20534）· K2.5（2602.02276）· Kimi K3 技术报告（2607.24653）</li>
+        <li>bayon-note：moonlight_16b_a3b、kimi_k2_base、kimi_k2_0905、kimi_k2_thinking、kimi_k2_5、kimi_k2_6、kimi_k2_7_code、kimi_k3、Kimi-全家族版本对比与演进</li>
+      </ol>
+      <div class="refs-group">MiniMax</div>
+      <ol>
+        <li>MiniMax-Text-01 论文（<strong>2501.08313</strong>）· M1（2506.10555）· M2（2605.26494）· MSA（2606.13392）· M3-VL 模型卡（huggingface/MiniMaxAI/MiniMax-M3）</li>
+        <li>bayon-note：minimax_text_01、minimax_visual_01、minimax_m1、minimax_m2、minimax_m2_1、minimax_m2_5、minimax_m2_7、minimax_m3_vl、minimax_m3_1_flash</li>
+      </ol>
+      <div class="refs-group">Gemma（Google）</div>
+      <ol>
+        <li>Gemma 1 技术报告（2403.08295）· Gemma 2（2408.00118）· Gemma 3（2503.19784）· Gemma 3n（2505.05146）· Gemma 4 博客（2026-04）+ 论文（2026-07）</li>
+        <li>bayon-note：gemma-1、gemma-2、gemma-3、gemma-3n、gemma-4</li>
+      </ol>
+      <div class="refs-group">InternVL</div>
+      <ol>
+        <li>InternVL 1.0（2312.14238）· 1.5（2404.16456）· 2.0（2407.06352）· 2.5（2412.05271）· 3.0（2504.14090）· 3.5（2508.10334）· InternVL3.5-Flash 官方博客</li>
+        <li>bayon-note：internvl-1_5、internvl-2、internvl-2_5、internvl-3、internvl-3_5、InternVL-全家族版本对比与演进</li>
+      </ol>
+      <div class="refs-group">视觉侧四篇</div>
+      <ol>
+        <li>CLIP（2103.00020）· BLIP（2201.12086）· BLIP-2 / Q-Former（2301.12597）· SigLIP（2303.15343）· SigLIP 2（2502.14786）· YOLOS（2106.00666）</li>
+        <li>bayon-note：CLIP/index.md、BLIP/index.md、Siglip/index.md、YOLOS/index.md</li>
+      </ol>
+      <div class="refs-group">基础机制背景</div>
+      <ol>
+        <li>MQA（2310.01882，2019 年论文 2310.01882）· GQA（2305.13245）</li>
+      </ol>
+    </section>
+
+    <section id="errata">
+      <h2>附录 B 更正清单与未核实项</h2>
+      <p class="section-lead">本页所有「容易写错」的事实，以本表为准；与正文冲突时以本表为准。</p>
+
+      <h3>B.1 15 条硬事实（纠偏清单）</h3>
+      <div class="table-wrap">
+      <table class="cmp">
+        <colgroup><col style="width:6%"><col style="width:32%"><col style="width:62%"></colgroup>
+        <thead><tr><th>#</th><th>条目</th><th>正确口径</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>YOLOS 架构</td><td>纯 encoder 双向 MSA：patch token + 100 个 detection token 同序列全局交互，<strong>没有 decoder、没有 cross-attention</strong>。原文「a stack of Transformer encoder layers only」。</td></tr>
+          <tr><td>2</td><td>Q-Former 归属</td><td>Q-Former 属 <strong>BLIP-2（arXiv:2301.12597）</strong>，不是 BLIP 原版（2201.12086）。BLIP 原版的 cross-attention 是文本 token 对图像特征（文本侧发起）；Q-Former 是 32 个可学习 query 对图像特征（query 侧发起）。</td></tr>
+          <tr><td>3</td><td>Kimi K2 系注意力</td><td>K2 / K2-0905 / K2-Thinking / K2.5 / K2.6 / K2.7-Code 全部是 <strong>MLA</strong>（kv_lora 512 + q_lora 1536），<strong>不是 MoBA</strong>。MoBA（arXiv:2502.13189）是服务端部署论文，不等于开源权重架构。</td></tr>
+          <tr><td>4</td><td>K2.5 / K2.6 是否 MoBA</td><td>否。K2.5 文本塔与 K2 逐字段一致（MLA）；K2.6 config diff 唯一为 eos=163586；K2.7-Code 与 K2.6 几乎零差异。三者均未引入 MoBA / KDA / 滑窗。</td></tr>
+          <tr><td>5</td><td>GLM-4.5 注意力</td><td><strong>GQA 96Q/8KV + QK-Norm + partial RoPE 0.5 + θ=1e6</strong>，不是 Gated DeltaNet / 线性混合 / 稀疏索引。GLM-4.5 是 Dense→MoE，注意力仍是稠密 GQA。</td></tr>
+          <tr><td>6</td><td>GLM-5 注意力</td><td><strong>MLA + DSA</strong>：MLA 64 头（q_lora 2048 / kv_lora 512 / qk_nope 192 / v 256）+ DSA indexer 32×128 选 top-2048。不是纯 MLA，也不是 KDA。</td></tr>
+          <tr><td>7</td><td>GLM-5.3-Flash 注意力</td><td><strong>MLA + KDA 34 层 + DSA 11 层（每 4 层 1 DSA）混合</strong>，<strong>文本侧 NoPE</strong>（qk_rope_head_dim=0），视觉侧仍用 axial 2D-RoPE。不是纯 KDA，也不是纯 MLA。</td></tr>
+          <tr><td>8</td><td>MiniMax Text-01 arXiv 号</td><td><strong>2501.08313</strong>（不是 2502.04336）。M2 = 2605.26494；MSA = 2606.13392。</td></tr>
+          <tr><td>9</td><td>Gemma 1 注意力</td><td><strong>2B = MQA（8Q/1KV），7B = MHA（16Q/16KV）</strong>，同代两套。不是全系 MQA，也不是全系 GQA。</td></tr>
+          <tr><td>10</td><td>Qwen3 基座 vs 2507 长上下文版</td><td>Qwen3 基座（max_position 40960）是 <strong>sliding_window=null 全注意力</strong>；2025-07 的 Qwen3-2507 长上下文版（262144）才全注意力层与 SWA 窗 2048 交错。两种口径都成立，引用时须注明是哪个版本。</td></tr>
+          <tr><td>11</td><td>DeepSeek V1 注意力</td><td><strong>7B = MHA（32Q/32KV），67B = GQA（64Q/8KV）</strong>。不是全系 MHA。</td></tr>
+          <tr><td>12</td><td>NSA 与 DSA 的区别</td><td><strong>NSA ≠ DSA</strong>。NSA（arXiv:2502.11089，块级、复用主表示打分）是论文方案，未用于任何发布权重；DSA（arXiv:2512.02556，token 级、独立 Lightning Indexer）才是 V3.2 / GLM-5 实际用的方案。</td></tr>
+          <tr><td>13</td><td>Moonshot-8B / 32B 404</td><td>经 hf-mirror 组织列表（19 个仓库）、全文搜索、ModelScope 直连核验均 404，无 config 留痕。本页不臆造任何数字；最接近的真实锚点是 Moonlight-16B-A3B。</td></tr>
+          <tr><td>14</td><td>K3.1-Pro 未核实</td><td>仅 moonshot.ai 首页一句定位（3T 级、1M 上下文、coding/3D/金融/agent）；<strong>无官方 HF 仓库、无 config、无技术报告</strong>，是否继承 K3 的 KDA/AttnRes/Stable LatentMoE 待确认。</td></tr>
+          <tr><td>15</td><td>InternVL 无 cross-attn</td><td>InternVL 1.5 起删除 1.0 的 8B QLLaMA 桥接，改为 pixel shuffle + MLP 直连 LLM；视觉 token 与文本 token 在同一条因果序列里走同一套自注意力，<strong>全程无独立 cross-attention</strong>。与 BLIP 的「文本 token 对图像特征 cross-attn」形成对照。</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>B.2 未公开 / 未核实清单（本调研未坐实）</h3>
+      <ul class="note-list">
+        <li>DeepSeek-V4 主仓（deepseek-ai/DeepSeek-V4）：2026-10-31 拉取 404；V4-Flash-Base（4096/43 层）与论文版 V4-Flash（284B/13B）的关系待确认。<span class="tag v">未公开</span></li>
+        <li>DeepSeek-V4.1-Pro：待发布；V4-Pro 自 2026-09-14 起按 V4.1-Flash 计费路由。<span class="tag v">未公开</span></li>
+        <li>GLM-5 本体位置编码：技术报告未明确 GLM-5 用 RoPE 还是 NoPE（5.3-Flash 明确为文本 NoPE）。<span class="tag n">未核实</span></li>
+        <li>GLM-4.6V / 4.7 / 4.7-Flash config 细节（层数、专家数、词表）：未从公开 config 逐字段核验。<span class="tag v">未公开</span></li>
+        <li>MiniMax-M3 总参数量：config 未给 total params；第三方口径 ≈428B/≈23B，与 MSA 论文中 109B ablation 不一致。<span class="tag n">未核实</span></li>
+        <li>MiniMax-M3.1-Flash：公开搜索引擎（2026-11-05）未检索到独立报道，存在性与细节来自用户笔记。<span class="tag v">未公开</span></li>
+        <li>Qwen3-Max（闭源）：&gt;1T 参数、36T token 预训练，但架构细节未公开。<span class="tag v">未公开</span></li>
+        <li>Qwen3.5-122B-A10B / 397B-A17B 精确 hidden/层数：本地 config 未逐一拉取。<span class="tag v">未公开</span></li>
+        <li>InternVL 4 / InternLM4 基座：截至 2026-11-05/04 无公开证据。<span class="tag n">未核实</span></li>
+        <li>Gemma 3n 的 arXiv 编号 2505.05146：公开搜索未直接命中。<span class="tag n">未核实</span></li>
+        <li>Kimi-Linear-48B-A3B：KDA 前身小模型，本地有等价实现但未展开独立 config。<span class="tag v">未公开</span></li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<footer class="doc-footer">
+  <div class="footer-inner">
+    <div class="footer-series">Transformers 架构演进系列笔记</div>
+    <nav class="footer-nav">
+      <a href="注意力机制演进对比.html" class="current">注意力机制演进</a><span class="sep">·</span>
+      <a href="ffn_evolution.html">前馈网络演进</a><span class="sep">·</span>
+      <a href="normalization_evolution.html">归一化演进</a><span class="sep">·</span>
+      <a href="positional_encoding_evolution.html">位置编码演进</a>
+    </nav>
+    <p class="footer-meta">生成于 2026-11-05 · 关键事实附来源，未核实项已标注 · 本系列为个人学习笔记，引用请核对原始出处</p>
+  </div>
+</footer>
+
+<button id="backTop" aria-label="回到顶部"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+
 <script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>window.echarts || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"><\/script>')</script>
 <script>
-if (typeof echarts === 'undefined') {
-  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"><\/script>');
-}
-</script>
-<script>
-/* ===== 数据固化（RAW_DATA）===== */
-var RAW_DATA = {};
-/* 复杂度渐近示意：x = 序列长度 n（K tokens），y = 相对计算量（任意单位，示意） */
-RAW_DATA.complexity = {
-  nLabels: ['1K','2K','4K','8K','16K','32K','64K','128K','256K','512K','1M'],
-  nVals:   [1000,2000,4000,8000,16000,32000,64000,128000,256000,512000,1000000],
-  softmax: null,
-  swa: null,
-  sparse: null,
-  linear: null
-};
-/* KV Cache 每 token 每层对比（示例配置：8B 级，d_model=4096、64 Q 头、head_dim=64、FP16 2 字节/参数） */
-RAW_DATA.kvCache = {
-  cats: ['MHA (64 KV 头)','GQA (8 KV 头)','MLA (latent 512)','MQA (1 KV 头)'],
-  kb:   [16.0, 2.0, 1.0, 0.25],
-  note: 'MHA=2×64×64×2B=16KB；GQA=2×8×64×2B=2KB；MQA=2×1×64×2B=0.25KB；MLA 缓存低秩潜向量 c_KV≈512 维×2B≈1KB（另有解耦 RoPE 小分量，此处未计）。'
-};
-/* 代表模型最大上下文长度（K tokens，log 轴） */
-RAW_DATA.context = {
-  models: ['GPT-4','Falcon-H1','MiniMax-Text-01','DeepSeek-V4','Kimi K3','Llama4 Scout','Gemini 1.5'],
-  k:      [8, 262, 1000, 1000, 1000, 10000, 10000]
-};
-</script>
-<script>
-/* ===== 回到顶部 ===== */
 (function(){
-  var btn = document.getElementById('toTop');
-  window.addEventListener('scroll', function(){
-    if (window.scrollY > 600) { btn.style.display = 'flex'; } else { btn.style.display = 'none'; }
-  }, {passive:true});
-  btn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+  window.seriesChart = function(id, option){
+    var el = document.getElementById(id);
+    if(!el || !window.echarts) return null;
+    var fb = el.parentElement.querySelector('.chart-fallback');
+    if(fb) fb.style.display = 'none';
+    var c = echarts.init(el);
+    c.setOption(option);
+    window.addEventListener('resize', function(){ c.resize(); });
+    return c;
+  };
+  var toc = document.getElementById('toc');
+  var toggle = document.getElementById('tocToggle');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = toc.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    if(document.getElementById(id)) map[id] = a;
+  });
+  if('IntersectionObserver' in window && Object.keys(map).length){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(a){ a.classList.remove('on'); });
+          if(map[e.target.id]) map[e.target.id].classList.add('on');
+        }
+      });
+    }, {rootMargin:'-15% 0px -70% 0px'});
+    Object.keys(map).forEach(function(id){ io.observe(document.getElementById(id)); });
+  }
+  var bt = document.getElementById('backTop');
+  if(bt){
+    window.addEventListener('scroll', function(){
+      bt.classList.toggle('show', (window.scrollY || document.documentElement.scrollTop) > 400);
+    }, {passive:true});
+    bt.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+  }
 })();
-/* ===== ECharts 渲染 ===== */
-function renderCharts(){
-  if (typeof echarts === 'undefined') {
-    var slots = document.querySelectorAll('.chart');
-    for (var i=0;i<slots.length;i++){ slots[i].textContent = '图表库未加载（请检查网络后刷新）'; }
-    return;
-  }
-  var isMobile = window.innerWidth < 768;
-  var baseGrid = {left:8, right:16, top: isMobile ? 76 : 40, bottom:8, containLabel:true};
-  var axisLabelFont = isMobile ? 10 : 11;
-
-  /* 图2：复杂度渐近示意（双对数） */
-  var el2 = document.getElementById('chartComplexity');
-  if (el2) {
-    var d = RAW_DATA.complexity;
-    d.softmax = d.nVals.map(function(n){ return n*n; });
-    d.swa    = d.nVals.map(function(n){ return n*2048; });
-    d.sparse = d.nVals.map(function(n){ return n*64; });
-    d.linear = d.nVals.map(function(n){ return n*8; });
-    echarts.init(el2).setOption({
-      backgroundColor:'transparent',
-      title:{text:'相对计算量（渐近复杂度示意，非实测）', left:8, top:6, textStyle:{fontSize: isMobile?12:14, color:'#1c2733'}},
-      tooltip:{trigger:'axis', triggerOn:'mousemove|click', renderMode:'richText', confine:true,
-        formatter:function(ps){ var s='序列长度 ≈ '+ps[0].axisValue+'\n'; for(var i=0;i<ps.length;i++){ s+=ps[i].marker+ps[i].seriesName+': '+ps[i].value.toExponential(1)+'\n'; } return s; }},
-      legend:{top: isMobile ? 50 : 28, left:8, itemWidth:14, textStyle:{fontSize: axisLabelFont}},
-      grid: baseGrid,
-      xAxis:{type:'category', data:d.nLabels, name:'序列长度 n', nameLocation:'middle', nameGap:26,
-        axisLabel:{fontSize:axisLabelFont}},
-      yAxis:{type:'log', name:'相对计算量', nameTextStyle:{fontSize:axisLabelFont}, axisLabel:{fontSize:axisLabelFont}},
-      series:[
-        {name:'Softmax 全注意力 O(n²)', type:'line', data:d.softmax, smooth:false, symbol:'circle', symbolSize:5, lineStyle:{width:2}},
-        {name:'滑窗 SWA O(n·w)，w=2048', type:'line', data:d.swa, smooth:false, symbol:'triangle', symbolSize:5, lineStyle:{width:2}},
-        {name:'原生稀疏 NSA/MoBA O(n·k)', type:'line', data:d.sparse, smooth:false, symbol:'rect', symbolSize:5, lineStyle:{width:2}},
-        {name:'线性/SSM O(n)', type:'line', data:d.linear, smooth:false, symbol:'diamond', symbolSize:5, lineStyle:{width:2}}
-      ]
-    });
-  }
-
-  /* 图3：KV Cache 每 token 每层（KB，log） */
-  var el3 = document.getElementById('chartKv');
-  if (el3) {
-    echarts.init(el3).setOption({
-      backgroundColor:'transparent',
-      title:{text:'每 token 每层 KV Cache（KB，对数轴）', left:8, top:6, textStyle:{fontSize: isMobile?12:14, color:'#1c2733'}},
-      tooltip:{trigger:'item', triggerOn:'mousemove|click', renderMode:'richText', confine:true},
-      grid:{left:8, right:24, top:40, bottom:8, containLabel:true},
-      xAxis:{type:'log', name:'KB / token / 层', nameLocation:'middle', nameGap:26, axisLabel:{fontSize:axisLabelFont}},
-      yAxis:{type:'category', data:RAW_DATA.kvCache.cats, axisLabel:{fontSize:axisLabelFont}},
-      series:[{type:'bar', data:RAW_DATA.kvCache.kb, barWidth:'55%',
-        label:{show:true, position:'right', fontSize:axisLabelFont, formatter:'{c} KB'}}]
-    });
-  }
-
-  /* 图4：最大上下文长度对比（K tokens，log） */
-  var el4 = document.getElementById('chartCtx');
-  if (el4) {
-    echarts.init(el4).setOption({
-      backgroundColor:'transparent',
-      title:{text:'代表模型最大上下文长度（K tokens，对数轴）', left:8, top:6, textStyle:{fontSize: isMobile?12:14, color:'#1c2733'}},
-      tooltip:{trigger:'item', triggerOn:'mousemove|click', renderMode:'richText', confine:true,
-        formatter:function(p){ return p.name+': '+p.value+'K tokens'; }},
-      grid:{left:8, right:30, top:40, bottom:8, containLabel:true},
-      xAxis:{type:'log', name:'K tokens', nameLocation:'middle', nameGap:26, axisLabel:{fontSize:axisLabelFont}},
-      yAxis:{type:'category', data:RAW_DATA.context.models, axisLabel:{fontSize:axisLabelFont}},
-      series:[{type:'bar', data:RAW_DATA.context.k, barWidth:'55%',
-        label:{show:true, position:'right', fontSize:axisLabelFont, formatter:'{c}K'}}]
-    });
-  }
-}
-window.addEventListener('load', function(){
-  renderCharts();
+</script>
+<script>
+/* 图 1：上下文长度（K/M，log 轴）— 原生值，扩展能力见图注 */
+seriesChart('chart-ctx', {
+  grid:{left:130,right:40,top:20,bottom:50},
+  tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, valueFormatter:function(v){return v+' tokens（原生）'}},
+  xAxis:{type:'log', logBase:10, name:'上下文长度（原生）', nameLocation:'middle', nameGap:30,
+    axisLabel:{formatter:function(v){return v>=1000000?(v/1000000)+'M':(v/1000)+'K'}}},
+  yAxis:{type:'category', inverse:true,
+    axisLabel:{fontSize:10.5, interval:0},
+    data:['Qwen3','Qwen3-Next','Qwen3.5/3.8',
+         'DS V2/V3','DS V3.2','DS V4/V4.1','GLM-5','GLM-5.3-Flash',
+         'Kimi K2-Base','Kimi K2 系','Kimi K3','MiniMax M3','Gemma 3','Gemma 4','InternVL 3.5']},
+  series:[{type:'bar', barWidth:12,
+    itemStyle:{color:'#2563eb', borderRadius:[0,3,3,0]},
+    label:{show:true, position:'right', fontSize:10, color:'#475569',
+      formatter:function(p){var v=p.value; return v>=1000000?(v/1000000)+'M':(v/1000)+'K'}},
+    data:[40960, 262144, 262144,
+          163840, 163840, 1048576, 202752, 1048576,
+          131072, 262144, 1048576, 1048576, 131072, 262144, 40960]}]
 });
-window.addEventListener('resize', function(){
-  var insts = document.querySelectorAll('.chart');
-  for (var i=0;i<insts.length;i++){
-    var c = echarts.getInstanceByDom(insts[i]);
-    if (c) c.resize();
-  }
+
+/* 图 2：每 token KV 等效维度（越低越省） */
+seriesChart('chart-kv', {
+  grid:{left:110,right:60,top:30,bottom:50},
+  tooltip:{trigger:'axis', axisPointer:{type:'shadow'},
+    valueFormatter:function(v){return v+' dim/token'}},
+  xAxis:{type:'log', logBase:2, name:'KV 等效维度（log）', nameLocation:'middle', nameGap:30,
+    axisLabel:{formatter:function(v){return v>=1024?(v/1024)+'K':v}}},
+  yAxis:{type:'category', inverse:true,
+    data:['MHA 128×16 = 2048（Gemma 1-7B 同级）','MHA 256×16 = 4096（Gemma 1）',
+         'MQA 128×1 = 128（ChatGLM2）','GQA 128×2 = 256（GLM-4）','GQA 128×8 = 1024（Qwen2.5-72B）',
+         'GQA 256×4 = 1024（Gemma 2-27B）','MLA 512+64 RoPE（DeepSeek V2/V3/Kimi K2）','MLA kv_lora 512（GLM-5，未计 RoPE 段）',
+         'MQA 512×1 = 512（DeepSeek V4）','CSA2 + FP4（V4.1）',
+         'GDN/KDA 递归状态 d×d（与序列长度无关）']},
+  series:[{type:'bar', barWidth:14,
+    itemStyle:{color:function(p){var c=['#94a3b8','#94a3b8','#0d9488','#0d9488','#0d9488','#0d9488','#2563eb','#2563eb','#d97706','#e11d48','#7c3aed']; return c[p.dataIndex]},
+      borderRadius:[0,3,3,0]},
+    label:{show:true, position:'right', fontSize:10, color:'#475569',
+      formatter:function(p){var v=p.value; return v>=1024?(v/1024)+'K':v}},
+    data:[2048, 4096, 128, 256, 1024, 1024, 576, 512, 512, 512, 128]}]
 });
 </script>
 </body>

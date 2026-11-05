@@ -2,7 +2,7 @@
 
 > 整理日期：2026-11-02
 > 数据来源：各版本目录 `index.md`（其事实全部源自本地 config.json、ModelScope 官方镜像 config、transformers 本地源码 `modeling_gemma*.py`、官方技术报告与模型卡，详见文末来源）
-> 覆盖版本：gemma-1（2024-02）、gemma-2（2024-06）、gemma-3（2025-03）、gemma-3n（2025-05，端侧）、gemma-4（26B-A4B MoE 等五尺寸）
+> 覆盖版本：gemma-1（2024-02-21）、gemma-2（2024-06-27）、gemma-3（2025-03-10）、gemma-3n（2025-06-26 权重 / 2025-05-20 Preview，端侧）、gemma-4（26B-A4B MoE 等五尺寸）
 > 用途：配合 `E:\transformers` 源码研读与断点 debug 的家族横向速查
 
 ---
@@ -11,11 +11,11 @@
 
 Gemma 家族的演进主线是一条「**从小模型打样 → 深度网络稳定化 → 多模态 + 超长上下文 → 端侧效率化 → 收敛为真 MoE**」的路线：
 
-1. **Gemma 1（2024-02）**：pre-norm + GeGLU + RoPE(θ=1e4) + RMSNorm 的 LLaMA 式稠密母版；2B 用 MQA 压 KV、7B 保留完整 MHA；词表 256K、上下文 8192。
-2. **Gemma 2（2024-06）**：四大结构增量——GQA 全家族统一（groups=2）、滑窗 4096 与全局 8192 逐层 1:1 交替、**双 soft-capping**（attn 50 / final 30）、pre+post 双 RMSNorm（每层 4 个）；并新增 `query_pre_attn_scalar` 把 Q 缩放与 head_dim 解耦。
-3. **Gemma 3（2025-03）**：跨入多模态（4B/12B/27B 挂 SigLIP 视觉塔）；**双频率 RoPE**（global θ=1e6 / local θ=1e4）+ 5:1 滑窗/全局交错；**以 QK-Norm 取代 soft-capping**；上下文 8K → 32K/128K；词表 256K→262144，训练扩到 14T token / 140+ 语言。
-4. **Gemma 3n（2025-05）**：端侧专版——MatFormer 嵌套（逐层 FFN 数组）+ AltUp 四路隐藏态 + LAuReL 低秩残差 + PLE 逐层嵌入 + 前 10 层高斯 top-k 激活稀疏 + 末段 KV 共享；首次原生并入音频（Conformer）；上下文回收到 32K。
-5. **Gemma 4**：把 3n 的效率思路收敛为**真正的 MoE**（26B-A4B：128 专家 Top-8 + dense MLP 并行融合）；注意力升级为 **per-layer 维度 + Q/K/V head-wise RMSNorm**（移除 query_scalar，scaling=1.0）；full 层 K=V 绑定；上下文最高 256K；12B 走 encoder-free 无独立视觉塔。
+1. **Gemma 1（2024-02-21）**：pre-norm + GeGLU + RoPE(θ=1e4) + RMSNorm 的 LLaMA 式稠密母版；2B 用 MQA 压 KV、7B 保留完整 MHA；词表 256K、上下文 8192。
+2. **Gemma 2（2024-06-27）**：四大结构增量——GQA 全家族统一（groups=2）、滑窗 4096 与全局 8192 逐层 1:1 交替、**双 soft-capping**（attn 50 / final 30）、pre+post 双 RMSNorm（每层 4 个）；并新增 `query_pre_attn_scalar` 把 Q 缩放与 head_dim 解耦。
+3. **Gemma 3（2025-03-10）**：跨入多模态（4B/12B/27B 挂 SigLIP 视觉塔）；**双频率 RoPE**（global θ=1e6 / local θ=1e4）+ 5:1 滑窗/全局交错；**以 QK-Norm 取代 soft-capping**；上下文 8K → 32K/128K；词表 256K→262144，训练扩到 14T token / 140+ 语言。
+4. **Gemma 3n（2025-06-26 权重 / 2025-05-20 Preview）**：端侧专版——MatFormer 嵌套（逐层 FFN 数组）+ AltUp 四路隐藏态 + LAuReL 低秩残差 + PLE 逐层嵌入 + 前 10 层高斯 top-k 激活稀疏 + 末段 KV 共享；首次原生并入音频（Conformer）；上下文回收到 32K。
+5. **Gemma 4（2026-03-31 权重 / 2026-04-02 官方博客）**：把 3n 的效率思路收敛为**真正的 MoE**（26B-A4B：128 专家 Top-8 + dense MLP 并行融合）；注意力升级为 **per-layer 维度 + Q/K/V head-wise RMSNorm**（移除 query_scalar，scaling=1.0）；full 层 K=V 绑定；上下文最高 256K；12B 走 encoder-free 无独立视觉塔。
 
 一句话：**Gemma 1 定母版，Gemma 2 加固稳定性（GQA/滑窗/softcap/双 norm），Gemma 3 开多模态与长上下文（QK-Norm/双 RoPE），Gemma 3n 做端侧效率（MatFormer/稀疏/KV 共享），Gemma 4 收敛为 MoE + 分层注意力（QKV Norm/per-layer dim）**。
 
@@ -25,7 +25,7 @@ Gemma 家族的演进主线是一条「**从小模型打样 → 深度网络稳�
 
 | 项目 | Gemma 1 | Gemma 2 | Gemma 3 | Gemma 3n | Gemma 4 |
 |---|---|---|---|---|---|
-| 发布时间 | 2024-02 | 2024-06 | 2025-03 | 2025-05 | 2026（官方口径） |
+| 发布时间 | 2024-02-21 | 2024-06-27 | 2025-03-10 | 2025-06-26 权重 / 2025-05-20 Preview | 2026-03-31 权重 / 2026-04-02 官方博客 |
 | 入口类 | GemmaForCausalLM | Gemma2ForCausalLM | Gemma3ForCausalLM（270M/1B）/ Gemma3ForConditionalGeneration（4B+） | Gemma3nForConditionalGeneration | Gemma4ForConditionalGeneration / Gemma4UnifiedForConditionalGeneration（12B） |
 | 尺寸 | 2B / 7B | 2B / 9B / 27B | 270M / 1B / 4B / 12B / 27B | E2B / E4B（有效≈2B/4B，原始≈5B/8B） | E2B / E4B / 12B / **26B-A4B（MoE）** / 31B |
 | 形态 | Dense | Dense | Dense | Dense（+稀疏激活） | Dense / **MoE（26B-A4B：128 专家 Top-8 + dense 并行）** |
@@ -49,7 +49,7 @@ Gemma 家族的演进主线是一条「**从小模型打样 → 深度网络稳�
 
 ## 二、代际演进详解
 
-### 2.1 Gemma 1 → Gemma 2：从 MQA/MHA 到 GQA + 稳定化四件套
+### 2.1 Gemma 1（2024-02-21）→ Gemma 2（2024-06-27）：从 MQA/MHA 到 GQA + 稳定化四件套
 
 | 维度 | Gemma 1 | Gemma 2 |
 |---|---|---|
@@ -63,7 +63,7 @@ Gemma 家族的演进主线是一条「**从小模型打样 → 深度网络稳�
 
 - Gemma 2 的口号是 "competitive alternatives to models that are 2-3 times bigger"——靠 GQA 降推理成本、滑窗降 KV、softcap + 双 norm 稳定深网络。
 
-### 2.2 Gemma 2 → Gemma 3：多模态 + 双 RoPE + QK-Norm
+### 2.2 Gemma 2（2024-06-27）→ Gemma 3（2025-03-10）：多模态 + 双 RoPE + QK-Norm
 
 | 维度 | Gemma 2 | Gemma 3 |
 |---|---|---|
@@ -78,7 +78,7 @@ Gemma 家族的演进主线是一条「**从小模型打样 → 深度网络稳�
 
 - 关键转折：Gemma 3 用 **QK-Norm 替代 soft-capping**（官方明确口径），并把上下文与语言覆盖大幅扩表——这是家族从"实用小模型"走向"通用多模态"的一代。
 
-### 2.3 Gemma 3 → Gemma 3n：端侧效率工程（MatFormer 全家桶）
+### 2.3 Gemma 3（2025-03-10）→ Gemma 3n（2025-06-26 权重 / 2025-05-20 Preview）：端侧效率工程（MatFormer 全家桶）
 
 | 维度 | Gemma 3 | Gemma 3n（E2B/E4B） |
 |---|---|---|
@@ -94,7 +94,7 @@ Gemma 家族的演进主线是一条「**从小模型打样 → 深度网络稳�
 
 - Gemma 3n 的本质：用 MatFormer 嵌套 + 激活稀疏 + KV 共享，在约 2B/4B 有效参数下逼近更大模型质量，代价是上下文从 128K 回收至 32K。
 
-### 2.4 Gemma 3n → Gemma 4：收敛为真 MoE + 分层注意力
+### 2.4 Gemma 3n（2025-06-26 权重 / 2025-05-20 Preview）→ Gemma 4（2026-03-31 权重 / 2026-04-02 官方博客）：收敛为真 MoE + 分层注意力
 
 | 维度 | Gemma 3n | Gemma 4 |
 |---|---|---|

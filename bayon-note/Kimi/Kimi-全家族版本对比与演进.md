@@ -15,12 +15,12 @@ Kimi 家族的演进主线是一条「**DeepSeek-V3 系 MLA-MoE 范式下的规�
 2. **Kimi-K2-Base（2025-07）**：**1T-A32B 级跃迁**——hidden 7168/61 层、MLA 新增 q 侧低秩（q_lora 1536）、路由专家扩到 **384 + 1 共享 top-8**（稀疏度 48），上下文 131072；官方论文 arXiv:2507.20534。
 3. **Kimi-K2-0905（2025-09）**：与 Base 同文本塔，工程升级——上下文经 YaRN 扩到 **262144**、权重改 **fp8 e4m3** 官方发布。
 4. **Kimi-K2-Thinking（2025-09）**：**架构零改动**的推理变体——config 与 K2-0905 逐字段一致（仅 eos=163586、YaRN beta_fast=1.0），差异在长思维链 SFT + RL；INT4 发布，纯文本。
-5. **Kimi-K2.5（2026）**：**原生多模态智能体**——K2 文本塔 + **MoonViT-3D 视觉塔**（patch14/27 层/1152，双向、轴向 2D-RoPE，初始化自 SigLIP-SO-400M）+ **PatchMerger 投影器**（时空 2×2 池化 → 4608→7168）；early-fusion 联合预训练约 15T token；INT4 发布，图像/视频权重共享、视频 4× 时间压缩；K2.5-VL 即其视觉塔专述（官方无独立 K2-VL 仓库）。
+5. **Kimi-K2.5（2026-01-27）**：**原生多模态智能体**——K2 文本塔 + **MoonViT-3D 视觉塔**（patch14/27 层/1152，双向、轴向 2D-RoPE，初始化自 SigLIP-SO-400M）+ **PatchMerger 投影器**（时空 2×2 池化 → 4608→7168）；early-fusion 联合预训练约 15T token；INT4 发布，图像/视频权重共享、视频 4× 时间压缩；K2.5-VL 即其视觉塔专述（官方无独立 K2-VL 仓库）。
 6. **Kimi-K2.6（2026-04）**：**K2.5 架构的通用更新版**——config 与 K2.5 逐字段 diff 唯一为 eos=163586（K2.5 为 163585），其余全部字段（7168/61/MLA/384+1/YaRN 262144/vision_config/INT4）逐项一致；通用多模态（文本/图片/视频），256K 上下文，thinking 可开关，API 名 `kimi-k2.6`。
 7. **Kimi-K2.7-Code（2026-06-12）**：**基于 K2.6 的编码 Agent 微调**——config 与 K2.6 几乎零差异（仅量化忽略名单正则写法收紧），差异在发布层：preserve_thinking 强制思维链、Modified MIT 协议、FP8 + 原生 INT4（QAT）发布；Kimi Code Bench v2 得分 62.0 vs K2.6 的 50.9（来源：官方模型卡）；06-15 出 HighSpeed 变体。
-8. **Kimi-K3（2026-07-16 API / 07-27 开源）**：**注意力范式换代的当前旗舰**——2.8T/104B 激活；混合注意力 **69 KDA（Kimi Delta Attention）+ 24 Gated MLA（NoPE）**，3:1 混合 + 末端一层全局；**AttnRes** 跨层注意力残差（block 12）；**Stable LatentMoE**（896 路由 + 2 共享，top-16，latent 3584，稀疏度 56）；**SiTU-GLU**（β₁=4、β₂=25）+ **Quantile Balancing**；**MoonViT-V2**（从零训练，patch14/27 层/1024/12 头，~401M，像素重排 2×2）；**NoPE 直接外推 1M 上下文**；**MXFP4 权重/MXFP8 激活（QAT）**，无 BF16 发布；Per-Head Muon；~2.5× scaling efficiency vs K2；Kimi K3 License（非 MIT，MaaS 年收入 >$20M 需单独协议）；技术报告 arXiv:2607.24653。
+8. **Kimi-K3（2026-07-16 API / 2026-07-27 开源）**：**注意力范式换代的当前旗舰**——2.8T/104B 激活；混合注意力 **69 KDA（Kimi Delta Attention）+ 24 Gated MLA（NoPE）**，3:1 混合 + 末端一层全局；**AttnRes** 跨层注意力残差（block 12）；**Stable LatentMoE**（896 路由 + 2 共享，top-16，latent 3584，稀疏度 56）；**SiTU-GLU**（β₁=4、β₂=25）+ **Quantile Balancing**；**MoonViT-V2**（从零训练，patch14/27 层/1024/12 头，~401M，像素重排 2×2）；**NoPE 直接外推 1M 上下文**；**MXFP4 权重/MXFP8 激活（QAT）**，无 BF16 发布；Per-Head Muon；~2.5× scaling efficiency vs K2；Kimi K3 License（非 MIT，MaaS 年收入 >$20M 需单独协议）；技术报告 arXiv:2607.24653。
 9. **Kimi-K3.1-Pro（2026-10-24 官网展示）**：**最新旗舰**——3 万亿参数级、1M 上下文，面向长程 coding/3D 创作/金融研究/复杂 agent 任务；无官方 HF 仓库、无 config、无技术报告，架构字段全部待确认（来源：moonshot.ai 首页）。
-10. **Moonshot-8B / Moonshot-32B-A32B**：经 hf-mirror / ModelScope 多通道核验 **404（不存在或已下架）**，无 config 留痕，全部规格标「待确认」；最接近的真实对象是 Moonlight-16B-A3B 与 K2 系——按源文档口径如实记录，不臆造数字。
+10. **Moonshot-8B / Moonshot-32B-A32B（待确认）**：经 hf-mirror / ModelScope 多通道核验 **404（不存在或已下架）**，无 config 留痕，全部规格标「待确认」；最接近的真实对象是 Moonlight-16B-A3B 与 K2 系——按源文档口径如实记录，不臆造数字。
 
 一句话：**K2 系是"DeepSeek-V3 架构模板的 1T 级复用"（MLA 加 q 低秩、专家 64→384），Thinking 是"同架构换训练"（推理 RL），K2.5 是"文本塔加视觉塔换模态"（MoonViT-3D + PatchMerger），K2.6/K2.7-Code 是"同 config 换发布与后训练"，K3 是"注意力范式换代"（KDA 混合线性 + AttnRes + Stable LatentMoE + NoPE 1M + MXFP4 QAT），K3.1-Pro 是"3T 级新一代旗舰（信息待确认）"，早期"Moonshot-8B/32B-A32B"不可考**。
 
@@ -30,7 +30,7 @@ Kimi 家族的演进主线是一条「**DeepSeek-V3 系 MLA-MoE 范式下的规�
 
 | 项目 | Moonlight-16B-A3B（真实锚点） | Kimi-K2-Base | Kimi-K2-0905 | Kimi-K2-Thinking | Kimi-K2.5（含 K2.5-VL） | Kimi-K2.6 | Kimi-K2.7-Code | Kimi-K3 | Kimi-K3.1-Pro | Moonshot-8B / 32B-A32B |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 时间 | 2025-02/03 | 2025-07 | 2025-09 | 2025-09 | 2026 | 2026-04 | 2026-06-12（HighSpeed 06-15） | 2026-07-16 API / 07-27 开源 | 2026-10-24（官网展示） | —（404） |
+| 时间 | 2025-02/03 | 2025-07 | 2025-09 | 2025-09 | 2026-01-27 | 2026-04 | 2026-06-12 | 2026-07-16 API / 2026-07-27 开源 | 2026-10-24 官网展示 | 待确认（404） |
 | 入口类 / model_type | DeepseekV3ForCausalLM / deepseek_v3 | DeepseekV3ForCausalLM / kimi_k2 | 同左 | 同左 | KimiK25ForConditionalGeneration / kimi_k25（text 重写为 deepseek_v3） | 同 K2.5 | 同 K2.6 | **KimiK3ForConditionalGeneration / kimi_k3**（text=kimi_linear → KimiLinearForCausalLM） | 待确认 | 待确认 |
 | 形态 | MoE（16B-A3B） | **MoE（1.04T-A32B）** | 同 Base | 同 Base | 同 K2 + 视觉塔 | 同 K2.5 | 同 K2.6（编码 Agent 微调） | **MoE（2.78T/104.2B 激活）** | 3T 级（官网口径） | 8B dense? / A32B MoE?（待确认） |
 | hidden / 层数 | 2048 / 27 | 7168 / 61（第 0 层 dense） | 7168 / 61 | 7168 / 61 | 7168 / 61 | 7168 / 61 | 7168 / 61 | **7168 / 93**（1 dense + 69 KDA + 24 Gated MLA） | 待确认 | 待确认 |
@@ -82,14 +82,14 @@ Kimi 家族的演进主线是一条「**DeepSeek-V3 系 MLA-MoE 范式下的规�
 - K2-Base 的关键设计（论文口径）：固定激活参数量下**扩大路由专家总数（384/8=48 稀疏度）可降低 loss**；MLA 增加 q 侧低秩压缩（q_lora 1536）进一步压 KV。
 - 0905 是 2025-09 更新的 Instruct 检查点：文本塔与 Base 同架构，工程差异集中在**上下文翻倍到 256K** 与 **fp8 官方权重**。
 
-### 2.3 Kimi-K2-Thinking：同架构推理变体（架构零改动）
+### 2.3 Kimi-K2-Thinking（2025-09）：同架构推理变体（架构零改动）
 
 - 与 K2-0905 文本塔 **config 逐字段一致**（hidden 7168 / 61 层 / MLA 同维 / 384+1 top-8 / routed_scaling 2.827 / vocab 163840 / max 262144）。
 - 唯一差异：`eos_token_id=163586`（0905 为 163585）、YaRN `beta_fast=1.0`（K2.5 为 32）、无 vision_config、无 nextn 预测层。
 - 差异本质在**训练**：长思维链（long CoT）SFT + 强化学习，激发「先思考再回答」；config 无 reasoning 专用开关字段。
 - 权重：INT4（compressed-tensors，group32，dynamic，act-order，weight-only）。
 
-### 2.4 Kimi-K2.5 / K2.5-VL（2026）：文本塔 + 视觉塔 = 原生多模态智能体
+### 2.4 Kimi-K2.5 / K2.5-VL（2026-01-27）：文本塔 + 视觉塔 = 原生多模态智能体
 
 | 部件 | 规格 | 关键点 |
 |---|---|---|
@@ -121,7 +121,7 @@ Kimi 家族的演进主线是一条「**DeepSeek-V3 系 MLA-MoE 范式下的规�
   - 2026-06-15 发布 HighSpeed 变体（高速推理）。
 - 意义：编码能力的工程化微调样板——config 不动，后训练与发布形态换代。
 
-### 2.7 Kimi-K3（2026-07）：注意力范式换代（当前旗舰）
+### 2.7 Kimi-K3（2026-07-16 API / 2026-07-27 开源）：注意力范式换代（当前旗舰）
 
 | 维度 | K2.5 / K2.6 / K2.7-Code | Kimi K3 |
 |---|---|---|
@@ -143,7 +143,7 @@ Kimi 家族的演进主线是一条「**DeepSeek-V3 系 MLA-MoE 范式下的规�
 - 发布：thinking 常开（reasoning_effort low/high/max）；API `kimi-k3`（输入 $3 / 输出 $15 / 缓存命中 $0.30 每 1M token）；Kimi K3 License（MaaS 年收入 >$20M 需单独协议）；技术报告 arXiv:2607.24653。
 - 本地代码核验（2026-11-03）：`models\kimi_k3\` 模块不存在（顶层走仓库 custom code）；text_config 实例化目标 `models\kimi_linear\`（KimiLinearForCausalLM）本地存在。
 
-### 2.8 Kimi-K3.1-Pro（2026-10-24）：3T 级新一代旗舰（信息待确认）
+### 2.8 Kimi-K3.1-Pro（2026-10-24 官网展示）：3T 级新一代旗舰（信息待确认）
 
 - 官网首页展示（2026-11-03 抓取）：**3 万亿参数级、1M 上下文**，面向长程 coding / 3D 创作 / 金融研究 / 复杂 agent 任务。
 - 无官方 HF 仓库（搜索 0 命中）、无 config、无技术报告；是否继承 K3 的 KDA/AttnRes/Stable LatentMoE 架构、激活规模、专家配置、权重格式、协议——全部**待确认**，不臆造数字。

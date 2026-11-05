@@ -12,14 +12,14 @@
 
 Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃迁 + 多模态逐步原生化**」的路线：
 
-1. **Qwen1（2023-09）**：remote-code 首代底座——纯 MHA + 融合 QKV 投影（c_attn）+ LogN/动态 NTK 把 8K 训练外推到 32K，词表 151936/152064。
-2. **Qwen1.5（2024-02）**：**架构换血到 Qwen2 模板**——SwiGLU 全门控维、分立 q/k/v/o 投影、静态 RoPE θ=1e6、全系原生 32K、32B 首引 GQA、ChatML 模板。
-3. **Qwen2（2024-06/07）**：**GQA 全系标配**（0.5B 即 14Q·2KV）+ SWA 滑窗字段 + 首个 MoE（57B-A14B，64 专家选 8 + 共享）+ 2-VL 多模态（patch14 · M-RoPE · 动态分辨率）。
-4. **Qwen2.5（2024-12）**：文本塔**完全延续 qwen2**（0.5B config 与 Qwen2-0.5B 同规格）；2.5-VL 上下文扩 128K、视觉塔改 window attention（窗 112）。
-5. **Qwen3（2025-05）**：**注意力回归全注意力**（sliding_window=null）+ 逐头 QK-Norm + head_dim 显式 128 + **原生 thinking**（`/think` `/no_think` 软切换）+ MoE 128 选 8（无共享专家）+ 3-VL（patch16、文本 θ 5e6、262K）。
-6. **Qwen3.5（2026-02）**：**架构大改**——**Gated DeltaNet 线性注意力 + Gated Attention 3:1 混合**（每 4 层 3 线性 + 1 全注意力），词表 151936→**248320**，上下文 262144→YaRN 1M，多模态原生化，MoE 256 选 8 + 显式共享专家。
+1. **Qwen1（2023-08-03 开源 / 2023-09-28 报告）**：remote-code 首代底座——纯 MHA + 融合 QKV 投影（c_attn）+ LogN/动态 NTK 把 8K 训练外推到 32K，词表 151936/152064。
+2. **Qwen1.5（2024-02-04 发布）**：**架构换血到 Qwen2 模板**——SwiGLU 全门控维、分立 q/k/v/o 投影、静态 RoPE θ=1e6、全系原生 32K、32B 首引 GQA、ChatML 模板。
+3. **Qwen2（2024-06-07 开源 / 2024-07-15 报告）**：**GQA 全系标配**（0.5B 即 14Q·2KV）+ SWA 滑窗字段 + 首个 MoE（57B-A14B，64 专家选 8 + 共享）+ 2-VL 多模态（patch14 · M-RoPE · 动态分辨率）。
+4. **Qwen2.5（2024-09-19 开源 / 2024-12-19 报告）**：文本塔**完全延续 qwen2**（0.5B config 与 Qwen2-0.5B 同规格）；2.5-VL 上下文扩 128K、视觉塔改 window attention（窗 112）。
+5. **Qwen3（2025-04-29 发布 / 2025-05-14 报告）**：**注意力回归全注意力**（sliding_window=null）+ 逐头 QK-Norm + head_dim 显式 128 + **原生 thinking**（`/think` `/no_think` 软切换）+ MoE 128 选 8（无共享专家）+ 3-VL（patch16、文本 θ 5e6、262K）。
+6. **Qwen3.5（2026-02-16 发布）**：**架构大改**——**Gated DeltaNet 线性注意力 + Gated Attention 3:1 混合**（每 4 层 3 线性 + 1 全注意力），词表 151936→**248320**，上下文 262144→YaRN 1M，多模态原生化，MoE 256 选 8 + 显式共享专家。
 7. **Qwen3.6（2026-04-22）**：**架构零变化**（27B config 与 3.5 逐字段相同）——换代在稳定化 + Thinking Preservation（历史思考块可选保留）。
-8. **Qwen3.8（2026-08）**：**架构零变化**——**Flexible Thinking Control**（思考默认开可关、reasoning_effort 三档、preserve_thinking 默认全开）+ 首次开放 Max 级纯文本 **2.4T-A95B** + 首个官方 FP8 量化版 + TokenSpeed 引擎。
+8. **Qwen3.8（2026-08-05 开源 / 2026-08-13 FP8）**：**架构零变化**——**Flexible Thinking Control**（思考默认开可关、reasoning_effort 三档、preserve_thinking 默认全开）+ 首次开放 Max 级纯文本 **2.4T-A95B** + 首个官方 FP8 量化版 + TokenSpeed 引擎。
 
 一句话：**Qwen1–Qwen3 走"标准 Transformer 系"（MHA→GQA、加滑窗字段又回归全注意力、MoE 由 57B 试水到 235B 定型），Qwen3.5 起转向"混合注意力"（Gated DeltaNet + Gated Attention 3:1，近 O(n) 长上下文），3.5/3.6/3.8 三代图纸一致、靠训练与行为换代**——这是家族最清晰的演进分水岭。
 
@@ -29,7 +29,7 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 
 | 项目 | Qwen1 | Qwen1.5 | Qwen2 | Qwen2.5 | Qwen3 | Qwen3.5 | Qwen3.6 | Qwen3.8 |
 |---|---|---|---|---|---|---|---|---|
-| 时间 | 2023-09 | 2024-02 | 2024-06/07 | 2024-12 | 2025-05 | 2026-02 | 2026-04-22 | 2026-08 |
+| 时间 | 2023-08-03 开源 / 2023-09-28 报告 | 2024-02-04 发布 | 2024-06-07 开源 / 2024-07-15 报告 | 2024-09-19 开源 / 2024-12-19 报告 | 2025-04-29 发布 / 2025-05-14 报告 | 2026-02-16 发布 | 2026-04-22 | 2026-08-05 开源 / 2026-08-13 FP8 |
 | 入口类 / model_type | QWenLMHeadModel / qwen（**remote code**，无原生模块） | Qwen2ForCausalLM / qwen2（原生） | qwen2 / qwen2_moe / qwen2_vl | qwen2 / qwen2_5_vl | qwen3 / qwen3_moe / qwen3_vl | qwen3_5 / qwen3_5_moe | 同 3.5 | qwen3_5 / qwen3_5_moe（2.4T） |
 | 代表性尺寸 | 1.8B/7B/14B/72B | 0.5B–72B（6 档） | 0.5B/1.5B/7B/57B-A14B/72B | 0.5B–72B（6 档） | Dense 0.6B–32B + MoE 30B-A3B/235B-A22B | 0.8B/9B/27B/35B-A3B/122B-A10B/397B-A17B | 27B / 35B-A3B | 27B / 2.4T-A95B / 6B-Flash（**待确认**） |
 | 注意力 | **MHA**（Q=KV），融合 c_attn，全维 RoPE | MHA（**仅 32B GQA** 5:1），分立投影 | **GQA 全系**（0.5B 7:1 … 72B 8:1）+ SWA 字段 | GQA 全系（14B/32B 5:1） | **GQA 全系 + 逐头 QK-Norm + head_dim 显式 128**；全注意力（sliding null） | **GDN 线性 + GA 3:1**（每 4 层 1 GA）；GA head_dim 256 / partial RoPE 64 / 输出门 swish | 同 3.5 | 同 3.5（2.4T：GA 64Q·4KV / GDN V128） |
@@ -51,7 +51,7 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 
 ## 二、代际演进详解
 
-### 2.1 Qwen1（2023-09）：remote-code 首代底座
+### 2.1 Qwen1（2023-08-03 开源 / 2023-09-28 报告）：remote-code 首代底座
 
 - 形态：纯文本 Dense，MHA（Q=KV 恒等），**融合 QKV 投影 c_attn**（d→3d 沿特征维三等分），kv_channels=128，RoPE 全维旋转（rotary_pct=1.0）。
 - 长上下文技巧：**LogN 注意力**（推理超长时 query × log 系数补偿 softmax 稀释）+ **动态 NTK**（按真实序列长度即时重算基频 `base' = base × ntk_alpha^{d/(d-2)}`）；72B 例外——直接静态 θ=1e6 并关闭两开关。
@@ -59,7 +59,7 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 - 分词：QWenTokenizer（tiktoken BPE），对话格式在仓库 `qwen_generation_utils.py` 的 chat()（无内置 chat_template）。
 - 规模：1.8B/7B/14B/72B，全系 tie=False。
 
-### 2.2 Qwen1.5（2024-02）：架构换血到 qwen2 模板
+### 2.2 Qwen1.5（2024-02-04 发布）：架构换血到 qwen2 模板
 
 | 维度 | Qwen1 | Qwen1.5 |
 |---|---|---|
@@ -71,7 +71,7 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 | 上下文 | 8K 训练扩 32K | **全系原生 32768**（sliding_window 字段实为遗留，未启用） |
 | 对话 | 仓库 chat() | **ChatML 内置**（im_start/im_end） |
 
-### 2.3 Qwen2（2024-06/07）：GQA 全系 + 首个 MoE + 2-VL
+### 2.3 Qwen2（2024-06-07 开源 / 2024-07-15 报告）：GQA 全系 + 首个 MoE + 2-VL
 
 | 维度 | Qwen1.5 | Qwen2 |
 |---|---|---|
@@ -83,13 +83,13 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 
 - 注意：Qwen2 的 `sliding_window` 字段在 v5 `__post_init__` 中因 `use_sliding_window=false` 被置 None，**当前 v5 推理全层走 full_attention**（SWA 机制保留在源码供开关使用）。
 
-### 2.4 Qwen2.5（2024-12）：文本延续 + VL 升级
+### 2.4 Qwen2.5（2024-09-19 开源 / 2024-12-19 报告）：文本延续 + VL 升级
 
 - 文本塔：**与 Qwen2 完全同构**（0.5B config 同规格，仅 max_window_layers 24→21；大尺寸 70）。
 - 2.5-VL：上下文 **128K**；视觉塔改 **window attention**（窗 112，全局块 7/15/23/31，32 层中仅 4 块全局）+ 原生动态分辨率（patch 14 直切任意分辨率）。
 - 变体：2.5-Coder / 2.5-Omni / 2.5-Max（闭源 API）。
 
-### 2.5 Qwen3（2025-05）：全注意力回归 + thinking + QK-Norm
+### 2.5 Qwen3（2025-04-29 发布 / 2025-05-14 报告）：全注意力回归 + thinking + QK-Norm
 
 | 维度 | Qwen2.5 | Qwen3 |
 |---|---|---|
@@ -100,7 +100,7 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 | 3-VL | — | patch16 · temporal2 · spatial_merge2 · text rope_theta **5e6** · M-RoPE [24,20,20] · deepstack [5,11,17] |
 | MTP | 无 | qwen3_next（投机解码） |
 
-### 2.6 Qwen3.5（2026-02）：混合注意力大改（Gated DeltaNet + Gated Attention 3:1）
+### 2.6 Qwen3.5（2026-02-16 发布）：混合注意力大改（Gated DeltaNet + Gated Attention 3:1）
 
 | 维度 | Qwen3 | Qwen3.5 |
 |---|---|---|
@@ -120,7 +120,7 @@ Qwen 家族的演进主线是一条「**三代注意力路线 + 两轮词表跃�
 - 行为换代：interleaved thinking 默认**只保留最新一条用户消息的思考块**；新增可选 `preserve_thinking=True` 保留全部历史思考块（agent 长程任务：决策一致、减少重复推理）。
 - 不官方支持 `/think` `/nothink`；关闭思考用 `enable_thinking=False`；官方建议上下文 ≥128K 以保思考。
 
-### 2.8 Qwen3.8（2026-08）：架构零变化，Flexible Thinking Control + 2.4T-A95B
+### 2.8 Qwen3.8（2026-08-05 开源 / 2026-08-13 FP8）：架构零变化，Flexible Thinking Control + 2.4T-A95B
 
 | 维度 | Qwen3.6 | Qwen3.8 |
 |---|---|---|
